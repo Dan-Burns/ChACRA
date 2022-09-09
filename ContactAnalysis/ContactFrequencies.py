@@ -2,7 +2,7 @@
 """
 Spyder Editor
 
-This is a temporary script file.
+Author: Dan Burns
 """
 import pandas as pd
 import numpy as np
