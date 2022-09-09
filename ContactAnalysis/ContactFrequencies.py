@@ -14,14 +14,11 @@ from scipy.stats import linregress
 import MDAnalysis as mda
 
 
-#test data
-x_teic_loops = '~/Box/GROUP_data/HREMD2/\
-analysis_output/teic/dataframes/teic_x_averaged_loop_pep_frequencies.csv'
 
 def make_contact_frequency_dictionary(freq_files):
     '''
     go through a list of frequency files and record all of the frequencies for 
-    each replica
+    each replica.  
     '''
     
     
