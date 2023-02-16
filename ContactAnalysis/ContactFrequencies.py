@@ -453,14 +453,14 @@ class ContactFrequencies:
             reslists[chain].sort()
             # map the chain id onto the resid
             # this will be the indices and columns for the heatmap
-
+            # lambda function for mapping chain id back onto residue
             res_append = lambda res: f"{chain}{res}"
             all_resis.extend(list(map(res_append,reslists[chain])))
 
         # create an empty heatmap
         data = np.zeros((len(all_resis), len(all_resis)))
 
-
+        # get the index for the corresponding residue
         for contact in self.freqs.columns:
             resinfo = self._parse_id(contact)
             index1 = all_resis.index(f"{resinfo['chaina']}{resinfo['resida']}")
