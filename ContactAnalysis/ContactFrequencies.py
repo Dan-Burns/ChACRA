@@ -428,7 +428,7 @@ class ContactFrequencies:
         
         # Turn the data into a heatmap 
         # format options are 'mean', 'stdev', 'difference'
-        # if 'difference', specify range of rows your interested in taking the difference from
+        # if 'difference', specify tuple of rows your interested in taking the difference from
        
         # hold reslists with chain keys and list of resid values
         reslists = {}
@@ -437,35 +437,45 @@ class ContactFrequencies:
             resinfo = self._parse_id(contact)
 
             if resinfo['chaina'] in reslists.keys():
-                reslists['chaina'].append(int(resinfo['resida']))
+                reslists[resinfo['chaina']].append(int(resinfo['resida']))
             else:
                 reslists[resinfo['chaina']] = [int(resinfo['resida'])]
             if resinfo['chainb'] in reslists.keys():
-                reslists['chainb'].append(int(resinfo['residb']))
+                reslists[resinfo['chainb']].append(int(resinfo['residb']))
             else:
                 reslists[resinfo['chainb']] = [int(resinfo['residb'])]
         
         # eliminate duplicates, sort the reslists in ascending order, and make a single list of all resis
+        ## TODO sort the dictionary by chain id
         all_resis = []
         for chain in reslists:
             reslists[chain] = list(set(reslists[chain]))
             reslists[chain].sort()
-            all_resis.extend(reslists[chain])
+            # map the chain id onto the resid
+            # this will be the indices and columns for the heatmap
+
+            res_append = lambda res: f"{chain}{res}"
+            all_resis.extend(list(map(res_append,reslists[chain])))
 
         # create an empty heatmap
         data = np.zeros((len(all_resis), len(all_resis)))
 
 
-        for chain in reslists:
+        for contact in self.freqs.columns:
+            resinfo = self._parse_id(contact)
+            index1 = all_resis.index(f"{resinfo['chaina']}{resinfo['resida']}")
+            index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
 
-            # gotta go back through all the columns now
-            '''if int(resid1) in domains['A_AB']:
-                row = domains['A_AB'].index(int(resid1))
-                column = domains['C'].index(int(resid2))
-            else:
-                row = domains['A_AB'].index(int(resid2))
-                column = domains['C'].index(int(resid1))
-            data[row][column] = dfc[contact].mean()   '''                            
+            values = {}
+            values['mean'], values['stdev'], values['difference'] = self.freqs[contact].mean(), self.freqs[contact].std(), self.freqs[contact].iloc[-1]-self.freqs[contact].iloc[0]
+            
+            data[index1][index2] = values[format]
+            data[index2][index1] = values[format]
+        
+        return pd.DataFrame(data, columns=all_resis, index=all_resis)
+
+
+            
             
                                        
 
