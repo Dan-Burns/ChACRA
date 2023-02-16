@@ -412,6 +412,8 @@ class ContactFrequencies:
         
     def shortest_route(self, structure, begin_res, end_res):
         '''
+
+        REMOVE - this is done with networkx functions
         Use the contact labels and the structure to find the shortest
         route between two residues. 
         Backbone should probably be calculated.
@@ -419,8 +421,52 @@ class ContactFrequencies:
         the strongest route.
         This does not guarantee that the route will be continguous since
         one residue might have to exchange contacts between two others.
+
         '''
-                                                        
+
+    def to_heatmap(self,format='mean', range=None):
+        
+        # Turn the data into a heatmap 
+        # format options are 'mean', 'stdev', 'difference'
+        # if 'difference', specify range of rows your interested in taking the difference from
+       
+        # hold reslists with chain keys and list of resid values
+        reslists = {}
+
+        for contact in self.freqs.columns:
+            resinfo = self._parse_id(contact)
+
+            if resinfo['chaina'] in reslists.keys():
+                reslists['chaina'].append(int(resinfo['resida']))
+            else:
+                reslists[resinfo['chaina']] = [int(resinfo['resida'])]
+            if resinfo['chainb'] in reslists.keys():
+                reslists['chainb'].append(int(resinfo['residb']))
+            else:
+                reslists[resinfo['chainb']] = [int(resinfo['residb'])]
+        
+        # eliminate duplicates, sort the reslists in ascending order, and make a single list of all resis
+        all_resis = []
+        for chain in reslists:
+            reslists[chain] = list(set(reslists[chain]))
+            reslists[chain].sort()
+            all_resis.extend(reslists[chain])
+
+        # create an empty heatmap
+        data = np.zeros((len(all_resis), len(all_resis)))
+
+
+        for chain in reslists:
+
+            # gotta go back through all the columns now
+            '''if int(resid1) in domains['A_AB']:
+                row = domains['A_AB'].index(int(resid1))
+                column = domains['C'].index(int(resid2))
+            else:
+                row = domains['A_AB'].index(int(resid2))
+                column = domains['C'].index(int(resid1))
+            data[row][column] = dfc[contact].mean()   '''                            
+            
                                        
 
 

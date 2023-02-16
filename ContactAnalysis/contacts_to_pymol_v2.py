@@ -169,7 +169,7 @@ def nx_edges_to_pymol(output, edge_list):
             color_distance = f'color blue, {edge1_resid}-{edge2_resid}) \n'
             file.write(dist_string+'\n')
             color_distance = f'color blue, {edge1_resid}-{edge2_resid} \n'
-            file.write(dist_string+'\n')
+        
             file.write(color_distance)
      
     
