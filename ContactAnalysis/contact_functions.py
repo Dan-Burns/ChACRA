@@ -11,6 +11,8 @@ import MDAnalysis as mda
 import numpy as np
 
 
+
+
 def _parse_id(contact):
     '''
     take the contact name (column id) and return a dictionary of
@@ -20,7 +22,7 @@ def _parse_id(contact):
     return {'chaina':chaina, 'resna':resna, 'resida':resida,
              'chainb':chainb, 'resnb':resnb, 'residb':residb}
 
-def check_distance(contact, structure):
+def check_distance(contact, structure):  ### Not being used - replaced with check_distance_mda
     '''
     This will compare distances between the same resids swapped between chain A and B to 
     find the combination representing the actual contact to depict on the pymol structure
@@ -29,8 +31,8 @@ def check_distance(contact, structure):
     '''
     # in the class format can add structure=None to the class invocation and if its included can have the structure
     # object made outside of this function
-    
-    parser = PDBParser()
+
+    parser = PDBParser(QUIET=True)
     structure = parser.get_structure('test', structure)
     
     resids = _parse_id(contact)
@@ -56,15 +58,14 @@ def check_distance(contact, structure):
         return contact
     else:
         return 'A:'+resids['resnb']+':'+str(resids['residb'])+'-'+\
-               'B:'+resids['resna']+':'+str(resids['resida'])
-               
+            'B:'+resids['resna']+':'+str(resids['resida'])
+                
 
 def check_distance_mda(contact, u):
     '''
     This will compare distances between the same resids swapped between chain A and B to 
     find the combination representing the actual contact to depict on the pymol structure
-    Would probably be faster with mdanalysis - just need to make mdanalysis selection syntax
-    res.atoms.name('CA').position np.norm
+    
     '''
     # in the class format can add structure=None to the class invocation and if its included can have the structure
     # object made outside of this function

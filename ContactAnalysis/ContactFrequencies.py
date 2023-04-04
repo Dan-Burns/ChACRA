@@ -9,9 +9,10 @@ import numpy as np
 import re
 import pathlib
 from sklearn.decomposition import PCA
-from ContactAnalysis.contact_functions import _parse_id, check_distance, check_distance_mda
+from .contact_functions import _parse_id, check_distance, check_distance_mda
 from scipy.stats import linregress
 import MDAnalysis as mda
+
 
 
 
@@ -204,13 +205,13 @@ class ContactFrequencies:
                     reduced_contacts.append(contact)
         return reduced_contacts
     
-    def average_contacts2(self, structure=None):
+    def average_contacts(self, structure=None):
         '''
-        Seems to work but doesn't seem any faster than original implementation.
-        get contacts has the contact name arraged 'lexographically' so don't
+        get contacts has the contact name arranged 'lexographically' so don't
         need to search for the equivalent contact with swapped name.
         Could use df.filter to get other column names
         '''
+        print('This can take a few minutes..')
         # make a copy of the df 
         df = self.freqs.copy()
         
@@ -246,12 +247,9 @@ class ContactFrequencies:
                 # Get rid of the columns used for averaging
                 df.drop(to_average, axis=1, inplace=True)
             # If they are happening inter-subunit
-            # This does will not label opposing subunit contacts right
-            # They'll be labeled as if they're happening on adjacent subunits
-            # And if contacts are being made in the middle of the pore with
-            # identical resids adjacent and opposite, they'll get combined for 
-            # the time being. (not really interested in these rare contacts
-            # that do not inform on the larger allosteric pathways atm)
+            # at the moment, need to be careful when n_subunits > 2
+            # and review regions of the protein where adjacent vs opposing protomer
+            # contacts are occurring as they will all be lumped into adjacent id.
             else:
                 
                 to_average = [
@@ -284,92 +282,6 @@ class ContactFrequencies:
             
             
     
-    def average_contacts(self, structure=None):
-        '''
-        Very slow method.
-        
-        Might be improved by taking column 1 (maybe the way equivalent contacts
-        (A/B or C/D) occur is always in same order since getcontacts formats it)
-        and us regex to collect all columns with different chain ids, average
-        them, then drop them in place from the df so it gets progressively smaller.
-        
-        Use this if all of your data comes from a protein with multiple
-        identical subunits.  This will average the contacts that are identical/
-        duplicated on each subunit.  Contacts that are only recorded 
-        on one subunit will be included in the averaged contact df but will 
-        be the same as their original values.
-        
-        Provide a structure to find intersubunit residues that actually 
-        make contact so that they can be depicted properly (chain B res 1 with
-        chain A res 50 vs chain B res 50 with chain A res 1..)
-        '''
-        # Make list of columns
-        # For each column name, find any others that match the contacting indices and add as a list value to a dictionary
-        # The lengths of all the dictionarys lists added together will equal the number of columns in the df if correct
-    
-        # then use the list of tuples to make a new dataframe where you average those columns
-    
-        # this hold the tuples showing column names with duplicated contacts
-        duplicates = {}
-        columns = list(self.freqs.columns)
-    
-        # This holds anything that gets appended to the hold list so the loop can skip them if they've already
-        # been added to the duplicates dictionary
-        check = []
-    
-        # iterate through the list of columns
-        for i, column in enumerate(columns):
-            # hold all the duplicated column ids for the current iteration
-            hold = []
-            resids1 = self._parse_id(column)
-            # check to see if this column has already been included in a duplicate group
-            if column in check:
-                continue
-            # if not continue the iteration looking for duplicates
-            hold.append(column)
-            check.append(column)
-    
-            # compare all of the subsequent columns remaining in the list to the current column
-            for comparison_column in columns[i+1:]:
-                resids2 = self._parse_id(comparison_column)
-                # make sure that the comparison column has the same pattern of chains (same or dif)
-                if (resids1['chaina'] == resids1['chainb'] and resids2['chaina'] == resids2['chainb']) or (
-                    resids1['chaina'] != resids1['chainb'] and resids2['chaina'] != resids2['chainb']):
-                    # if the chain pattern matches, the resids can match any order (could maybe use in new_list check)
-                    if (resids1['resida'] == resids2['resida'] and resids1['residb'] == resids2['residb']) or (
-                        resids1['resida'] == resids2['residb'] and resids1['residb'] == resids2['resida']):
-                        hold.append(comparison_column)
-                        check.append(comparison_column)
-            # create a generalized key (for duplicates dictionary)
-            # so that the duplicated columns and key name match the chain pattern
-            # and make a list dictionary item with the column names
-            # add a biopython pdb function to find shortest distance and name accordingly 
-            # (if B to A < A to B then switch resids accordingly)
-            if resids1['chaina'] == resids1['chainb']:
-                duplicates['A:'+resids1['resna']+':'+resids1['resida']+'-'+
-                          'A:'+resids1['resnb']+':'+resids1['residb']] = hold
-            else:
-                if structure:
-                    contact = 'A:'+resids1['resna']+':'+resids1['resida']+'-'+\
-                    'B:'+resids1['resnb']+':'+resids1['residb']
-                    # find the closest residues in contact in the structure
-                    duplicates[check_distance(contact,structure)] = hold
-                else:
-                    duplicates['A:'+resids1['resna']+':'+resids1['resida']+'-'+
-                          'B:'+resids1['resnb']+':'+resids1['residb']] = hold
-        #confirm that the dictionary contains the same number of column ids in the lists as the original dfs number of columns      
-        counter = 0
-        for item in duplicates.values():
-            counter += len(item)
-        #if counter == len(columns):
-        #print('Number of columns in the duplicate column record matches the number of columns in the dataframe')
-        
-        # Now average the duplicate contact columns
-        averaged_contacts = {key:0 for key in duplicates.keys()}
-        for contact in duplicates.keys():
-            averaged_contacts[contact]=self.freqs[duplicates[contact]].mean(axis=1)
-        
-        return pd.DataFrame(averaged_contacts) 
 
     def renumber_residues(self, starting_residue_number):   
         '''renumber the residues so the first residue begins with
