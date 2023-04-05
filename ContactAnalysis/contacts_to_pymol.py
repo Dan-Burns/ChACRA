@@ -6,7 +6,7 @@ from .contact_functions import _parse_id, check_distance
 import matplotlib as mpl
 from pylab import cm
 from matplotlib.colors import to_hex
-
+import collections
 
 # Refactoring of contacts_to_pymol_v2 (yes, v2 precedes this)
 
@@ -46,7 +46,7 @@ Can make the slope depiction be more informative with dash gaps and line widths.
 '''
 
 
-def get_contact_data(contact_list,contactFrequencies, contactPCA
+def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4)
                     ):
@@ -75,31 +75,49 @@ def get_contact_data(contact_list,contactFrequencies, contactPCA
         identifying the highest loading scores, coloring, etc.
          
     '''
-data = {contact:{} for contact in contact_list}
+    data = {contact:{} for contact in contact_list}
 
-#easier access to contact dataframe
-cdf = contactFrequencies.freqs
-
-
-for contact in contact_list:
-    chain_a, resn_a, resnum_a, chain_b, resn_b, resnum_b = re.split(
-                                                    ":|-", contact
-                                                        )
-    
-    # get the PC that the contact scores highest on
+    #easier access to contact dataframe
+    cdf = contactFrequencies.freqs
 
 
-    # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
-    data[contact]['slope'] = get_slope(cdf,
-                                       contact, 
-                                       temp_range=(slope_range[0],
-                                                   min(slope_range[1],cdf.shape[0])))
-
-    
-
-    
+    for contact in contact_list:
+        chaina, resna, resia, chainb, resnb, resib = re.split(
+                                                        ":|-", contact
+                                                            )
+        
+        # get the PC that the contact scores highest on
 
 
+        # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
+        data[contact]['slope'] = get_slope(cdf,
+                                        contact, 
+                                        temp_range=(slope_range[0],
+                                                    min(slope_range[1],cdf.shape[0])))
+
+        
+        # dictionary where first key is top PC
+        scores = contactPCA.get_scores(contact, pc_range=(pc_range[0],pc_range[1]))
+
+        top_pc = list(scores.keys())[0]
+
+        top_score = scores[top_pc]['score']
+
+        data[contact]['top_pc'] = top_pc
+
+        data[contact]['loading_score'] = top_score
+
+        data[contact]['color'] = pc_color(top_pc)
+
+        data[contact]['sel_1'] = f'resname {resna} and resnum {resia} and chain {chaina}'
+        data[contact]['sel_2'] = f'resname {resnb} and resnum {resib} and chain {chainb}'
+
+        # sort the dictionary in ascending order of loading score so that
+        # the highest scores get colored last (and take visual precedence)
+        # can also make the option to sort by any of the number valued dictionary items
+        # sort the dictionary by score
+    result = collections.OrderedDict(sorted(data.items(), key=lambda t:t[1]["loading_score"]))
+    return result
 
 
 def get_slope(df,contact,temp_range=(0,7)):
@@ -130,46 +148,35 @@ def sort_contacts_by_highest_score(prepared_contact_list,contact_pca):
     return sorted_ranks
 
 
-def color_selection_by_pc(selection, contact_tuple):
+def pc_color(pc):
     '''
-    Take pymol selection  and contact frequency line and write a pymol color command that colors according
-    to contact frequency
-    
-    contact tuple can be generated from prepare_contact()
-    
-    Need to add an argument to include a cmap and specify gradients
-        something like np.linspace(min-max_freqs), cmap=plasma)
-        and have it replace the values below.
+    Return a pymol color string corresponding to a PC
     '''
+   
     
-    selection = re.split(' |,', selection)[1]
-    
-    if int(contact_tuple[2]) == 1:
+    if int(pc) == 1:
         color = 'red'
-    elif int(contact_tuple[2]) == 2:
+    elif int(pc) == 2:
         color = '0x02a8f8'
-    elif int(contact_tuple[2]) == 3:
+    elif int(pc) == 3:
         color = 'ytterbium'
-    elif int(contact_tuple[2]) == 4:
+    elif int(pc) == 4:
         color = 'purpleblue'
-    elif int(contact_tuple[2]) == 5:
+    elif int(pc) == 5:
         color = 'gray30'
-    elif int(contact_tuple[2]) == 6:
+    elif int(pc) == 6:
         color = 'magenta'
-    elif int(contact_tuple[2]) == 7:
+    elif int(pc) == 7:
         color = '0xfad300'
-    elif int(contact_tuple[2]) == 8:
+    elif int(pc) == 8:
         color = 'greencyan'
-    elif int(contact_tuple[2]) == 9:
+    elif int(pc) == 9:
         color = 'gray50'
    
     else:
         color = 'yellow'
-    
-    
-    color_string = 'color ' + color + ', ' + selection
-    
-    return color_string
+
+    return color
 
 
 def get_variance_to_sphere_scale_interpolator(eigenvalues,

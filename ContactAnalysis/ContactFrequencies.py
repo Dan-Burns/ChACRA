@@ -12,6 +12,7 @@ from sklearn.decomposition import PCA
 from .contact_functions import _parse_id, check_distance, check_distance_mda
 from scipy.stats import linregress
 import MDAnalysis as mda
+import collections
 
 
 
@@ -505,23 +506,29 @@ class ContactPCA:
         
         return (highest_scoring_contact, highest_score, highest_pc, str(rank))
     
-    def get_scores(self, contact, pc_range=range(1,5)):
+    def get_scores(self, contact, pc_range=(1,4)):
         '''
-        Return the normalized loading score, pc,
-        rank on each pc in pc_range
+        Return the normalized loading score,
+        rank, and percentile it falls in for the contact on each pc in pc_range
+        dictionary keys are PC numbers corresponding to dictionaries of these
+        items
         '''
-        contacts = []
+
+        pc_range = range(pc_range[0],pc_range[1]+1)
+
+        contacts = {pc:{} for pc in pc_range}
         for pc in pc_range:
-            rank = list(self.sorted_norm_loadings(pc).index
+            contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
                                    ).index(contact) +1
-            score = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
+            contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
             
-            percentile = 100 - ((rank/len(self.loadings))*100)
-            contacts.append({'score':score, 'PC':pc, 'rank':rank,
-                             'percentile':percentile})
-            
-         
-        return contacts
+            contacts[pc]['percentile'] = 100 - ((contacts[pc]['rank']/len(self.loadings))*100)
+      
+        # sort the dictionary by score
+        result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))
+        # put in descending order
+        return collections.OrderedDict(reversed(list(result.items())))
+        
             
         
     def in_percentile(self, contact, percentile, pc=None):
