@@ -11,7 +11,7 @@ import re
 import numpy as np
 from Bio.PDB.PDBParser import PDBParser
 from scipy.stats import linregress
-from ContactAnalysis.contact_functions import _parse_id, check_distance
+from .contact_functions import _parse_id, check_distance
 import matplotlib as mpl
 
 from pylab import cm
