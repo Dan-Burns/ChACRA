@@ -9,9 +9,10 @@ import numpy as np
 import re
 import pathlib
 from sklearn.decomposition import PCA
-from .contact_functions import _parse_id, check_distance, check_distance_mda
+from .contact_functions import _parse_id, check_distance_mda
 from scipy.stats import linregress
 import MDAnalysis as mda
+import collections
 
 
 
@@ -205,18 +206,24 @@ class ContactFrequencies:
                     reduced_contacts.append(contact)
         return reduced_contacts
     
-    def average_contacts(self, structure=None):
-        '''
-        get contacts has the contact name arranged 'lexographically' so don't
-        need to search for the equivalent contact with swapped name.
-        Could use df.filter to get other column names
-        '''
-        print('This can take a few minutes..')
-        # make a copy of the df 
+    
+
+
+    def average_contacts(self, structure=None, identical_subunits=None):
+       
+       
         df = self.freqs.copy()
-        
+
         if structure:
             u = mda.Universe(structure)
+            subunits = [seg.segid for seg in u.segments]
+            if identical_subunits == None:
+                identical_subunits = subunits
+            else:
+                print("Can't determine how many subunits for averaging."
+                      "Specify identical_subunits chain IDs or provide a structure.")
+                return
+        subunits_string = ''.join(identical_subunits)
         
         averaged_data = {}
         # this will start a loop where after a column has been averaged,
@@ -227,58 +234,67 @@ class ContactFrequencies:
             
             # If the contact is happening in the same subunit
             if resids['chaina'] ==  resids['chainb']:
+                contact = f"A:{resids['resna']}:{resids['resida']}-"\
+                        f"A:{resids['resnb']}:{resids['residb']}"
                 
-                # Find others with matching residue numbers happening in the
-                # same subunit
-                to_average = [
-                 c for c in df if 
-                 (
-                  ((re.split(':|-',c)[2] == resids['resida']) 
-                  and 
-                  (re.split(':|-',c)[5] == resids['residb']))
-                  and
-                  (re.split(':|-',c)[0] == re.split(':|-',c)[3])
-                  )
-                ]
-                contact = 'A:'+resids['resna']+':'+resids['resida']+'-'+\
-                'A:'+resids['resnb']+':'+resids['residb']
-                
-                averaged_data[contact] = df[to_average].mean(axis=1)
-                # Get rid of the columns used for averaging
+                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}-[{subunits_string}]:{resids['resnb']}:{resids['residb']}"
+
+                to_average = list(df.filter(regex=regex, axis=1).columns)
+                # check to make sure none of the contacts in to_average have different chain IDs
+                to_remove = []
+                for pair in to_average:
+                    check = _parse_id(pair)
+                    if check['chaina'] != check['chainb']:
+                       to_remove.append(pair)
+                for pair in to_remove:
+                    to_average.remove(pair)
+
+                if len(to_average) == len(identical_subunits):
+                    averaged_data[contact] = df[to_average].mean(axis=1)
+                elif len(to_average) < len(identical_subunits):
+                    averaged_data[contact] = df[to_average].sum(axis=1)/len(identical_subunits)
+                elif len(to_average) > len(identical_subunits):
+                    print(f'Stopping after getting more contacts than identical subunits for contact matching {contact}: {to_average}')
+                    return
                 df.drop(to_average, axis=1, inplace=True)
-            # If they are happening inter-subunit
-            # at the moment, need to be careful when n_subunits > 2
-            # and review regions of the protein where adjacent vs opposing protomer
-            # contacts are occurring as they will all be lumped into adjacent id.
+
             else:
+                # can add a means of determining which subunits are neighboring vs opposing...
+                contact = f"A:{resids['resna']}:{resids['resida']}-"\
+                        f"B:{resids['resnb']}:{resids['residb']}"
                 
-                to_average = [
-                 c for c in df if 
-                 (
-                  ((re.split(':|-',c)[2] == resids['resida']) 
-                  and 
-                  (re.split(':|-',c)[5] == resids['residb']))
-                  and
-                  (re.split(':|-',c)[0] != re.split(':|-',c)[3])
-                  )
-                ]
-                
-                # Give the general name to the inter-subunit contact
-                contact = 'A:'+resids['resna']+':'+resids['resida']+'-'+\
-                'B:'+resids['resnb']+':'+resids['residb']
-                
+                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}-[{subunits_string}]:{resids['resnb']}:{resids['residb']}"
+
+                to_average = list(df.filter(regex=regex, axis=1).columns) 
+                to_remove = []
+                # check to make sure none of the contacts in to_average have identical chain IDs
+                for pair in to_average:
+                    check = _parse_id(pair)
+                    if check['chaina'] == check['chainb']:
+                       to_remove.append(pair)
+                for pair in list(set(to_remove)):
+                    to_average.remove(pair)
+                # to_average will catch adjacent and opposing subunit contacts here
+                # if the input structure is set up to have A and B adjacent and C opposing A
+                # then represent opposing with a new contact A-C 
                 if structure:
-                    
-                    # find the closest residues in contact in the structure
-                    contact = check_distance_mda(contact,u)
-                    averaged_data[contact] = df[to_average].mean(axis=1)
-                else:
-                    averaged_data[contact] = df[to_average].mean(axis=1)
-                    
-                df.drop(to_average, axis=1, inplace=True)
-            
-        return pd.DataFrame(averaged_data)
+                #find the closest residues in contact in the structure
+                    contact = check_distance_mda(contact,u)     
                 
+                if len(to_average) == len(identical_subunits):
+                    averaged_data[contact] = df[to_average].mean(axis=1)
+                elif len(to_average) < len(identical_subunits):
+                    averaged_data[contact] = df[to_average].sum(axis=1)/len(identical_subunits)
+               
+                elif len(to_average) > len(identical_subunits):
+                    print(f'got more contacts than identical subunits for contact matching {contact}: {to_average}')
+                    averaged_data[contact] = df[to_average].mean(axis=1)
+                df.drop(to_average, axis=1, inplace=True)
+
+        return pd.DataFrame(averaged_data)
+
+
+    
             
             
     
@@ -469,59 +485,54 @@ class ContactPCA:
         return all_contacts   
 
                 
-    def get_top_contact(self, resnum, pc_range=(1,5)):
+    def get_top_contact(self, resnum, pc_range=(1,4)):
         '''
         Return the contact name, normalized loading score, pc on which it has 
         its highest score, and the overall rank the score represents on the pc.
         pc_range is the range of PCs to include in the search for the
         highest score
-        '''
-        pc_range = range(pc_range[0],pc_range[1])
-        pcs = ['PC'+str(i) for i in pc_range]
         
-        # list to store the contact ids involving resnum
+        pc_range is inclusive
+        '''
+        pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
         contacts = []
-        # find the contact ids involving resnum
         for contact in self.norm_loadings.index:
             if str(resnum) in _parse_id(contact).values():
                 contacts.append(contact)
-        if contacts == []:
-            return None
-        # return the highest scoring contact loading score among pc_range
-        # involving resnum
-        highest_score = self.norm_loadings[pcs].loc[contacts].max().max()
-        
-        # get the PC that the highest score occurs
-        for label in self.norm_loadings[pcs].loc[contacts].max().index:
-            if self.norm_loadings[pcs].loc[contacts].max().loc[label] == highest_score:
-                highest_pc = label[2:]
-                # get the contact id having the highest score
-                for contact in contacts:
-                    if self.norm_loadings[label].loc[[contact]][0] == highest_score:
-                        highest_scoring_contact = contact
-                        
-        rank = self.sorted_norm_loadings(highest_pc)[['PC'+highest_pc]
-                        ].index.to_list().index(highest_scoring_contact)+1
-        
-        return (highest_scoring_contact, highest_score, highest_pc, str(rank))
+
+
+        highest_scores = self.norm_loadings[pcs].loc[contacts].max()
+        top_score = highest_scores.sort_values()[-1]
+        top_pc = highest_scores.sort_values().index[-1]
+        contact = self.norm_loadings.loc[contacts][self.norm_loadings[pcs].loc[contacts][top_pc] == top_score].index[0]
+        return {'contact':contact, 'PC':top_pc, 'loading_score':top_score}
     
-    def get_scores(self, contact, pc_range=range(1,5)):
+    
+    ## TODO this is slow - minutes to run on the entire contact list
+    def get_scores(self, contact, pc_range=(1,4)):
         '''
-        Return the normalized loading score, pc,
-        rank on each pc in pc_range
+        Return the normalized loading score,
+        rank, and percentile it falls in for the contact on each pc in pc_range
+        dictionary keys are PC numbers corresponding to dictionaries of these
+        items
+        pc_range is inclusive
         '''
-        contacts = []
+
+        pc_range = range(pc_range[0],pc_range[1]+1)
+
+        contacts = {pc:{} for pc in pc_range}
         for pc in pc_range:
-            rank = list(self.sorted_norm_loadings(pc).index
+            
+            contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
                                    ).index(contact) +1
-            score = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
+            contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
             
-            percentile = 100 - ((rank/len(self.loadings))*100)
-            contacts.append({'score':score, 'PC':pc, 'rank':rank,
-                             'percentile':percentile})
-            
-         
-        return contacts
+      
+        # sort the dictionary by score
+        result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))
+        # put in descending order
+        return collections.OrderedDict(reversed(list(result.items())))
+        
             
         
     def in_percentile(self, contact, percentile, pc=None):
