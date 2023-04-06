@@ -9,7 +9,7 @@ import numpy as np
 import re
 import pathlib
 from sklearn.decomposition import PCA
-from .contact_functions import _parse_id, check_distance, check_distance_mda
+from .contact_functions import _parse_id, check_distance_mda
 from scipy.stats import linregress
 import MDAnalysis as mda
 import collections
@@ -206,8 +206,10 @@ class ContactFrequencies:
                     reduced_contacts.append(contact)
         return reduced_contacts
     
+    ## TODO This is Sloooooow
     def average_contacts(self, structure=None):
         '''
+
         get contacts has the contact name arranged 'lexographically' so don't
         need to search for the equivalent contact with swapped name.
         Could use df.filter to get other column names
@@ -506,23 +508,25 @@ class ContactPCA:
         
         return (highest_scoring_contact, highest_score, highest_pc, str(rank))
     
+    ## TODO this is slow - minutes to run on the entire contact list
     def get_scores(self, contact, pc_range=(1,4)):
         '''
         Return the normalized loading score,
         rank, and percentile it falls in for the contact on each pc in pc_range
         dictionary keys are PC numbers corresponding to dictionaries of these
         items
+        pc_range is inclusive
         '''
 
         pc_range = range(pc_range[0],pc_range[1]+1)
 
         contacts = {pc:{} for pc in pc_range}
         for pc in pc_range:
+            
             contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
                                    ).index(contact) +1
             contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
             
-            contacts[pc]['percentile'] = 100 - ((contacts[pc]['rank']/len(self.loadings))*100)
       
         # sort the dictionary by score
         result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))

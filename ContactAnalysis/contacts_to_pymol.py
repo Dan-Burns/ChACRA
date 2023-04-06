@@ -85,17 +85,14 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         chaina, resna, resia, chainb, resnb, resib = re.split(
                                                         ":|-", contact
                                                             )
-        
+        data[contact]['chaina'] = chaina
+        data[contact]['resna'] = resna
+        data[contact]['resia'] = resia
+        data[contact]['chainb'] = chainb
+        data[contact]['resnb'] = resnb
+        data[contact]['resib'] =resib
+
         # get the PC that the contact scores highest on
-
-
-        # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
-        data[contact]['slope'] = get_slope(cdf,
-                                        contact, 
-                                        temp_range=(slope_range[0],
-                                                    min(slope_range[1],cdf.shape[0])))
-
-        
         # dictionary where first key is top PC
         scores = contactPCA.get_scores(contact, pc_range=(pc_range[0],pc_range[1]))
 
@@ -103,21 +100,119 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         top_score = scores[top_pc]['score']
 
+     
+
         data[contact]['top_pc'] = top_pc
 
         data[contact]['loading_score'] = top_score
 
+       
+
         data[contact]['color'] = pc_color(top_pc)
+
+        # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
+        data[contact]['slope'] = get_slope(cdf,
+                                        contact, 
+                                        temp_range=(slope_range[0],
+                                                    min(slope_range[1],cdf.shape[0])))
+
 
         data[contact]['sel_1'] = f'resname {resna} and resnum {resia} and chain {chaina}'
         data[contact]['sel_2'] = f'resname {resnb} and resnum {resib} and chain {chainb}'
 
         # sort the dictionary in ascending order of loading score so that
         # the highest scores get colored last (and take visual precedence)
-        # can also make the option to sort by any of the number valued dictionary items
+        # can also make the option to sort by any of the dictionary items
         # sort the dictionary by score
     result = collections.OrderedDict(sorted(data.items(), key=lambda t:t[1]["loading_score"]))
     return result
+
+
+def write_selections(contact_data, output_file):
+    '''
+    Write the pymol commands for a depicting the contacts to a file.
+
+    Parameters
+    ----------
+    contact_data : dictionary
+        the get_contact_data() dictionary 
+
+    output_file : str
+        path to the output pml file
+    
+
+    '''
+
+    with open(output_file, 'w') as f:
+        # iterating through dictionary and taking the contact name (contact)
+        # and the corresponding dictionary (data) 
+        for contact, data in contact_data.items():
+
+            # name the selection
+            contact = f"{data['chaina']}{data['resna']}{data['resia']}-{data['chainb']}{data['resnb']}{data['resib']}"
+            f.write(f"select {contact}, chain {data['chaina']} and resi {data['resia']} "
+                    f"or chain {data['chainb']} and resi {data['resib']}\n")
+            # color
+            f.write(f"color {data['color']}, {contact}\n")
+
+            # draw the line
+            f.write(f"distance {contact}-line, (chain {data['chaina']} and resi {data['resia']} and name CA), "
+                   f"(chain {data['chainb']} and resi {data['resib']} and name CA)\n")
+            
+            # color the line 
+            f.write(f"color {data['color']}, {contact}-line\n")
+
+            # set the line dash gap (just need to set it to 0 for positive slopes)
+            # Can add the options for different line width and dash gaps here
+            if data['slope'] >= 0.0:
+                f.write(f"set dash_gap, 0, {contact}-line\n")
+
+            # show spheres
+            f.write(f"show spheres, {contact} and name CA\n")
+
+            # done with a contact's commands
+            f.write('\n')
+
+
+def to_pymol(contact_list, contactFrequencies, contactPCA,
+                     output_file = 'output.pml',
+                    slope_range=(0,7),
+                    pc_range=(1,4),
+                    ):
+    '''
+     Parameters
+    ----------
+    contact_list : list
+        List of the contacts in format chain1:resname1:resnum1-chain1:resname1:resnum1
+    
+    contactFrequencies : ContactFrequencies object
+        From TSenCA.ContactAnalyis.ContactFrequencies
+        object's methods provide easy access to relevant data
+
+    contactPCA : contactPCA object
+        From TSenCA.ContactAnalyis.ContactFrequencies
+
+    slope_range : tuple of int
+        The lowest and highest (row) indices (inclusive) from the contact data to calculate
+        the slope of the contact frequencies within
+
+    pc_range : tuple of in
+        The lowest and highest PCs (inclusive and 1 indexed) to consider when
+        identifying the highest loading scores, coloring, etc.
+    '''
+
+    # remove any duplicates
+    contact_list = list(set(contact_list))
+    # get all the data
+    contact_data = get_contact_data(contact_list, contactFrequencies, contactPCA,
+                    slope_range=slope_range,
+                    pc_range=pc_range
+                    )
+    # write it to pymol file
+    if output_file.split('.')[-1] != 'pml':
+        print("You're output file must have '.pml' appended for pymol to run it.")
+    write_selections(contact_data, output_file)
+
 
 
 def get_slope(df,contact,temp_range=(0,7)):
@@ -138,14 +233,6 @@ def get_slope(df,contact,temp_range=(0,7)):
     return linregress(df[contact].iloc[temp_range[0]:temp_range[1]].index, 
                    df[contact].iloc[temp_range[0]:temp_range[1]]).slope
 
-def sort_contacts_by_highest_score(prepared_contact_list,contact_pca):
-    rank = {}
-    for contact in prepared_contact_list:
-        rank[contact] = contact_pca.get_scores(contact[0])[contact[2]-1]['score']
-    rank = {k: v for k, v in sorted(rank.items(), key=lambda item: item[1])}  
-    sorted_ranks = list(rank.keys())
-
-    return sorted_ranks
 
 
 def pc_color(pc):

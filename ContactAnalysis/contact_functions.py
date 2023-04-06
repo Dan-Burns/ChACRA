@@ -22,7 +22,7 @@ def _parse_id(contact):
     return {'chaina':chaina, 'resna':resna, 'resida':resida,
              'chainb':chainb, 'resnb':resnb, 'residb':residb}
 
-def check_distance(contact, structure):  ### Not being used - replaced with check_distance_mda
+def check_distance(contact, structure):  
     '''
     This will compare distances between the same resids swapped between chain A and B to 
     find the combination representing the actual contact to depict on the pymol structure
@@ -85,8 +85,7 @@ def check_distance_mda(contact, u):
     
     # use norm
     # This is assuming the original contact was always in the format of chain A as the first and chain B as second
-    if np.linalg.norm((atomaa,atombb)) < np.linalg.norm((atomab,atomba)):
+    if np.linalg.norm((atomaa-atombb)) < np.linalg.norm((atomab-atomba)):
         return contact
     else:
-        return 'A:'+resids['resnb']+':'+str(resids['residb'])+'-'+\
-               'B:'+resids['resna']+':'+str(resids['resida'])
+        return f"A:{resids['resnb']}:{resids['residb']}-B:{resids['resna']}:{resids['resida']}"
