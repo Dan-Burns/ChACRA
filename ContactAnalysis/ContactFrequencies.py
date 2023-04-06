@@ -210,6 +210,8 @@ class ContactFrequencies:
 
 
     def average_contacts(self, structure=None, identical_subunits=None):
+       
+       
         df = self.freqs.copy()
 
         if structure:
