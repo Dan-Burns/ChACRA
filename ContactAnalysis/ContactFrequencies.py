@@ -17,6 +17,27 @@ import collections
 
 
 
+'''
+This does the same thing as make_contact_frequency_dictionary but is way slower
+all_data = {}
+
+for i, frequency_file in enumerate(frequency_files):
+    test = pd.read_csv(frequency_file,sep='\t',usecols=[0,1,2],skiprows=[0,1],header=None,names=['res1','res2','freq'],index_col=None)
+    for row in test.index:
+        res1, res2, freq = test.loc[row]['res1'], test.loc[row]['res2'], test.loc[row]['freq']
+        if f'{res1}-{res2}' not in all_data.keys():
+            all_data[f'{res1}-{res2}'] = [0 for j in range(i)]
+            all_data[f'{res1}-{res2}'].append(freq)
+        else:
+            extend_length = i - len(all_data[f'{res1}-{res2}'])
+            all_data[f'{res1}-{res2}'].extend([0 for j in range(extend_length)])
+            all_data[f'{res1}-{res2}'].append(freq)
+for contact, freq_list in all_data.items():
+    if len(freq_list) != i+1:
+        extend_length = (i+1) - len(freq_list)
+        all_data[contact].extend([0 for j in range(extend_length)])
+'''
+
 def make_contact_frequency_dictionary(freq_files):
     '''
     go through a list of frequency files and record all of the frequencies for 
