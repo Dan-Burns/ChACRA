@@ -1,22 +1,15 @@
-select AGLU418-ALEU422, chain A and resi 418 or chain A and resi 422
-color 0x02a8f8, AGLU418-ALEU422
-distance AGLU418-ALEU422-line, (chain A and resi 418 and name CA), (chain A and resi 422 and name CA)
-color 0x02a8f8, AGLU418-ALEU422-line
-show spheres, AGLU418-ALEU422 and name CA
-
-select AGLU257-APRO252, chain A and resi 257 or chain A and resi 252
-color 0x02a8f8, AGLU257-APRO252
-distance AGLU257-APRO252-line, (chain A and resi 257 and name CA), (chain A and resi 252 and name CA)
-color 0x02a8f8, AGLU257-APRO252-line
-set dash_gap, 0, AGLU257-APRO252-line
-show spheres, AGLU257-APRO252 and name CA
-
 select AMET479-ATHR476, chain A and resi 479 or chain A and resi 476
 color magenta, AMET479-ATHR476
 distance AMET479-ATHR476-line, (chain A and resi 479 and name CA), (chain A and resi 476 and name CA)
 color magenta, AMET479-ATHR476-line
 set dash_gap, 0, AMET479-ATHR476-line
 show spheres, AMET479-ATHR476 and name CA
+
+select AASN401-AGLU405, chain A and resi 401 or chain A and resi 405
+color purpleblue, AASN401-AGLU405
+distance AASN401-AGLU405-line, (chain A and resi 401 and name CA), (chain A and resi 405 and name CA)
+color purpleblue, AASN401-AGLU405-line
+show spheres, AASN401-AGLU405 and name CA
 
 select AASP618-ALYS616, chain A and resi 618 or chain A and resi 616
 color 0xfad300, AASP618-ALYS616
@@ -32,13 +25,6 @@ color gray30, AASN394-ASER402-line
 set dash_gap, 0, AASN394-ASER402-line
 show spheres, AASN394-ASER402 and name CA
 
-select AARG567-AARG696, chain A and resi 567 or chain A and resi 696
-color magenta, AARG567-AARG696
-distance AARG567-AARG696-line, (chain A and resi 567 and name CA), (chain A and resi 696 and name CA)
-color magenta, AARG567-AARG696-line
-set dash_gap, 0, AARG567-AARG696-line
-show spheres, AARG567-AARG696 and name CA
-
 select AASN338-AHSD301, chain A and resi 338 or chain A and resi 301
 color 0x02a8f8, AASN338-AHSD301
 distance AASN338-AHSD301-line, (chain A and resi 338 and name CA), (chain A and resi 301 and name CA)
@@ -46,11 +32,12 @@ color 0x02a8f8, AASN338-AHSD301-line
 set dash_gap, 0, AASN338-AHSD301-line
 show spheres, AASN338-AHSD301 and name CA
 
-select AHSD477-ALEU475, chain A and resi 477 or chain A and resi 475
-color 0xfad300, AHSD477-ALEU475
-distance AHSD477-ALEU475-line, (chain A and resi 477 and name CA), (chain A and resi 475 and name CA)
-color 0xfad300, AHSD477-ALEU475-line
-show spheres, AHSD477-ALEU475 and name CA
+select AALA307-ALYS353, chain A and resi 307 or chain A and resi 353
+color 0x02a8f8, AALA307-ALYS353
+distance AALA307-ALYS353-line, (chain A and resi 307 and name CA), (chain A and resi 353 and name CA)
+color 0x02a8f8, AALA307-ALYS353-line
+set dash_gap, 0, AALA307-ALYS353-line
+show spheres, AALA307-ALYS353 and name CA
 
 select AASN314-APHE310, chain A and resi 314 or chain A and resi 310
 color 0xfad300, AASN314-APHE310
@@ -58,12 +45,18 @@ distance AASN314-APHE310-line, (chain A and resi 314 and name CA), (chain A and 
 color 0xfad300, AASN314-APHE310-line
 show spheres, AASN314-APHE310 and name CA
 
-select AALA307-ALYS353, chain A and resi 307 or chain A and resi 353
-color 0x02a8f8, AALA307-ALYS353
-distance AALA307-ALYS353-line, (chain A and resi 307 and name CA), (chain A and resi 353 and name CA)
-color 0x02a8f8, AALA307-ALYS353-line
-set dash_gap, 0, AALA307-ALYS353-line
-show spheres, AALA307-ALYS353 and name CA
+select AARG567-AARG696, chain A and resi 567 or chain A and resi 696
+color magenta, AARG567-AARG696
+distance AARG567-AARG696-line, (chain A and resi 567 and name CA), (chain A and resi 696 and name CA)
+color magenta, AARG567-AARG696-line
+set dash_gap, 0, AARG567-AARG696-line
+show spheres, AARG567-AARG696 and name CA
+
+select AHSD477-ALEU475, chain A and resi 477 or chain A and resi 475
+color 0xfad300, AHSD477-ALEU475
+distance AHSD477-ALEU475-line, (chain A and resi 477 and name CA), (chain A and resi 475 and name CA)
+color 0xfad300, AHSD477-ALEU475-line
+show spheres, AHSD477-ALEU475 and name CA
 
 select AALA218-ATHR217, chain A and resi 218 or chain A and resi 217
 color 0xfad300, AALA218-ATHR217
@@ -78,19 +71,6 @@ distance AASN683-AGLU687-line, (chain A and resi 683 and name CA), (chain A and 
 color magenta, AASN683-AGLU687-line
 show spheres, AASN683-AGLU687 and name CA
 
-select AARG729-ASER372, chain A and resi 729 or chain A and resi 372
-color magenta, AARG729-ASER372
-distance AARG729-ASER372-line, (chain A and resi 729 and name CA), (chain A and resi 372 and name CA)
-color magenta, AARG729-ASER372-line
-set dash_gap, 0, AARG729-ASER372-line
-show spheres, AARG729-ASER372 and name CA
-
-select AMET479-ATRP481, chain A and resi 479 or chain A and resi 481
-color magenta, AMET479-ATRP481
-distance AMET479-ATRP481-line, (chain A and resi 479 and name CA), (chain A and resi 481 and name CA)
-color magenta, AMET479-ATRP481-line
-show spheres, AMET479-ATRP481 and name CA
-
 select AARG416-AASP519, chain A and resi 416 or chain A and resi 519
 color purpleblue, AARG416-AASP519
 distance AARG416-AASP519-line, (chain A and resi 416 and name CA), (chain A and resi 519 and name CA)
@@ -98,18 +78,31 @@ color purpleblue, AARG416-AASP519-line
 set dash_gap, 0, AARG416-AASP519-line
 show spheres, AARG416-AASP519 and name CA
 
+select AMET479-ATRP481, chain A and resi 479 or chain A and resi 481
+color magenta, AMET479-ATRP481
+distance AMET479-ATRP481-line, (chain A and resi 479 and name CA), (chain A and resi 481 and name CA)
+color magenta, AMET479-ATRP481-line
+show spheres, AMET479-ATRP481 and name CA
+
+select AARG729-ASER372, chain A and resi 729 or chain A and resi 372
+color magenta, AARG729-ASER372
+distance AARG729-ASER372-line, (chain A and resi 729 and name CA), (chain A and resi 372 and name CA)
+color magenta, AARG729-ASER372-line
+set dash_gap, 0, AARG729-ASER372-line
+show spheres, AARG729-ASER372 and name CA
+
 select ACYS550-AGLU546, chain A and resi 550 or chain A and resi 546
 color magenta, ACYS550-AGLU546
 distance ACYS550-AGLU546-line, (chain A and resi 550 and name CA), (chain A and resi 546 and name CA)
 color magenta, ACYS550-AGLU546-line
 show spheres, ACYS550-AGLU546 and name CA
 
-select AGLY638-BGLY638, chain A and resi 638 or chain B and resi 638
-color 0x02a8f8, AGLY638-BGLY638
-distance AGLY638-BGLY638-line, (chain A and resi 638 and name CA), (chain B and resi 638 and name CA)
-color 0x02a8f8, AGLY638-BGLY638-line
-set dash_gap, 0, AGLY638-BGLY638-line
-show spheres, AGLY638-BGLY638 and name CA
+select AGLY640-BGLY640, chain A and resi 640 or chain B and resi 640
+color 0x02a8f8, AGLY640-BGLY640
+distance AGLY640-BGLY640-line, (chain A and resi 640 and name CA), (chain B and resi 640 and name CA)
+color 0x02a8f8, AGLY640-BGLY640-line
+set dash_gap, 0, AGLY640-BGLY640-line
+show spheres, AGLY640-BGLY640 and name CA
 
 select AGLN274-AILE223, chain A and resi 274 or chain A and resi 223
 color magenta, AGLN274-AILE223
@@ -123,18 +116,18 @@ distance AGLU689-ASER685-line, (chain A and resi 689 and name CA), (chain A and 
 color magenta, AGLU689-ASER685-line
 show spheres, AGLU689-ASER685 and name CA
 
-select ALEU473-ATYR540, chain A and resi 473 or chain A and resi 540
-color magenta, ALEU473-ATYR540
-distance ALEU473-ATYR540-line, (chain A and resi 473 and name CA), (chain A and resi 540 and name CA)
-color magenta, ALEU473-ATYR540-line
-show spheres, ALEU473-ATYR540 and name CA
-
 select AASN251-ALYS246, chain A and resi 251 or chain A and resi 246
 color 0xfad300, AASN251-ALYS246
 distance AASN251-ALYS246-line, (chain A and resi 251 and name CA), (chain A and resi 246 and name CA)
 color 0xfad300, AASN251-ALYS246-line
 set dash_gap, 0, AASN251-ALYS246-line
 show spheres, AASN251-ALYS246 and name CA
+
+select ALEU473-ATYR540, chain A and resi 473 or chain A and resi 540
+color magenta, ALEU473-ATYR540
+distance ALEU473-ATYR540-line, (chain A and resi 473 and name CA), (chain A and resi 540 and name CA)
+color magenta, ALEU473-ATYR540-line
+show spheres, ALEU473-ATYR540 and name CA
 
 select AGLU682-AGLY678, chain A and resi 682 or chain A and resi 678
 color magenta, AGLU682-AGLY678
@@ -285,13 +278,6 @@ distance AASN297-AGLN292-line, (chain A and resi 297 and name CA), (chain A and 
 color red, AASN297-AGLN292-line
 show spheres, AASN297-AGLN292 and name CA
 
-select ALYS353-AVAL304, chain A and resi 353 or chain A and resi 304
-color 0xfad300, ALYS353-AVAL304
-distance ALYS353-AVAL304-line, (chain A and resi 353 and name CA), (chain A and resi 304 and name CA)
-color 0xfad300, ALYS353-AVAL304-line
-set dash_gap, 0, ALYS353-AVAL304-line
-show spheres, ALYS353-AVAL304 and name CA
-
 select AHSD160-ALYS120, chain A and resi 160 or chain A and resi 120
 color red, AHSD160-ALYS120
 distance AHSD160-ALYS120-line, (chain A and resi 160 and name CA), (chain A and resi 120 and name CA)
@@ -303,6 +289,13 @@ color gray30, ALEU482-ASER480
 distance ALEU482-ASER480-line, (chain A and resi 482 and name CA), (chain A and resi 480 and name CA)
 color gray30, ALEU482-ASER480-line
 show spheres, ALEU482-ASER480 and name CA
+
+select ALYS353-AVAL304, chain A and resi 353 or chain A and resi 304
+color 0xfad300, ALYS353-AVAL304
+distance ALYS353-AVAL304-line, (chain A and resi 353 and name CA), (chain A and resi 304 and name CA)
+color 0xfad300, ALYS353-AVAL304-line
+set dash_gap, 0, ALYS353-AVAL304-line
+show spheres, ALYS353-AVAL304 and name CA
 
 select AHSD477-APRO470, chain A and resi 477 or chain A and resi 470
 color magenta, AHSD477-APRO470
@@ -323,12 +316,12 @@ color gray30, AASN643-AGLN646-line
 set dash_gap, 0, AASN643-AGLN646-line
 show spheres, AASN643-AGLN646 and name CA
 
-select AASP315-AGLN313, chain A and resi 315 or chain A and resi 313
-color ytterbium, AASP315-AGLN313
-distance AASP315-AGLN313-line, (chain A and resi 315 and name CA), (chain A and resi 313 and name CA)
-color ytterbium, AASP315-AGLN313-line
-set dash_gap, 0, AASP315-AGLN313-line
-show spheres, AASP315-AGLN313 and name CA
+select AALA206-AALA218, chain A and resi 206 or chain A and resi 218
+color ytterbium, AALA206-AALA218
+distance AALA206-AALA218-line, (chain A and resi 206 and name CA), (chain A and resi 218 and name CA)
+color ytterbium, AALA206-AALA218-line
+set dash_gap, 0, AALA206-AALA218-line
+show spheres, AALA206-AALA218 and name CA
 
 select AASN251-AGLY247, chain A and resi 251 or chain A and resi 247
 color 0xfad300, AASN251-AGLY247
@@ -349,17 +342,17 @@ distance AASP293-AGLY296-line, (chain A and resi 293 and name CA), (chain A and 
 color red, AASP293-AGLY296-line
 show spheres, AASP293-AGLY296 and name CA
 
-select ALEU484-ATRP481, chain A and resi 484 or chain A and resi 481
-color ytterbium, ALEU484-ATRP481
-distance ALEU484-ATRP481-line, (chain A and resi 484 and name CA), (chain A and resi 481 and name CA)
-color ytterbium, ALEU484-ATRP481-line
-show spheres, ALEU484-ATRP481 and name CA
-
 select AARG319-AASP315, chain A and resi 319 or chain A and resi 315
 color 0x02a8f8, AARG319-AASP315
 distance AARG319-AASP315-line, (chain A and resi 319 and name CA), (chain A and resi 315 and name CA)
 color 0x02a8f8, AARG319-AASP315-line
 show spheres, AARG319-AASP315 and name CA
+
+select ALEU484-ATRP481, chain A and resi 484 or chain A and resi 481
+color ytterbium, ALEU484-ATRP481
+distance ALEU484-ATRP481-line, (chain A and resi 484 and name CA), (chain A and resi 481 and name CA)
+color ytterbium, ALEU484-ATRP481-line
+show spheres, ALEU484-ATRP481 and name CA
 
 select AARG729-ATHR393, chain A and resi 729 or chain A and resi 393
 color purpleblue, AARG729-ATHR393
@@ -367,13 +360,6 @@ distance AARG729-ATHR393-line, (chain A and resi 729 and name CA), (chain A and 
 color purpleblue, AARG729-ATHR393-line
 set dash_gap, 0, AARG729-ATHR393-line
 show spheres, AARG729-ATHR393 and name CA
-
-select AASP586-ATHR680, chain A and resi 586 or chain A and resi 680
-color magenta, AASP586-ATHR680
-distance AASP586-ATHR680-line, (chain A and resi 586 and name CA), (chain A and resi 680 and name CA)
-color magenta, AASP586-ATHR680-line
-set dash_gap, 0, AASP586-ATHR680-line
-show spheres, AASP586-ATHR680 and name CA
 
 select AGLY168-ASER165, chain A and resi 168 or chain A and resi 165
 color purpleblue, AGLY168-ASER165
@@ -386,6 +372,13 @@ color 0x02a8f8, AARG712-AARG716
 distance AARG712-AARG716-line, (chain A and resi 712 and name CA), (chain A and resi 716 and name CA)
 color 0x02a8f8, AARG712-AARG716-line
 show spheres, AARG712-AARG716 and name CA
+
+select AASP586-ATHR680, chain A and resi 586 or chain A and resi 680
+color magenta, AASP586-ATHR680
+distance AASP586-ATHR680-line, (chain A and resi 586 and name CA), (chain A and resi 680 and name CA)
+color magenta, AASP586-ATHR680-line
+set dash_gap, 0, AASP586-ATHR680-line
+show spheres, AASP586-ATHR680 and name CA
 
 select AARG226-AASN273, chain A and resi 226 or chain A and resi 273
 color 0xfad300, AARG226-AASN273
@@ -425,6 +418,13 @@ color ytterbium, AASP586-ALEU584-line
 set dash_gap, 0, AASP586-ALEU584-line
 show spheres, AASP586-ALEU584 and name CA
 
+select AARG464-AASP466, chain A and resi 464 or chain A and resi 466
+color gray30, AARG464-AASP466
+distance AARG464-AASP466-line, (chain A and resi 464 and name CA), (chain A and resi 466 and name CA)
+color gray30, AARG464-AASP466-line
+set dash_gap, 0, AARG464-AASP466-line
+show spheres, AARG464-AASP466 and name CA
+
 select AHSD585-ALEU588, chain A and resi 585 or chain A and resi 588
 color ytterbium, AHSD585-ALEU588
 distance AHSD585-ALEU588-line, (chain A and resi 585 and name CA), (chain A and resi 588 and name CA)
@@ -437,24 +437,11 @@ distance AARG487-ALEU491-line, (chain A and resi 487 and name CA), (chain A and 
 color gray30, AARG487-ALEU491-line
 show spheres, AARG487-ALEU491 and name CA
 
-select AARG464-AASP466, chain A and resi 464 or chain A and resi 466
-color gray30, AARG464-AASP466
-distance AARG464-AASP466-line, (chain A and resi 464 and name CA), (chain A and resi 466 and name CA)
-color gray30, AARG464-AASP466-line
-set dash_gap, 0, AARG464-AASP466-line
-show spheres, AARG464-AASP466 and name CA
-
 select AARG371-AARG729, chain A and resi 371 or chain A and resi 729
 color 0xfad300, AARG371-AARG729
 distance AARG371-AARG729-line, (chain A and resi 371 and name CA), (chain A and resi 729 and name CA)
 color 0xfad300, AARG371-AARG729-line
 show spheres, AARG371-AARG729 and name CA
-
-select AARG567-ATHR699, chain A and resi 567 or chain A and resi 699
-color magenta, AARG567-ATHR699
-distance AARG567-ATHR699-line, (chain A and resi 567 and name CA), (chain A and resi 699 and name CA)
-color magenta, AARG567-ATHR699-line
-show spheres, AARG567-ATHR699 and name CA
 
 select ALEU281-ATHR287, chain A and resi 281 or chain A and resi 287
 color red, ALEU281-ATHR287
@@ -462,11 +449,11 @@ distance ALEU281-ATHR287-line, (chain A and resi 281 and name CA), (chain A and 
 color red, ALEU281-ATHR287-line
 show spheres, ALEU281-ATHR287 and name CA
 
-select AARG149-AVAL154, chain A and resi 149 or chain A and resi 154
-color ytterbium, AARG149-AVAL154
-distance AARG149-AVAL154-line, (chain A and resi 149 and name CA), (chain A and resi 154 and name CA)
-color ytterbium, AARG149-AVAL154-line
-show spheres, AARG149-AVAL154 and name CA
+select AARG567-ATHR699, chain A and resi 567 or chain A and resi 699
+color magenta, AARG567-ATHR699
+distance AARG567-ATHR699-line, (chain A and resi 567 and name CA), (chain A and resi 699 and name CA)
+color magenta, AARG567-ATHR699-line
+show spheres, AARG567-ATHR699 and name CA
 
 select AASN297-AASP293, chain A and resi 297 or chain A and resi 293
 color red, AASN297-AASP293
@@ -479,6 +466,12 @@ color red, AGLN292-AGLY296
 distance AGLN292-AGLY296-line, (chain A and resi 292 and name CA), (chain A and resi 296 and name CA)
 color red, AGLN292-AGLY296-line
 show spheres, AGLN292-AGLY296 and name CA
+
+select AARG149-AVAL154, chain A and resi 149 or chain A and resi 154
+color ytterbium, AARG149-AVAL154
+distance AARG149-AVAL154-line, (chain A and resi 149 and name CA), (chain A and resi 154 and name CA)
+color ytterbium, AARG149-AVAL154-line
+show spheres, AARG149-AVAL154 and name CA
 
 select AALA474-ATYR540, chain A and resi 474 or chain A and resi 540
 color gray30, AALA474-ATYR540
@@ -643,6 +636,13 @@ distance AGLN292-AHSD244-line, (chain A and resi 292 and name CA), (chain A and 
 color red, AGLN292-AHSD244-line
 show spheres, AGLN292-AHSD244 and name CA
 
+select AGLY638-BGLY638, chain A and resi 638 or chain B and resi 638
+color 0x02a8f8, AGLY638-BGLY638
+distance AGLY638-BGLY638-line, (chain A and resi 638 and name CA), (chain B and resi 638 and name CA)
+color 0x02a8f8, AGLY638-BGLY638-line
+set dash_gap, 0, AGLY638-BGLY638-line
+show spheres, AGLY638-BGLY638 and name CA
+
 select AASN647-ACYS619, chain A and resi 647 or chain A and resi 619
 color ytterbium, AASN647-ACYS619
 distance AASN647-ACYS619-line, (chain A and resi 647 and name CA), (chain A and resi 619 and name CA)
@@ -675,11 +675,23 @@ distance AASP293-ATYR260-line, (chain A and resi 293 and name CA), (chain A and 
 color red, AASP293-ATYR260-line
 show spheres, AASP293-ATYR260 and name CA
 
-select ALEU730-ATHR393, chain A and resi 730 or chain A and resi 393
-color purpleblue, ALEU730-ATHR393
-distance ALEU730-ATHR393-line, (chain A and resi 730 and name CA), (chain A and resi 393 and name CA)
-color purpleblue, ALEU730-ATHR393-line
-show spheres, ALEU730-ATHR393 and name CA
+select AALA474-ATHR476, chain A and resi 474 or chain A and resi 476
+color magenta, AALA474-ATHR476
+distance AALA474-ATHR476-line, (chain A and resi 474 and name CA), (chain A and resi 476 and name CA)
+color magenta, AALA474-ATHR476-line
+show spheres, AALA474-ATHR476 and name CA
+
+select AGLU263-ASER294, chain A and resi 263 or chain A and resi 294
+color red, AGLU263-ASER294
+distance AGLU263-ASER294-line, (chain A and resi 263 and name CA), (chain A and resi 294 and name CA)
+color red, AGLU263-ASER294-line
+show spheres, AGLU263-ASER294 and name CA
+
+select AGLU257-ALYS253, chain A and resi 257 or chain A and resi 253
+color 0xfad300, AGLU257-ALYS253
+distance AGLU257-ALYS253-line, (chain A and resi 257 and name CA), (chain A and resi 253 and name CA)
+color 0xfad300, AGLU257-ALYS253-line
+show spheres, AGLU257-ALYS253 and name CA
 
 select AHSD477-ATRP481, chain A and resi 477 or chain A and resi 481
 color gray30, AHSD477-ATRP481
@@ -688,11 +700,11 @@ color gray30, AHSD477-ATRP481-line
 set dash_gap, 0, AHSD477-ATRP481-line
 show spheres, AHSD477-ATRP481 and name CA
 
-select AGLU263-ASER294, chain A and resi 263 or chain A and resi 294
-color red, AGLU263-ASER294
-distance AGLU263-ASER294-line, (chain A and resi 263 and name CA), (chain A and resi 294 and name CA)
-color red, AGLU263-ASER294-line
-show spheres, AGLU263-ASER294 and name CA
+select ALEU730-ATHR393, chain A and resi 730 or chain A and resi 393
+color purpleblue, ALEU730-ATHR393
+distance ALEU730-ATHR393-line, (chain A and resi 730 and name CA), (chain A and resi 393 and name CA)
+color purpleblue, ALEU730-ATHR393-line
+show spheres, ALEU730-ATHR393 and name CA
 
 select AASN297-ATYR260, chain A and resi 297 or chain A and resi 260
 color ytterbium, AASN297-ATYR260
@@ -700,18 +712,6 @@ distance AASN297-ATYR260-line, (chain A and resi 297 and name CA), (chain A and 
 color ytterbium, AASN297-ATYR260-line
 set dash_gap, 0, AASN297-ATYR260-line
 show spheres, AASN297-ATYR260 and name CA
-
-select AALA474-ATHR476, chain A and resi 474 or chain A and resi 476
-color magenta, AALA474-ATHR476
-distance AALA474-ATHR476-line, (chain A and resi 474 and name CA), (chain A and resi 476 and name CA)
-color magenta, AALA474-ATHR476-line
-show spheres, AALA474-ATHR476 and name CA
-
-select AGLU257-ALYS253, chain A and resi 257 or chain A and resi 253
-color 0xfad300, AGLU257-ALYS253
-distance AGLU257-ALYS253-line, (chain A and resi 257 and name CA), (chain A and resi 253 and name CA)
-color 0xfad300, AGLU257-ALYS253-line
-show spheres, AGLU257-ALYS253 and name CA
 
 select ALEU508-ATHR411, chain A and resi 508 or chain A and resi 411
 color 0x02a8f8, ALEU508-ATHR411
