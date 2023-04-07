@@ -230,8 +230,12 @@ class ContactFrequencies:
     
 
 
-    def average_contacts(self, structure=None, identical_subunits=None):
-       
+    def average_contacts(self, structure=None, identical_subunits=None, opposing_subunits=None):
+        '''
+        oppposing subunits should let the user specify which subunits are opposite of each other (rather than adjacent)
+        and during averaging, it will distinguish between adjacent and opposing and assign them to the right contact id
+        i.e. A:res:num-C:res:num for oppsing and A....-B for adjacent
+        '''
        
         df = self.freqs.copy()
 
@@ -301,7 +305,28 @@ class ContactFrequencies:
                 if structure:
                 #find the closest residues in contact in the structure
                     contact = check_distance_mda(contact,u)     
-                
+
+                ################## catch opposing subunits with A-C and B-D
+                ## TODO allow users to specify which subunits to treat as opposing 
+                if opposing_subunits:
+                    opposing_contacts = []
+                    # if the name matches an opposing pair
+                    for pair in to_average:
+                        if ('A' in re.split(':|-', pair) and 'C' in re.split(':|-', pair)) or \
+                            ('B' in re.split(':|-', pair) and 'D' in re.split(':|-', pair)):
+
+                            # record it 
+                            opposing_contacts.append(pair)
+
+                    for pair in opposing_contacts:
+                        # remove it from main record
+                        to_average.remove(pair)
+                    # if any were caught, average them (divide by two for a tetrameric channel)
+                    if len(opposing_contacts) > 0:
+                        opposing_contact_name = f"A:{resids['resna']}:{resids['resida']}-"\
+                                                f"C:{resids['resnb']}:{resids['residb']}"
+                        averaged_data[opposing_contact_name] = df[opposing_contacts].sum(axis=1)/2
+                ########################################################################################
                 if len(to_average) == len(identical_subunits):
                     averaged_data[contact] = df[to_average].mean(axis=1)
                 elif len(to_average) < len(identical_subunits):
@@ -311,7 +336,8 @@ class ContactFrequencies:
                     print(f'got more contacts than identical subunits for contact matching {contact}: {to_average}')
                     averaged_data[contact] = df[to_average].mean(axis=1)
                 df.drop(to_average, axis=1, inplace=True)
-
+                ##############
+                df.drop(opposing_contacts, axis=1, inplace=True)
         return pd.DataFrame(averaged_data)
 
 
