@@ -337,6 +337,7 @@ class ContactFrequencies:
                     averaged_data[contact] = df[to_average].mean(axis=1)
                 df.drop(to_average, axis=1, inplace=True)
                 ##############
+                #TODO this needs to be adjusted to not throw referenced before assignment error, make opposing subunits = True
                 df.drop(opposing_contacts, axis=1, inplace=True)
         return pd.DataFrame(averaged_data)
 
