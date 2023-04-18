@@ -455,6 +455,16 @@ class ContactFrequencies:
             
                                        
 
+def de_correlate_df(df):
+    '''
+    randomize the values within a dataframe's columns
+    '''
+    
+    X_aux = df.copy()
+    for col in df.columns:
+        X_aux[col] = df[col].sample(len(df)).values
+        
+    return X_aux
 
 def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
     '''
@@ -470,8 +480,10 @@ class ContactPCA:
     Class takes a ContactFrequency object and performs principal component 
     analysis on it. 
     '''
-    def __init__(self, contact_df, n_components=.999):
-        pca = PCA(n_components=n_components)
+
+    #TODO ensure that signs of variables correspond to expected melting trend of PC1
+    def __init__(self, contact_df):
+        pca = PCA()
         self.pca = pca.fit(contact_df)
         self.loadings = pd.DataFrame(self.pca.components_.T, columns=
                         ['PC'+str(i+1) for i in range(np.shape
@@ -599,10 +611,42 @@ class ContactPCA:
             return True
         else:
             return False
-    
-    
+        
+    def permutated_explained_variance(self, contact_frequencies, N_permutations=100):
+        '''
+        Randomize the values within the contact frequency columns to test the significance of the contact PCs.
+
+        contact_frequencies : pd.DataFrame
+            The dataframe of contact frequencies that the ContactPCA is based off of.
+
+        N_permutations : int
+            Number of times to randomize the dataframe and perform PCA.
+
+        Returns
+            np.array of explained variance by PC for each permutation of the dataframe.
+        '''    
+        #https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
+        #permutation test example from kaggle
+        df = contact_frequencies.copy()
+        # This function changes the order of the columns independently to remove correlations
+       
+        #original_variance = self.pca.explained_variance_ratio_
+        pca = PCA()
+
+        variance = np.zeros((N_permutations, len(df.index)))
+        print('This can take a moment. Progress updates every 10 iterations.')
+        for i in range(N_permutations):
+            if i%10 == 0:
+                print(i,end='..')
+            X_aux = de_correlate_df(df)
             
-                
+            pca.fit(X_aux)
+            variance[i, :] = pca.explained_variance_ratio_
+        
+        return variance
+            
+                    
+                    
 
 
 

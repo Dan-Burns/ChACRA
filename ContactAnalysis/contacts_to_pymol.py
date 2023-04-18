@@ -469,8 +469,10 @@ def nx_edges_to_pymol(output, edge_list):
             edge1, edge2 = edge[0], edge[1]
             edge1_chain, edge1_resn, edge1_resid = edge1.split(':')
             edge2_chain, edge2_resn, edge2_resid = edge2.split(':')
-            dist_string = label_distance(edge1_chain, edge1_resid, 
-                                         edge2_chain, edge2_resid)
+          
+            # draw the line
+            dist_string = f"distance {edge1_resid}-{edge2_resid}-line, (chain {edge1_chain} and resi {edge1_resid} and name CA), "\
+                   f"(chain {edge2_chain} and resi {edge2_resid} and name CA)\n"
             file.write(dist_string+'\n')
             color_distance = f'color blue, {edge1_resid}-{edge2_resid} \n'
             file.write(color_distance)
