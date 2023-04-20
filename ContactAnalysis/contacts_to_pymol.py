@@ -458,24 +458,71 @@ def slope_color_gradient(output,
 
 
 ################## NETWORKX ###############
-def nx_edges_to_pymol(output, edge_list):
+def nx_edges_to_pymol(output, edges, color='blue', variable_width=False, max_weight=None, min_weight=None, max_width=20, min_width=2):
+    #TODO add option to take first n from the full dictionary so you don't have to presort them
     '''
     make distance line depictions of networkx edges
+
+    output : str
+        path to output file
+    
+    edges : dictionary
+        in the form of {tuple of nodes : edge weight, }
+        {('A:MET:419', 'A:LEU:357'): 0.20897370785638944,
+        ('A:TYR:359', 'A:LEU:357'): 0.18124780247685277,
+        }
+    
+    color : str
+        specify a pymol color string
+
+    variable_width : bool
+        adjust size of line based on edge weight
+
+    max_weight : int or float
+        specify the maximum edge weight used to normalize the weights in edges
+        if None, max_weight is taken from max(edges.values())
+    
+    max_weight : int or float
+        specify the minimum edge weight used to normalize the weights in edges
+        if None, min_weight is taken from min(edges.values())
+    
+    max_width : int or float
+        maximum dash width for highest edge weight
+
+    min_width : int or float
+        minimum dash width for lowest edge weight
+    
     '''
     with open(output, 'w') as file:
-    
         
-        for edge in edge_list:
+        if variable_width:
+            if max_weight == None:
+                max_weight = max(edges.values())
+            if min_weight == None:
+                min_weight = min(edges.values())
+            norm_denominator = max_weight - min_weight
+            size_coef = max_width - min_width
+
+        
+        for edge in edges.keys():
             edge1, edge2 = edge[0], edge[1]
             edge1_chain, edge1_resn, edge1_resid = edge1.split(':')
             edge2_chain, edge2_resn, edge2_resid = edge2.split(':')
           
+            name = f'{edge1_chain}{edge2_chain}-{edge1_resid}-{edge2_resid}-line'
             # draw the line
-            dist_string = f"distance {edge1_resid}-{edge2_resid}-line, (chain {edge1_chain} and resi {edge1_resid} and name CA), "\
+            dist_string = f"distance {name}, (chain {edge1_chain} and resi {edge1_resid} and name CA), "\
                    f"(chain {edge2_chain} and resi {edge2_resid} and name CA)\n"
             file.write(dist_string+'\n')
-            color_distance = f'color blue, {edge1_resid}-{edge2_resid} \n'
-            file.write(color_distance)
+
+            color_string = f'color {color}, {name} \n'
+            file.write(color_string)
+
+            if variable_width:
+                edge_weight = edges[edge]
+                edge_size = (((edge_weight-min_weight)/(norm_denominator))*size_coef) + min_width
+                width_string = f'set dash_width, {edge_size}, {name} \n'
+                file.write(width_string)
      
     
     
