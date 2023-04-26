@@ -48,7 +48,11 @@ Can make the slope depiction be more informative with dash gaps and line widths.
 
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
-                    pc_range=(1,4)
+                    pc_range=(1,4),
+                    variable_sphere_transparency=False,
+                    max_transparency=.9,
+                    
+
                     ):
     '''
     collect all the relevant data that the other functions will need to 
@@ -120,6 +124,25 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         data[contact]['sel_1'] = f'resname {resna} and resnum {resia} and chain {chaina}'
         data[contact]['sel_2'] = f'resname {resnb} and resnum {resib} and chain {chainb}'
 
+        # option to depict the temperature sensitivity rank in terms of how solid or transparent the spheres are
+        # probably best when visualzing a single PC
+    if variable_sphere_transparency:
+        scores = []
+        for contact in data.keys():
+            scores.append(data[contact]['loading_score'])
+
+
+        max_rank = max(scores)
+        min_rank = min(scores)
+        m = -(max_transparency/(max_rank-min_rank))
+        b = -m
+
+        for contact in data.keys():
+            rank = data[contact]['loading_score']
+            sphere_transparency = (m * rank) + b
+            data[contact]['sphere_transparency'] = sphere_transparency
+        
+
         # sort the dictionary in ascending order of loading score so that
         # the highest scores get colored last (and take visual precedence)
         # can also make the option to sort by any of the dictionary items
@@ -170,6 +193,9 @@ def write_selections(contact_data, output_file):
             # show spheres
             f.write(f"show spheres, {contact} and name CA\n")
 
+            if 'sphere_transparency' in data.keys():
+                f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
+
             # done with a contact's commands
             f.write('\n')
 
@@ -178,6 +204,7 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
                      output_file = 'output.pml',
                     slope_range=(0,7),
                     pc_range=(1,4),
+                    variable_sphere_transparency=False
                     ):
     '''
      Parameters
@@ -206,7 +233,8 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     # get all the data
     contact_data = get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=slope_range,
-                    pc_range=pc_range
+                    pc_range=pc_range,
+                    variable_sphere_transparency=variable_sphere_transparency
                     )
     # write it to pymol file
     if output_file.split('.')[-1] != 'pml':
