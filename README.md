@@ -1,6 +1,6 @@
 # TSenCA
 
-Temperature SENsitive Contact Analysis
+**T**emperature **Sen**sitive **C**ontact **A**nalysis
 
 Tools to analyze biomolecular interactions across multiple ensembles.
 
