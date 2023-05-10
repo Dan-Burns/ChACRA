@@ -6,13 +6,13 @@ Tools to analyze biomolecular interactions across multiple ensembles.
 
 After simulating a protein across multiple temperatures (ideally with replica exchange) use GetContacts to calculate the contact frequencies for all of the pairwise residue interactions.
 
-Turn this data into a dataframe wrapped by the ContactFrequencies object to provide convenient methods to analyze the data.
+Turn this data into a dataframe wrapped by the ContactFrequencies class to provide convenient methods to analyze the data.
 
-Perform PCA on this data with the ContactPCA object and identify the most temperature-sensitive contacts in your protein.
+Perform PCA on this data with the ContactPCA class and identify the temperature-dependent contact modes in your protein.
 
-The PCs represent collective modes that describe different responses to temperature exhibited by different parts of the protein.  The most sensitive interactions within the high PC modes can reveal functionally important residues.
+The PCs represent collective modes that describe different responses to temperature exhibited by different parts of the protein.  The most sensitive interactions (revealed by large magnitude loading scores) within the high eigenvalue PCs are strong candidates for functionally important residues.
 
-The PCs and loading scores describe correlated interactions and as a consequence, can reveal allostery.
+The loading scores within a PC also report on correlated interactions and as a consequence, can reveal allostery.
 
 You can make nice visualizations of the different PC mode interactions with contacts_to_pymol.to_visualize to help you grasp the complex dynamics of your protein.
 
