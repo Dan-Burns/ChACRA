@@ -308,6 +308,10 @@ class ContactFrequencies:
 
                 ################## catch opposing subunits with A-C and B-D
                 ## TODO allow users to specify which subunits to treat as opposing 
+                # Tuple of opposing subunit 
+                # for tuple in opposing_subunits:
+                #   if (tuple[0] in re.split(...) and tuple[1]....):
+                #       opposing_contacts.append(pair)
                 if opposing_subunits:
                     opposing_contacts = []
                     # if the name matches an opposing pair
@@ -338,7 +342,8 @@ class ContactFrequencies:
                 df.drop(to_average, axis=1, inplace=True)
                 ##############
                 #TODO this needs to be adjusted to not throw referenced before assignment error, make opposing subunits = True
-                df.drop(opposing_contacts, axis=1, inplace=True)
+                if opposing_subunits:
+                    df.drop(opposing_contacts, axis=1, inplace=True)
         return pd.DataFrame(averaged_data)
 
 
