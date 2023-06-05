@@ -235,6 +235,10 @@ class ContactFrequencies:
         oppposing subunits should let the user specify which subunits are opposite of each other (rather than adjacent)
         and during averaging, it will distinguish between adjacent and opposing and assign them to the right contact id
         i.e. A:res:num-C:res:num for oppsing and A....-B for adjacent
+
+        # NOTE: Have to be careful if there are non protein molecules in the structure when averaging or else the identical_subunits
+            list will not reflect what the protein subunits that you want to average.
+            Supply the identical subunits in this case! e.g. ['A','B']
         '''
        
         df = self.freqs.copy()
@@ -242,12 +246,11 @@ class ContactFrequencies:
         if structure:
             u = mda.Universe(structure)
             subunits = [seg.segid for seg in u.segments]
+            #TODO add identical subunit check function (mdanalysis_tools_....)
             if identical_subunits == None:
                 identical_subunits = subunits
-            else:
-                print("Can't determine how many subunits for averaging."
-                      "Specify identical_subunits chain IDs or provide a structure.")
-                return
+            ## Assuming all subunits are identical
+                print(f'Using subunit IDs {identical_subunits} for averaging.')
         subunits_string = ''.join(identical_subunits)
         
         averaged_data = {}
@@ -261,8 +264,9 @@ class ContactFrequencies:
             if resids['chaina'] ==  resids['chainb']:
                 contact = f"A:{resids['resna']}:{resids['resida']}-"\
                         f"A:{resids['resnb']}:{resids['residb']}"
-                
-                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}-[{subunits_string}]:{resids['resnb']}:{resids['residb']}"
+                # this will collect contact pairs with identical and non-identical chain ids.
+                # (?!\d) disallows any additional numbers to the right of the resid (otherwise it will collect 14 & 144)
+                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}(?!\d)-[{subunits_string}]:{resids['resnb']}:{resids['residb']}(?!\d)"
 
                 to_average = list(df.filter(regex=regex, axis=1).columns)
                 # check to make sure none of the contacts in to_average have different chain IDs
@@ -288,7 +292,7 @@ class ContactFrequencies:
                 contact = f"A:{resids['resna']}:{resids['resida']}-"\
                         f"B:{resids['resnb']}:{resids['residb']}"
                 
-                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}-[{subunits_string}]:{resids['resnb']}:{resids['residb']}"
+                regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}(?!\d)-[{subunits_string}]:{resids['resnb']}:{resids['residb']}(?!\d)"
 
                 to_average = list(df.filter(regex=regex, axis=1).columns) 
                 to_remove = []
