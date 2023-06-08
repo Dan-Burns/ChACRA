@@ -653,6 +653,10 @@ class ContactPCA:
             variance[i, :] = pca.explained_variance_ratio_
         
         return variance
+    
+    #TODO heatmap the contributions of the original variables to each
+    #eigenvector as part of a method to identify which contacts
+    # (or residues) are junctions between modes (PC1 interactions that feed PC2 etc)
             
                     
                     
