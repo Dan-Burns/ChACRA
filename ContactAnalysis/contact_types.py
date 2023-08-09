@@ -1,6 +1,221 @@
 import json
 import re
 import pandas as pd
+from statistics import mode
+
+
+#TODO return directionality of contact i.e. when one is contributing the sidechain then the direction goes from that one 
+
+# loop to tabulate per frame contacts is in old/older/sandbox_trp 
+# uses from getcontacts.contact_calc.transformations import *
+
+
+
+########## res_contacts taken directly from getcontacts to avoid dependencies ##################
+########## Easy way of recording the per frame contact pairs ####################
+########## Can modify to incorporate the edge directionality ####################
+def res_contacts(contacts):
+    """
+    Convert atomic contacts into unique residue contacts. The interaction type is removed as well as any third or
+    fourth atoms that are part of the interaction (e.g. water-bridges). Finally, the order of the residues within an
+    interaction is such that the first is lexicographically smaller than the second ('A:ARG' comes before 'A:CYS').
+
+    Example
+    -------
+        res_frequencies([
+            [0, 'hbbb', 'A:ASN:108:O', 'A:ARG:110:N'],
+            [0, 'vdw', 'A:ARG:110:N', 'A:ASN:108:CB']
+        ])
+        # => [[0, 'A:ARG:110', 'A:ASN:108']]
+
+    Parameters
+    ----------
+    contacts: List of list
+        List of contacts, where each contact is a list of frame-num, i-type, and atom names
+
+    Returns
+    -------
+    List of list
+        Each entry is a list with a frame and two residue identifiers
+    """
+    # print(contacts)
+    from collections import defaultdict
+    # Associates a frame-number with a set of contacts
+    frame_dict = defaultdict(set)
+
+    for atom_contact in contacts:
+        frame = atom_contact[0]
+        resi1 = ":".join(atom_contact[2].split(":")[0:3])
+        resi2 = ":".join(atom_contact[3].split(":")[0:3])
+        if resi2 < resi1:
+            resi1, resi2 = resi2, resi1
+        frame_dict[frame].add((resi1, resi2))
+
+    ret = []
+    for frame in sorted(frame_dict):
+        for resi1, resi2 in frame_dict[frame]:
+            ret.append([frame, resi1, resi2])
+
+    return ret
+
+
+
+
+def res_contacts_xl(input_lines, itypes=None):
+    """
+    Reduces memory usage for contact frequency calculation by combining parse_contact and res_contacts.
+    Read a contact-file (tab-separated file with columns: frame, i-type, atomid1, atomid2[, atomid3[, atomid4]] 
+    one frame at a time and run res_contacts after each frame.  
+    The total number of frames is also returned.
+
+    Example
+    -------
+        parse_contacts([
+            "# total_frames:2\n",
+            "0  hbbb    A:ALA:1:N   A:THR:10:O\n",
+            "0  vdw     A:ALA:1:CB  B:CYS:3:H\n",
+            "1  vdw     A:ALA:1:N   A:THR:10:C\n"
+        ])
+        # returns:
+        # ([
+        #        [0, "hbbb", "A:ALA:1:N", "A:THR:10:O"],
+        #        [0, "vdw", "A:ALA:1:CB", "B:CYS:3:H"],
+        #        [1, "vdw", "A:ALA:1:N", "A:THR:10:C"]
+        #  ], 2)
+
+    Parameters
+    ----------
+    input_lines: iterable
+        Iterator of over a set of strings. Can be a file-handle
+
+    itypes: set of str | None
+        Interactions to include in the output
+
+    Returns
+    -------
+    List of list
+        Each entry is a list with a frame and two residue identifiers
+
+    Raises
+    ------
+    ParseError: If contents of lines couldn't be parsed
+    """
+    ret = []
+    # hold the contacts for a single frame
+    frame_contacts = []
+    total_frames = 0
+    # track the current frame
+    current_frame = 0
+
+    for line in input_lines:
+        # check for end of file 
+        if line == '':
+            ret.extend(res_contacts(frame_contacts))
+        line = line.strip()
+        if "total_frames" in line:
+            tokens = line.split(" ")
+            total_frames = int(tokens[1][tokens[1].find(":")+1:])
+
+        if len(line) == 0 or line[0] == "#":
+            continue
+
+        tokens = line.split("\t")
+        try:
+            tokens[0] = int(tokens[0])
+        except ValueError:
+            raise ParseError("First column isn't a integer")
+        
+        if len(tokens) not in range(4, 8):
+            raise ParseError("Invalid number of tokens")
+        # check that the data is from the same frame
+        if tokens[0] == current_frame:
+            if itypes is None or tokens[1] in itypes:
+                frame_contacts.append(tokens)
+        # if it's not, convert the previous frame to single contact records
+        # update the frame record
+        # start a new frame_contacts list
+        # check for end of file
+        else:
+            ret.extend(res_contacts(frame_contacts))
+            frame_contacts = []
+            current_frame = tokens[0]
+
+
+    return ret, total_frames
+######################################################################################
+
+## IN PROGRESS ##
+'''
+with open(per_frame_data,'r') as f:
+    # return the first 100 MB
+    data = f.readlines(100000000) 
+
+
+
+'''
+# determine who the side chain donor is
+# backbone atoms are CA, C, O, N
+
+backbone_atoms = {'N','CA','C','O'}
+# Right now this is just concerned with hbsb
+# hbss, pc, ps, ts, sb can be inferred from the type
+# hp, vdw need to be checked 
+def get_sc_donor(line_list):
+    '''
+    Take a line from per_frame_data and determine which
+    residue is contributing the side chain
+
+    Returns
+    -------
+        single element list of resname contributing side chain
+    '''
+    res1 = line_list[2]
+    res2 = line_list[3]
+    donor = [res for res in [res1, res2] if res.split(":")[3] not in backbone_atoms]
+    
+    return donor
+
+def record_sc_donors(data):
+    '''
+    Returns
+    -------
+        dictionary of contact pair keys and sc donor values
+        the sc donor is the most frequently occuring residue in the sc donor lists
+    '''
+    donors = {}
+    for line in data:
+        info = re.split(r'\s+',line)
+        if info[1] == 'hbsb':
+            resi1 = ":".join(info[2].split(":")[0:3])
+            resi2 = ":".join(info[3].split(":")[0:3])
+            if resi2 < resi1:
+                resi1, resi2 = resi2, resi1
+            pair = f'{resi1}-{resi2}'
+            try:
+                donors[pair].append(":".join(get_sc_donor(info)[0].split(":")[0:3]))
+            except:
+                donors[pair]=[":".join(get_sc_donor(info)[0].split(":")[0:3])]
+        
+    return {name:mode(donors[name]) for name in donors}
+
+def directed_contact_edges(donor_edges):
+    '''
+    Returns
+    -------
+        edge list in digraph format
+    '''
+    # networkx wants directed edges in the format of 
+    # G = nx.DiGraph()
+    # G.add_edges_from([(1, 2), (1, 3)])
+    # Then go back through and add weights using cont_obj.all_edges 
+    directed_edges = []
+    for pair, donor in donor_edges.items():
+        resi1, resi2 = pair.split("-")
+        directed_edges.append((donor,[res for res in [resi1,resi2] if res != donor][0]))
+    return directed_edges
+
+## END IN PROGRESS ##
+
 
 def count_contact_types(contact_type_dict):
     '''
@@ -28,12 +243,6 @@ def count_contact_types(contact_type_dict):
     contact_types_df = pd.DataFrame.from_dict(nested_contact_types_per_contact_pair)
                 
     return contact_types_df
-
-
-
-
-
-
 
 
 
