@@ -264,6 +264,7 @@ class ContactFrequencies:
             if resids['chaina'] ==  resids['chainb']:
                 contact = f"A:{resids['resna']}:{resids['resida']}-"\
                         f"A:{resids['resnb']}:{resids['residb']}"
+                # prepare the regular expression to use for searching for contacts with identical residue pairs as "contact"
                 # this will collect contact pairs with identical and non-identical chain ids.
                 # (?!\d) disallows any additional numbers to the right of the resid (otherwise it will collect 14 & 144)
                 regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}(?!\d)-[{subunits_string}]:{resids['resnb']}:{resids['residb']}(?!\d)"
@@ -275,9 +276,14 @@ class ContactFrequencies:
                     check = _parse_id(pair)
                     if check['chaina'] != check['chainb']:
                        to_remove.append(pair)
+                # we are just dealing with intra-subunit contacts so if the resids match but they are
+                # occuring inter-subunit, then take them out of the "to_average" record
+                # these will be picked up by the else block
                 for pair in to_remove:
                     to_average.remove(pair)
-
+                # deal with lists of contacts that may not equal the length of the identical
+                # subunit list.  If a contact is only picked up in 2 of 3 total subunits for instance,
+                # this will divide the sum of the two contact frequencies by 3
                 if len(to_average) == len(identical_subunits):
                     averaged_data[contact] = df[to_average].mean(axis=1)
                 elif len(to_average) < len(identical_subunits):
@@ -308,6 +314,13 @@ class ContactFrequencies:
                 # then represent opposing with a new contact A-C 
                 if structure:
                 #find the closest residues in contact in the structure
+                # this will return the same contact naming scheme if this is the contact that is 
+                # actually occurring, otherwise the contact name will change to reflect what the
+                # expected contact would be in the crystal structure
+                # There might be a situation where a large conformational change makes this output
+                # not reflect what's actually happening in the simulation
+                # in that case you might use a frame from the simulation as the structure
+                # rather than the crystal structure.
                     contact = check_distance_mda(contact,u)     
 
                 ################## catch opposing subunits with A-C and B-D
@@ -316,6 +329,11 @@ class ContactFrequencies:
                 # for tuple in opposing_subunits:
                 #   if (tuple[0] in re.split(...) and tuple[1]....):
                 #       opposing_contacts.append(pair)
+
+                ## This is probably more trouble than it's worth.  If identical resids are
+                # in a constricted pore or some trimer interface, they'll probably make contact with both oppposing and 
+                # adjacent residues 
+                # keep for now......
                 if opposing_subunits:
                     opposing_contacts = []
                     # if the name matches an opposing pair
@@ -341,6 +359,9 @@ class ContactFrequencies:
                     averaged_data[contact] = df[to_average].sum(axis=1)/len(identical_subunits)
                
                 elif len(to_average) > len(identical_subunits):
+                    # in certain situations like an ion channel pore, you could have a residue make contact
+                    # with multiple other subunits and the to_average list will still be valid even if it
+                    # contains more contacts than there are subunits
                     print(f'got more contacts than identical subunits for contact matching {contact}: {to_average}')
                     averaged_data[contact] = df[to_average].mean(axis=1)
                 df.drop(to_average, axis=1, inplace=True)
