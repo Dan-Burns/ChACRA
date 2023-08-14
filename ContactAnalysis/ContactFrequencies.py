@@ -240,28 +240,38 @@ class ContactFrequencies:
             list will not reflect what the protein subunits that you want to average.
             Supply the identical subunits in this case! e.g. ['A','B']
         '''
-       
+       # In Progress on average_cont_refactor branch
         df = self.freqs.copy()
 
         if structure:
             u = mda.Universe(structure)
-            subunits = [seg.segid for seg in u.segments]
-            #TODO add identical subunit check function (mdanalysis_tools_....)
             if identical_subunits == None:
-                identical_subunits = subunits
-            ## Assuming all subunits are identical
-                print(f'Using subunit IDs {identical_subunits} for averaging.')
+                # find_identical_subunits returns a dictionary 
+                # TODO deal with more than one set of identical subunits
+                identical_subunits = find_identical_subunits(u)
+
+                # dealing with more than one possible set of identical subunits
+                for value in identical_subunits.values():
+                    print(f'Using subunit IDs {" ".join(value)} for averaging.')
+
+        # TODO move inside while loop and check each contact to see which set of identical subunits
         subunits_string = ''.join(identical_subunits)
         
         averaged_data = {}
         # this will start a loop where after a column has been averaged,
         # the columns involved in the averaging will be dropped in place.
+        # TODO while loop needs to be adjusted so that you're only dealing with contacts that require averaging
+        # possibly change df to df = df[contact_pairs_with_chain_ids_in_identical_subunits]
         while len(df.columns) > 0:
-        
+            
+            # picking up a new contact pattern
+            # can check to see which identical_subunits list this falls into and 
+            # adjust accordingly
             resids = self._parse_id(df.columns[0])
             
             # If the contact is happening in the same subunit
             if resids['chaina'] ==  resids['chainb']:
+                # TODO change way this is generated to be specific to multiple identical subunit records
                 contact = f"A:{resids['resna']}:{resids['resida']}-"\
                         f"A:{resids['resnb']}:{resids['residb']}"
                 # prepare the regular expression to use for searching for contacts with identical residue pairs as "contact"
@@ -271,11 +281,8 @@ class ContactFrequencies:
 
                 to_average = list(df.filter(regex=regex, axis=1).columns)
                 # check to make sure none of the contacts in to_average have different chain IDs
-                to_remove = []
-                for pair in to_average:
-                    check = _parse_id(pair)
-                    if check['chaina'] != check['chainb']:
-                       to_remove.append(pair)
+                to_remove = filter_by_chain(to_average, same_chain=False)
+                
                 # we are just dealing with intra-subunit contacts so if the resids match but they are
                 # occuring inter-subunit, then take them out of the "to_average" record
                 # these will be picked up by the else block
@@ -284,13 +291,8 @@ class ContactFrequencies:
                 # deal with lists of contacts that may not equal the length of the identical
                 # subunit list.  If a contact is only picked up in 2 of 3 total subunits for instance,
                 # this will divide the sum of the two contact frequencies by 3
-                if len(to_average) == len(identical_subunits):
-                    averaged_data[contact] = df[to_average].mean(axis=1)
-                elif len(to_average) < len(identical_subunits):
-                    averaged_data[contact] = df[to_average].sum(axis=1)/len(identical_subunits)
-                elif len(to_average) > len(identical_subunits):
-                    print(f'Stopping after getting more contacts than identical subunits for contact matching {contact}: {to_average}')
-                    return
+                
+                averaged_data[contact] = get_standard_average(df, to_average, identical_subunits)
                 df.drop(to_average, axis=1, inplace=True)
 
             else:
@@ -301,12 +303,9 @@ class ContactFrequencies:
                 regex = f"[{subunits_string}]:{resids['resna']}:{resids['resida']}(?!\d)-[{subunits_string}]:{resids['resnb']}:{resids['residb']}(?!\d)"
 
                 to_average = list(df.filter(regex=regex, axis=1).columns) 
-                to_remove = []
-                # check to make sure none of the contacts in to_average have identical chain IDs
-                for pair in to_average:
-                    check = _parse_id(pair)
-                    if check['chaina'] == check['chainb']:
-                       to_remove.append(pair)
+
+                to_remove = filter_by_chain(to_average, same_chain=True)
+            
                 for pair in list(set(to_remove)):
                     to_average.remove(pair)
                 # to_average will catch adjacent and opposing subunit contacts here
@@ -353,22 +352,15 @@ class ContactFrequencies:
                                                 f"C:{resids['resnb']}:{resids['residb']}"
                         averaged_data[opposing_contact_name] = df[opposing_contacts].sum(axis=1)/2
                 ########################################################################################
-                if len(to_average) == len(identical_subunits):
-                    averaged_data[contact] = df[to_average].mean(axis=1)
-                elif len(to_average) < len(identical_subunits):
-                    averaged_data[contact] = df[to_average].sum(axis=1)/len(identical_subunits)
-               
-                elif len(to_average) > len(identical_subunits):
-                    # in certain situations like an ion channel pore, you could have a residue make contact
-                    # with multiple other subunits and the to_average list will still be valid even if it
-                    # contains more contacts than there are subunits
-                    print(f'got more contacts than identical subunits for contact matching {contact}: {to_average}')
-                    averaged_data[contact] = df[to_average].mean(axis=1)
+                
+                averaged_data[contact] = get_standard_average(df,to_average, identical_subunits, check=False)
                 df.drop(to_average, axis=1, inplace=True)
                 ##############
                 #TODO this needs to be adjusted to not throw referenced before assignment error, make opposing subunits = True
                 if opposing_subunits:
                     df.drop(opposing_contacts, axis=1, inplace=True)
+
+
         return pd.DataFrame(averaged_data)
 
 
