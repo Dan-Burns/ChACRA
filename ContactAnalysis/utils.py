@@ -4,8 +4,8 @@
 from itertools import combinations
 import pandas as pd
 import numpy as np
-from contact_functions import _parse_id
-
+from .contact_functions import _parse_id
+ 
 def find_identical_subunits(universe):
     '''
     determines which subunits are identical
@@ -31,7 +31,7 @@ def find_identical_subunits(universe):
     identical_table = pd.DataFrame(array, columns=segids, index=segids)
 
     # Go through all pairwise combinations of subunits
-    for combo in combinations([segid for segid in segids],2):
+    for combo in combinations(segids,2):
         bool = np.all(np.equal(residues[combo[0]],residues[combo[1]]))
         # Enter True or False in both the upper tri and lower tri
         identical_table[combo[1]][combo[0]], identical_table[combo[0]][combo[1]] =  bool, bool
@@ -49,6 +49,29 @@ def find_identical_subunits(universe):
             identical_subunits[i] = list(subunits)
 
     return identical_subunits
+
+def get_all_subunit_contacts(subunits, df):
+    '''
+    return a list of contacts that involve at least one subunit in subunits
+    
+    Parameters
+    ----------
+    subunits: list
+
+    '''
+
+    subunits_string = '|'.join(identical_subunits)
+    # TODO only need one residue's subunit to match
+    # need to do 2 regexs to get anything where chain A matches then any leftovers where chain B
+    # need to account for multi letter chains in the variable 
+    regex1 = f"\b(?:{subunits_string}):[A-Z]{3}:\d+-[A-Z1-9]+:[A-Z]{3}:\d+"
+    regex2 = f"[A-Z1-9]+:[A-Z]{3}:\d+-\b(?:{subunits_string}):[A-Z]{3}:\d+"
+    columns1 = list(df.filter(regex=regex1, axis=1).columns)
+    columns2 = list(df.filter(regex=regex2, axis=1).columns)
+    columns = columns1 + columns2
+    
+    return list(set(columns))
+
 
 def filter_by_chain(contact_list, same_chain=False):
     '''
@@ -128,3 +151,20 @@ def get_standard_average(df, to_average, identical_subunits, check=True):
         else:
             print(f'Got more contacts than identical subunits for contact matching {contact}: {to_average}. Maybe this is in a channel pore?')
             return df[to_average].mean(axis=1)
+        
+def get_opposing_subunit_contacts(to_average, opposing_subunits):
+
+    '''
+    
+    '''
+    opposing_contacts = []
+    # if the name matches an opposing pair
+
+
+    for pair in to_average:
+        for subunits in opposing_subunits:
+            if (subunits[0] in re.split(':|-', pair) and subunits[1] in re.split(':|-', pair)):
+
+                # record it 
+                opposing_contacts.append(pair)
+    return opposing_contacts
