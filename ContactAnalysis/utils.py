@@ -4,7 +4,8 @@
 from itertools import combinations
 import pandas as pd
 import numpy as np
-from .contact_functions import _parse_id
+import re
+from TSenCA.ContactAnalysis.contact_functions import _parse_id
  
 def find_identical_subunits(universe):
     '''
@@ -50,7 +51,7 @@ def find_identical_subunits(universe):
 
     return identical_subunits
 
-def get_all_subunit_contacts(subunits, df):
+def get_all_subunit_contacts(identical_subunits, df):
     '''
     return a list of contacts that involve at least one subunit in subunits
     
@@ -64,8 +65,8 @@ def get_all_subunit_contacts(subunits, df):
     # TODO only need one residue's subunit to match
     # need to do 2 regexs to get anything where chain A matches then any leftovers where chain B
     # need to account for multi letter chains in the variable 
-    regex1 = f"\b(?:{subunits_string}):[A-Z]{3}:\d+-[A-Z1-9]+:[A-Z]{3}:\d+"
-    regex2 = f"[A-Z1-9]+:[A-Z]{3}:\d+-\b(?:{subunits_string}):[A-Z]{3}:\d+"
+    regex1 = f"(?:{subunits_string}):[A-Z]{{3}}:\d+-[A-Z1-9]+:[A-Z]{{3}}:\d+" 
+    regex2 = f"[A-Z1-9]+:[A-Z]{{3}}:\d+-(?:{subunits_string}):[A-Z]{{3}}:\d+"
     columns1 = list(df.filter(regex=regex1, axis=1).columns)
     columns2 = list(df.filter(regex=regex2, axis=1).columns)
     columns = columns1 + columns2
@@ -155,15 +156,14 @@ def get_standard_average(df, to_average, identical_subunits, check=True):
 def get_opposing_subunit_contacts(to_average, opposing_subunits):
 
     '''
+    Using A/C B/D default for test
     
     '''
     opposing_contacts = []
     # if the name matches an opposing pair
-
-
     for pair in to_average:
         for subunits in opposing_subunits:
-            if (subunits[0] in re.split(':|-', pair) and subunits[1] in re.split(':|-', pair)):
+            if (subunits[0] in re.split(':|-', pair)) and (subunits[1] in re.split(':|-', pair)):
 
                 # record it 
                 opposing_contacts.append(pair)
