@@ -152,7 +152,35 @@ def get_standard_average(df, to_average, identical_subunits, check=True):
         else:
             print(f'Got more contacts than identical subunits for contact matching {contact}: {to_average}. Maybe this is in a channel pore?')
             return df[to_average].mean(axis=1)
+
+def get_angle(a,b,c):
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+    return angle
         
+def get_opposing_subunits(subunits, u):
+    
+    segids = set(u.residues.segids)
+    # hold the coms for each protomer 
+    seg_sels = {seg: u.select_atoms(f'segid {seg}') for seg in set(u.residues.segids) if segid in subunits} 
+    coms = {segid: seg_sels[segid].center_of_mass() for segid in segids}
+    all_seg_sel_string = ''.join([f'segid {seg} or ' for seg in list(segids)[:-1]])
+    all_seg_sel_string += f'segid {list(segids)[-1]}'
+    all_com = u.select_atoms(all_seg_sel_string).center_of_mass()
+    opposing_subunits = []
+    check = []
+    for seg in segids:
+        for seg2 in [segid for segid in segids if segid != seg]:
+            if seg2 not in check:
+                if np.abs(180-np.rad2deg(get_angle(coms[seg],all_com,coms[seg2]))) <= 2:
+                    opposing_subunits.append((seg,seg2))
+                    check.extend([seg,seg2])
+    return opposing_subunits
+
+
 def get_opposing_subunit_contacts(to_average, opposing_subunits):
 
     '''

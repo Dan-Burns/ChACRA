@@ -231,7 +231,7 @@ class ContactFrequencies:
     
 
 
-    def average_contacts(self, structure=None, identical_subunits=None, neighboring_subunits=None, opposing_subunits=None):
+    def average_contacts(self, structure=None, identical_subunits=None, neighboring_subunits=None, opposing_subunits=False):
         '''
         oppposing subunits should let the user specify which subunits are opposite of each other (rather than adjacent)
         and during averaging, it will distinguish between adjacent and opposing and assign them to the right contact id
@@ -247,6 +247,9 @@ class ContactFrequencies:
             lists of neighboring subunits must be in same order as identical_subunits and must include a tuple of chain ids for each list in identical_subunits
 
         opposing_subunits: list of tuples
+            Leave as False for dimers. This is intended for special cases like ion channels where it might be interesting to 
+            specify contacts occurring between different pairs of identical subunits
+
             specify which subunits are opposite of one another (like in a tetrameric ion channel)
             if you want to separately track contacts that occur directly across an interface rather than
             contacts that occur on adjacent subunits.
@@ -277,14 +280,19 @@ class ContactFrequencies:
         averaged_data = {} 
         # track all dropped columns so that you can filter out the original dataframe and see what's left
         dropped_columns = []
+        # loop over each set of subunits in identical_subunits
         for z, subunits in enumerate(identical_subunits.values()):
 
-            # loop is using prefiltered dataframes now
+            # loop is using prefiltered dataframes containing chains involved in "subunits" 
             contacts = get_all_subunit_contacts(subunits, odf)
           
             df = odf[contacts].copy()
             
             # create chain names for the new averaged contact names
+            if structure and opposing_subunits == None and neighboring_subunits == None:
+                opposing_subunits = get_opposing_subunits(subunits, u)
+                chain1, chain2, alt_chain2 = opposing_subunits[0][0], opposing_subunits[1][0], opposing_subunits[1][1]
+                # take first position
             if neighboring_subunits:
                 chain1 = neighboring_subunits[z][0]
                 chain2 = neighboring_subunits[z][1]
@@ -293,7 +301,8 @@ class ContactFrequencies:
                 chain2 = subunits[1]
             # this will start a loop where after a column has been averaged,
             # the columns involved in the averaging will be dropped in place.
-        
+            # exit condition is after all columns in the df have been dropped because they have been caught by the regular expression, 
+            # sorted according to intra/ inter subunit condition, and averaged
             while len(df.columns) > 0:
                 
                 # picking up a new contact pattern
@@ -334,9 +343,10 @@ class ContactFrequencies:
                         to_average.remove(pair)
         
                     if structure:
-                    # ensure they're represented correctly when visualized
-                    # TODO check alternate naming scheme
-                        contact = check_distance_mda(contact,u, chain1, chain2)     
+                        # this ensures correct depiction if visualized on the structure using functions in contacts_to_pymol
+                        # TODO ensure alternate naming that will correctly label an A/C 
+                        # when it is closer than A/B according to contents of "subunits" 
+                        contact = check_distance_mda(contact,u, chain1, alt_chain2)     
 
                     ################## catch opposing subunits with A-C and B-D
                     ## This is probably more trouble than it's worth. 
@@ -345,23 +355,30 @@ class ContactFrequencies:
                     if opposing_subunits == False:
                         continue
                     else:
-                        if opposing_subunits == None:
-                            opposing_subunits = [('A','C'),('B','D')]
+                         #if opposing_subunits == None:
+                            #TODO - develop function that identifies opposing subunit ids 
+                            # com atom group and then angles between them
+                            # This will allow for default and reduce complication for command line users
+                            # opposing_subunits = [('A','C'),('B','D')]
+                        # filtering to_average to return contacts that are happening at directly opposing contacts
+                        # (Unnecessary for dimers)
                         opposing_contacts = get_opposing_subunit_contacts(to_average, opposing_subunits)
 
                         for pair in opposing_contacts:
                             # remove it from main record
                             to_average.remove(pair)
-                        # taking the straight mean (no assumptions)
+                        # get the mean
                         if len(opposing_contacts) > 0:
                             opposing_contact_name = f"{opposing_subunits[0][0]}:{resids['resna']}:{resids['resida']}-"\
                                                     f"{opposing_subunits[0][1]}:{resids['resnb']}:{resids['residb']}"
                             averaged_data[opposing_contact_name] = df[opposing_contacts].mean(axis=1)
+                        # done with these contacts
                         df.drop(opposing_contacts, axis=1, inplace=True)
                         dropped_columns.extend(opposing_contacts)
                     ########################################################################################
-                    
+                    # Now that the correct structural representation is accounted for and special case addressed, get the average.
                     averaged_data[contact] = get_standard_average(df,to_average, subunits, check=False)
+                    # done with this iteration
                     df.drop(to_average, axis=1, inplace=True)
                     dropped_columns.extend(to_average)
             # only returning averaged data - any data in original df that wasn't found to have 2 or more identical subunits won't show up now.
@@ -651,8 +668,8 @@ class ContactPCA:
         Returns
             np.array of explained variance by PC for each permutation of the dataframe.
         '''    
-        #https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
-        #permutation test example from kaggle
+        # borrowed code from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
+        
         df = contact_frequencies.copy()
         # This function changes the order of the columns independently to remove correlations
        

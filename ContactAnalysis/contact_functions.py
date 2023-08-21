@@ -61,7 +61,7 @@ def check_distance(contact, structure):
             'B:'+resids['resna']+':'+str(resids['resida'])
                 
 
-def check_distance_mda(contact, u, chain1='A', chain2='B'):
+def check_distance_mda(contact, u, chain1='A', alt_chain2='B'):
     '''
     This will compare distances between the same resids swapped between chain A and B to 
     find the combination representing the actual contact to depict on the pymol structure
@@ -88,4 +88,4 @@ def check_distance_mda(contact, u, chain1='A', chain2='B'):
     if np.linalg.norm((atomaa-atombb)) < np.linalg.norm((atomab-atomba)):
         return contact
     else:
-        return f"{chain1}:{resids['resnb']}:{resids['residb']}-{chain2}:{resids['resna']}:{resids['resida']}"
+        return f"{chain1}:{resids['resnb']}:{resids['residb']}-{alt_chain2}:{resids['resna']}:{resids['resida']}"
