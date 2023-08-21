@@ -348,7 +348,7 @@ class ContactFrequencies:
                         # when it is closer than A/B according to contents of "subunits" 
                         contact = check_distance_mda(contact,u, chain1, alt_chain2)     
 
-                    ################## catch opposing subunits with A-C and B-D
+                    ################## catch opposing subunits 
                     ## This is probably more trouble than it's worth. 
                     # keep for now......
                     # TODO require them to be specified or else this block gets skipped
