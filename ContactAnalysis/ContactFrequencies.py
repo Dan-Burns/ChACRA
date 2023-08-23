@@ -308,7 +308,7 @@ class ContactFrequencies:
                 # can check to see which identical_subunits list this falls into and 
                 # adjust accordingly
                 resids = self._parse_id(df.columns[0])
-            
+                # intersubunit contacts can have swapped resids 
                 regex = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
                 regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
                 to_average = list(df.filter(regex=regex, axis=1).columns)
