@@ -182,9 +182,10 @@ def get_opposing_subunits(subunits, u):
                 print(seg,seg2)
                 print(np.rad2deg(get_angle(coms[seg],all_com,coms[seg2])))
                 if np.abs(180-np.rad2deg(get_angle(coms[seg],all_com,coms[seg2]))) <= 2:
-                    
-                    opposing_subunits.append((seg,seg2))
-                    check.extend([seg,seg2])
+                    ids = [seg,seg2]
+                    ids.sort()
+                    opposing_subunits.append((tuple(ids)))
+                    check.extend(tuple(ids))
     return opposing_subunits
 
 

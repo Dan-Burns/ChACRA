@@ -289,7 +289,8 @@ class ContactFrequencies:
                 opposing_subunits = get_opposing_subunits(subunits, u)
                 opposing_subunits.sort()
                 chain1, chain2, alt_chain2 = opposing_subunits[0][0], opposing_subunits[1][0], opposing_subunits[1][1]
-                # not using alt_chain2 atm
+                print(opposing_subunits)
+                # not using alt_chain2 atm but can use it when shortest contact is no AB but AC 
                 # take first position
             if neighboring_subunits:
                 chain1 = neighboring_subunits[z][0]
@@ -307,8 +308,11 @@ class ContactFrequencies:
                 # can check to see which identical_subunits list this falls into and 
                 # adjust accordingly
                 resids = self._parse_id(df.columns[0])
+            
                 regex = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
+                regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
                 to_average = list(df.filter(regex=regex, axis=1).columns)
+                to_average = list(df.filter(regex=regex2, axis=1).columns) + to_average
 
                 # If the contact is happening in the same subunit
                 if resids['chaina'] ==  resids['chainb']:
@@ -364,7 +368,7 @@ class ContactFrequencies:
                             averaged_data[opposing_contact_name] = df[opposing_contacts].mean(axis=1)
                         # done with these contacts
                         df.drop(opposing_contacts, axis=1, inplace=True)
-                        print(opposing_contacts)
+                        #print(opposing_contacts)
                         #dropped_columns.extend(opposing_contacts)
                     ########################################################################################
                     # get the average.
