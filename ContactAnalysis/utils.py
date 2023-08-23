@@ -150,7 +150,7 @@ def get_standard_average(df, to_average, identical_subunits, check=True):
                   This can happen if a residue makes contact with multiple subunits.  Set check=False if this make sense for your system.')
             return 
         else:
-            print(f'Got more contacts than identical subunits for contact matching {contact}: {to_average}. Maybe this is in a channel pore?')
+            print(f'Got more contacts than identical subunits for contact matching {to_average[0]}. Maybe this is in a channel pore?')
             return df[to_average].mean(axis=1)
 
 def get_angle(a,b,c):
@@ -163,19 +163,26 @@ def get_angle(a,b,c):
         
 def get_opposing_subunits(subunits, u):
     
-    segids = set(u.residues.segids)
-    # hold the coms for each protomer 
-    seg_sels = {seg: u.select_atoms(f'segid {seg}') for seg in set(u.residues.segids) if segid in subunits} 
+    segids = set(u.segments.segids)
+    seg_sels = {seg: u.select_atoms(f'segid {seg}') for seg in segids if seg in subunits} 
+    # center of mass for each protomer
     coms = {segid: seg_sels[segid].center_of_mass() for segid in segids}
     all_seg_sel_string = ''.join([f'segid {seg} or ' for seg in list(segids)[:-1]])
     all_seg_sel_string += f'segid {list(segids)[-1]}'
+    # center of mass for combined identical protomers
     all_com = u.select_atoms(all_seg_sel_string).center_of_mass()
     opposing_subunits = []
     check = []
     for seg in segids:
         for seg2 in [segid for segid in segids if segid != seg]:
+            # segids will be in check if they have already been paired up with their opposing subunit
             if seg2 not in check:
+                # measuring angle between two subunits with the combined com as the vertex
+                # if the angle is ~180 degrees then they're opposing
+                print(seg,seg2)
+                print(np.rad2deg(get_angle(coms[seg],all_com,coms[seg2])))
                 if np.abs(180-np.rad2deg(get_angle(coms[seg],all_com,coms[seg2]))) <= 2:
+                    
                     opposing_subunits.append((seg,seg2))
                     check.extend([seg,seg2])
     return opposing_subunits

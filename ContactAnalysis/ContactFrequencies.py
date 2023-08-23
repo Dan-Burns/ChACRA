@@ -257,11 +257,7 @@ class ContactFrequencies:
             when there are fewer than 4 subunits.
             example: opposing_subunits = [('B','D'),('A','C')]
         '''
-        # In Progress on average_cont_refactor branch
-        # df = df[contact_pairs_with_chain_ids_in_identical_subunits]
-        # do this for everything in the identical subunit dictionary and leave anything
-        # that is not going to be averaged in another df that will be concatenated with 
-        # the averaged ones at the end before returning
+        
         # original df
         print(opposing_subunits)
         odf = self.freqs.copy()
@@ -269,29 +265,31 @@ class ContactFrequencies:
         if structure:
             u = mda.Universe(structure)
             if identical_subunits == None:
-                # find_identical_subunits returns a dictionary 
-                # TODO deal with more than one set of identical subunits
+                # dictionary to deal with potentially more than one set of identical subunits 
+                # mda segids picks up far right column of PDB seemingly if present - chainid option would be ideal
                 identical_subunits = find_identical_subunits(u)
-
-                # dealing with more than one possible set of identical subunits
                 for value in identical_subunits.values():
                     print(f'Using subunit IDs {" ".join(value)} for averaging.')
        
         averaged_data = {} 
-        # track all dropped columns so that you can filter out the original dataframe and see what's left
-        dropped_columns = []
+        # dropped_columns = [] # not using atm
         # loop over each set of subunits in identical_subunits
         for z, subunits in enumerate(identical_subunits.values()):
 
+            # put in alphabetical order 
+            subunits.sort()
             # loop is using prefiltered dataframes containing chains involved in "subunits" 
             contacts = get_all_subunit_contacts(subunits, odf)
           
             df = odf[contacts].copy()
             
             # create chain names for the new averaged contact names
+        
             if structure and opposing_subunits == None and neighboring_subunits == None:
                 opposing_subunits = get_opposing_subunits(subunits, u)
+                opposing_subunits.sort()
                 chain1, chain2, alt_chain2 = opposing_subunits[0][0], opposing_subunits[1][0], opposing_subunits[1][1]
+                # not using alt_chain2 atm
                 # take first position
             if neighboring_subunits:
                 chain1 = neighboring_subunits[z][0]
@@ -330,7 +328,7 @@ class ContactFrequencies:
                     # and then remove the original contacts from the df
                     df.drop(to_average, axis=1, inplace=True)
                     # odf.drop(to_average, axis=1, inplace=True) # can just 
-                    dropped_columns.extend(to_average)
+                    #dropped_columns.extend(to_average)
 
                 else:
                     # Average contacts that are occuring inter-chain
@@ -344,23 +342,15 @@ class ContactFrequencies:
         
                     if structure:
                         # this ensures correct depiction if visualized on the structure using functions in contacts_to_pymol
-                        # TODO ensure alternate naming that will correctly label an A/C 
-                        # when it is closer than A/B according to contents of "subunits" 
-                        contact = check_distance_mda(contact,u, chain1, alt_chain2)     
+                        #  TODO alt_chain2 is not consistent with other options of naming subunits
+                        contact = check_distance_mda(contact,u, chain1, chain2)     
 
                     ################## catch opposing subunits 
-                    ## This is probably more trouble than it's worth. 
+                    # Unsure of how useful treating opposing subunits differently is to users. 
                     # keep for now......
-                    # TODO require them to be specified or else this block gets skipped
                     if opposing_subunits == False:
-                        continue
+                        pass
                     else:
-                         #if opposing_subunits == None:
-                            #TODO - develop function that identifies opposing subunit ids 
-                            # com atom group and then angles between them
-                            # This will allow for default and reduce complication for command line users
-                            # opposing_subunits = [('A','C'),('B','D')]
-                        # filtering to_average to return contacts that are happening at directly opposing contacts
                         # (Unnecessary for dimers)
                         opposing_contacts = get_opposing_subunit_contacts(to_average, opposing_subunits)
 
@@ -374,14 +364,15 @@ class ContactFrequencies:
                             averaged_data[opposing_contact_name] = df[opposing_contacts].mean(axis=1)
                         # done with these contacts
                         df.drop(opposing_contacts, axis=1, inplace=True)
-                        dropped_columns.extend(opposing_contacts)
+                        print(opposing_contacts)
+                        #dropped_columns.extend(opposing_contacts)
                     ########################################################################################
-                    # Now that the correct structural representation is accounted for and special case addressed, get the average.
+                    # get the average.
                     averaged_data[contact] = get_standard_average(df,to_average, subunits, check=False)
+                    
                     # done with this iteration
                     df.drop(to_average, axis=1, inplace=True)
-                    dropped_columns.extend(to_average)
-            # only returning averaged data - any data in original df that wasn't found to have 2 or more identical subunits won't show up now.
+                    #dropped_columns.extend(to_average)
             return pd.DataFrame(averaged_data)
 
 
