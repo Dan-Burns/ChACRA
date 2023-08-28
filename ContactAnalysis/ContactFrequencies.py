@@ -487,6 +487,32 @@ class ContactFrequencies:
             data[index2][index1] = values[format]
         
         return pd.DataFrame(data, columns=all_resis, index=all_resis)
+    
+    #TODO
+    def contact_between(resi1, resi2):
+        '''
+        Enter the information for a contact between two residues and return a dataframe 
+        or a list of column ids
+        showing the relevant contact information
+        can be just resids or lists of chain, 3 letter or 1 letter resname, and resnums
+        resnames will let you sort out any contacts involving those resnames
+        '''
+        # Get the appropriate variables
+        resids = {}
+        for h in [resi1,resi2]:
+            for i in resi:
+                # use three letter amino acid dictionary to identify resn
+                if type(i) == str:
+                    if i in 3
+                    # if it's not an amino acid, it's a chain ID
+                # otherwise it's an integer
+                else:
+                    resids['resida'] = i
+        # generate regexes with available information
+        # 
+        regex = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
+        regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
+
 
 
             
