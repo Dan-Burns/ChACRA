@@ -770,3 +770,42 @@ def circular_color_gradient(output='./colors.pml',structure=None,
                     file.write('color ' + hex_color + ', resi ' + str(resi[0]) + \
                                ' and chain ' + resi[1] + '\n' \
                                )
+                    
+            # this is better
+            '''
+            coordinates = {}
+            for res in u.residues:
+                coordinates[(res.resnum, res.segid)] = res.atoms[0].position
+
+            values = np.array(list(coordinates.values()))
+            # center the data
+            xcenter = values[:,0] - values[:,0].mean()
+
+            ycenter = values[:,1] - values[:,1].mean()
+
+            zcenter = values[:,2] - values[:,2].mean()
+
+            centered_array = np.vstack((xcenter,ycenter,zcenter)).T
+
+
+            vector_magnitudes = {}
+            for i, resi in enumerate(list(coordinates.keys())):
+                # determine which plane the gradient is going in here (second index)
+                # xyz dictionary maps string to index 0-2
+                vector_magnitudes[resi] = np.linalg.norm(
+                                            [centered_array[i][0],
+                                            centered_array[i][1]])
+
+            max_vector = max(vector_magnitudes.values())
+
+            cmap = cm.get_cmap(cmap_name, n_residues)
+            for i, resi in enumerate(list(vector_magnitudes.keys())):
+                norm_vector_length = vector_magnitudes[resi]/max_vector
+
+                color_index = int(norm_vector_length *cmap.N)
+                hex_color = '0x'+str(to_hex(cmap(color_index))[1:])
+                file.write('color ' + hex_color + ', resi ' + str(resi[0]) + \
+                        ' and chain ' + resi[1] + '\n' \
+                        )
+                    
+                    '''

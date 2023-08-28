@@ -497,7 +497,7 @@ class ContactFrequencies:
         can be just resids or lists of chain, 3 letter or 1 letter resname, and resnums
         resnames will let you sort out any contacts involving those resnames
         '''
-        # Get the appropriate variables
+        ''' # Get the appropriate variables
         resids = {}
         for h in [resi1,resi2]:
             for i in resi:
@@ -512,7 +512,7 @@ class ContactFrequencies:
         # 
         regex = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
         regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
-
+        '''
 
 
             
