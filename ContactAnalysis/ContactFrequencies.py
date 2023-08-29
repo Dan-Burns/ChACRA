@@ -438,12 +438,12 @@ class ContactFrequencies:
 
         '''
 
-    def to_heatmap(self,format='mean', range=None):
+    def to_heatmap(self,format='mean', range=None, contact_pca=None, pc=None):
         
         # Turn the data into a heatmap 
-        # format options are 'mean', 'stdev', 'difference'
+        # format options are 'mean', 'stdev', 'difference', 'loading_score'
         # if 'difference', specify tuple of rows your interested in taking the difference from
-       
+        # if 'loading_score' then specify contact_pca data
         # hold reslists with chain keys and list of resid values
         reslists = {}
 
@@ -482,7 +482,10 @@ class ContactFrequencies:
 
             values = {}
             values['mean'], values['stdev'], values['difference'] = self.freqs[contact].mean(), self.freqs[contact].std(), self.freqs[contact].iloc[-1]-self.freqs[contact].iloc[0]
-            
+            if contact_pca:
+                #TODO offer sorted loadings to catch sign
+                values['loading_score'] = contact_pca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
+
             data[index1][index2] = values[format]
             data[index2][index1] = values[format]
         
