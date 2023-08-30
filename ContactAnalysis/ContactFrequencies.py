@@ -104,49 +104,22 @@ class ContactFrequencies:
                        self.freqs[contact].iloc[temp_range[0]:temp_range[1]]).slope
     
     
-    def contact_partners(self, resid, resid_2=None, id_only=False):
+    def contact_partners(self, resid1, resid2=None, id_only=False):
         '''
-        Provide a residue id and return the ids of all the residues it 
-        makes contacts with
+        filter the dataframe to only return contacts involving the provided residue(s)
+
         '''
-        # this should be able to deal with averaged data and original data 
-        # and return any combination of residue+/chain+/resname
-        
-        contact_ids = []
-        contact_names = []
-        
-        if id_only == True:
-            for contact in self.freqs.columns:
-                contact_info = self._parse_id(contact)
-                if contact_info['resida'] == str(resid):
-                    contact_ids.append(contact_info['residb'])
-                elif contact_info['residb'] == str(resid):
-                    contact_ids.append(contact_info['resida'])
-        
-            return contact_ids
-        
-        elif resid_2:
-            for contact in self.freqs.columns:
-                contact_info = self._parse_id(contact)
-                if contact_info['resida'] == str(resid) and\
-                   contact_info['residb'] == str(resid_2):
-                    contact_names.append(contact)
-                elif contact_info['residb'] == str(resid) and\
-                   contact_info['resida'] == str(resid_2):
-                    contact_names.append(contact)
-            return contact_names
-            
+        if resid2:
+            regex1 = f"[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:{resid2}(?!\d)"
+            regex2 = f"[A-Z1-9]+:[A-Z]+:{resid2}(?!\d)-[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)"
+            regex = f"{regex1}|{regex2}"
         else:
-            for contact in self.freqs.columns:
-                contact_info = self._parse_id(contact)
-                if contact_info['resida'] == str(resid):
-                    contact_names.append(contact)
-                elif contact_info['residb'] == str(resid):
-                    contact_names.append(contact)
-            return contact_names
-        
-            
+            regex1 = f"[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:\d+"
+            regex2 = f"[A-Z1-9]+:[A-Z]+:\d+-[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)"
+            regex = f"{regex1}|{regex2}"
+        return self.freqs.filter(regex=regex, axis=1)
     
+      
     def all_edges(self, weights=True, inverse=True, temp=0, as_dict=False):
         '''
         returns list of contact id tuples for network analysis input
@@ -392,20 +365,6 @@ class ContactFrequencies:
         return self.freqs[(self.freqs.min() < max_frequency).index[
                 self.freqs.min() < max_frequency]]
 
-        
-    def shortest_route(self, structure, begin_res, end_res):
-        '''
-
-        REMOVE - this is done with networkx functions
-        Use the contact labels and the structure to find the shortest
-        route between two residues. 
-        Backbone should probably be calculated.
-        Consider the strengths of the contacts (frequencies) as well to find
-        the strongest route.
-        This does not guarantee that the route will be continguous since
-        one residue might have to exchange contacts between two others.
-
-        '''
 
     def to_heatmap(self,format='mean', range=None, contact_pca=None, pc=None):
         
@@ -458,38 +417,7 @@ class ContactFrequencies:
             data[index1][index2] = values[format]
             data[index2][index1] = values[format]
         
-        return pd.DataFrame(data, columns=all_resis, index=all_resis)
-    
-    #TODO
-    def contact_between(resi1, resi2):
-        '''
-        Enter the information for a contact between two residues and return a dataframe 
-        or a list of column ids
-        showing the relevant contact information
-        can be just resids or lists of chain, 3 letter or 1 letter resname, and resnums
-        resnames will let you sort out any contacts involving those resnames
-        '''
-        ''' # Get the appropriate variables
-        resids = {}
-        for h in [resi1,resi2]:
-            for i in resi:
-                # use three letter amino acid dictionary to identify resn
-                if type(i) == str:
-                    if i in 3
-                    # if it's not an amino acid, it's a chain ID
-                # otherwise it's an integer
-                else:
-                    resids['resida'] = i
-        # generate regexes with available information
-        # 
-        regex = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
-        regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
-        '''
-
-
-            
-            
-                                       
+        return pd.DataFrame(data, columns=all_resis, index=all_resis)                                 
 
 def de_correlate_df(df):
     '''
