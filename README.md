@@ -1,8 +1,13 @@
-# TSenCA
+# ChACRA![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/a030ffbb-0a97-4b33-a968-fab2ec7dbee9)
 
-**T**emperature **Sen**sitive **C**ontact **A**nalysis
 
-Tools to analyze biomolecular interactions across multiple ensembles.
+
+
+**Ch**emically **A**ccurate **C**ontact **R**esponse **A**nalysis
+
+Find your protein's energy centers.
+
+These are tools to analyze residue interactions across multiple ensembles.
 
 After simulating a protein across multiple temperatures (ideally with replica exchange) use GetContacts to calculate the contact frequencies for all of the pairwise residue interactions.
 
@@ -10,7 +15,7 @@ Turn this data into a dataframe wrapped by the ContactFrequencies class to provi
 
 Perform PCA on this data with the ContactPCA class and identify the temperature-dependent contact modes in your protein.
 
-The PCs represent collective modes that describe different responses to temperature exhibited by different parts of the protein.  The most sensitive interactions (revealed by large magnitude loading scores) within the high eigenvalue PCs are strong candidates for functionally important residues.
+The PCs represent collective modes that describe different responses to energy exhibited by different parts of the protein.  The most sensitive interactions (revealed by large magnitude loading scores) within the high eigenvalue PCs are strong candidates for functionally important residues.
 
 The loading scores within a PC also report on correlated interactions and as a consequence, can reveal allostery.
 
