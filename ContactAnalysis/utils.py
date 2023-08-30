@@ -5,7 +5,7 @@ from itertools import combinations
 import pandas as pd
 import numpy as np
 import re
-from TSenCA.ContactAnalysis.contact_functions import _parse_id
+from ChACRA.ContactAnalysis.contact_functions import _parse_id
  
 def find_identical_subunits(universe):
     '''
