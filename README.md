@@ -1,6 +1,6 @@
 # ChACRA
 
-**T**emperature **Sen**sitive **C**ontact **A**nalysis
+**Ch**emically **A**ccurate **C**ontact **R**esponse **A**nalysis
 
 Tools to analyze biomolecular interactions across multiple ensembles.
 
