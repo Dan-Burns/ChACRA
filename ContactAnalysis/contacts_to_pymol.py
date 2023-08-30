@@ -8,7 +8,6 @@ from pylab import cm
 from matplotlib.colors import to_hex
 import collections
 
-# Refactoring of contacts_to_pymol_v2 (yes, v2 precedes this)
 
 '''
 There is probably a better way to do this than write a file with hundreds of selection strings.
@@ -84,7 +83,6 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     #easier access to contact dataframe
     cdf = contactFrequencies.freqs
 
-
     for contact in contact_list:
         chaina, resna, resia, chainb, resnb, resib = re.split(
                                                         ":|-", contact
@@ -104,13 +102,9 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         top_score = scores[top_pc]['score']
 
-     
-
         data[contact]['top_pc'] = top_pc
 
         data[contact]['loading_score'] = top_score
-
-       
 
         data[contact]['color'] = pc_color(top_pc)
 
@@ -131,7 +125,6 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         for contact in data.keys():
             scores.append(data[contact]['loading_score'])
 
-
         max_rank = max(scores)
         min_rank = min(scores)
         m = -(max_transparency/(max_rank-min_rank))
@@ -141,7 +134,6 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
             rank = data[contact]['loading_score']
             sphere_transparency = (m * rank) + b
             data[contact]['sphere_transparency'] = sphere_transparency
-        
 
         # sort the dictionary in ascending order of loading score so that
         # the highest scores get colored last (and take visual precedence)
@@ -262,7 +254,6 @@ def get_slope(df,contact,temp_range=(0,7)):
                    df[contact].iloc[temp_range[0]:temp_range[1]]).slope
 
 
-
 def pc_color(pc):
     '''
     Return a pymol color string corresponding to a PC
@@ -350,17 +341,6 @@ def get_sphere_scale(interpolator, pc, variance):
 
     '''
     return interpolator(variance[pc-1])
-
-
-
-
-
-
-
-
-
-
-
 
 
 ###### GRADIENT COLORING #################
