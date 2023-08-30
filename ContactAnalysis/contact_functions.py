@@ -22,6 +22,14 @@ def _parse_id(contact):
     return {'chaina':chaina, 'resna':resna, 'resida':resida,
              'chainb':chainb, 'resnb':resnb, 'residb':residb}
 
+def _split_id(self, contact):
+        '''
+        take the contact name and split it into its two residue parts
+        '''
+        resa, resb = re.split("-", contact)
+        return {'resa':resa, 'resb':resb}
+
+
 def check_distance(contact, structure):  
     '''
     This will compare distances between the same resids swapped between chain A and B to 
