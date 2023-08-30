@@ -9,7 +9,7 @@ Find your protein's energy centers.
 
 These are tools to analyze residue interactions across multiple ensembles.
 
-After simulating a protein across multiple temperatures with replica exchange ("opening the chacras" ;D), use GetContacts to calculate the contact frequencies for all of the pairwise residue interactions.
+After simulating a protein across multiple temperatures with replica exchange ("opening the chacras" ;D), use (GetContacts)[https://getcontacts.github.io/interactions.html] to calculate the contact frequencies for all of the pairwise residue interactions.
 
 Turn this data into a dataframe wrapped by the ContactFrequencies class to provide convenient methods to analyze the data.
 
