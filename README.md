@@ -1,4 +1,4 @@
-# TSenCA
+# ChACRA
 
 **T**emperature **Sen**sitive **C**ontact **A**nalysis
 
