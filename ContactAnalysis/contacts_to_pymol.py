@@ -7,42 +7,7 @@ import matplotlib as mpl
 from pylab import cm
 from matplotlib.colors import to_hex
 import collections
-
-
-'''
-There is probably a better way to do this than write a file with hundreds of selection strings.
-Even if you still have to write the file, probably more organized to do things differently.
-Could save a dictionary of dictionarys in the format of 
-{'res1-res2': {'slope':-.5,
-            {'color':'red',
-            'line_width': 1,
-            'dashes': True,
-            'sphere_scale': .6,
-            'sphere_transparency': 0,
-            'sel_1': f'resname {resna} and resnum {resia} and chain {chaina}',
-            'sel_2': f'resname {resnb} and resnum {resib} and chain {chainb}',
-            'loading_score': .90,
-            'top_PC': 1,
-
-    }
-
-
-You want to be able to hand it a list of contacts that maybe you put together by taking the top 10 of each PC and then 
-all the prep happens behind the scenes.  
-
-Only thing you tell it is if you want all the depictions limited to a single PC, or you want it to color them according 
-to a list of PCs. 
-
-Then you hand it either the contact frequency df or the contact obj and it puts it all together and organizes the 
-contacts so that the higher scoring contacts are colored last.  
-
-This can be done by sorting the dictionary according to the contact's loading scores in ascending order so the last lines written
-are for contacts with loading score of 1.
-
-Can make the slope depiction be more informative with dash gaps and line widths.
-
-
-'''
+from scipy.interpolate import interp1d
 
 
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
@@ -50,8 +15,6 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     pc_range=(1,4),
                     variable_sphere_transparency=False,
                     max_transparency=.9,
-                    
-
                     ):
     '''
     collect all the relevant data that the other functions will need to 

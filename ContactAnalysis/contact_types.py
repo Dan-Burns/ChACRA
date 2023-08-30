@@ -63,6 +63,8 @@ def res_contacts(contacts):
 
 def res_contacts_xl(input_lines, itypes=None):
     """
+    This was for the getcontacts branch
+    
     Reduces memory usage for contact frequency calculation by combining parse_contact and res_contacts.
     Read a contact-file (tab-separated file with columns: frame, i-type, atomid1, atomid2[, atomid3[, atomid4]] 
     one frame at a time and run res_contacts after each frame.  
