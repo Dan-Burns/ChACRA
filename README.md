@@ -7,7 +7,7 @@
 
 Find your protein's energy centers.
 
-These are tools to analyze biomolecular interactions across multiple ensembles.
+These are tools to analyze residue interactions across multiple ensembles.
 
 After simulating a protein across multiple temperatures (ideally with replica exchange) use GetContacts to calculate the contact frequencies for all of the pairwise residue interactions.
 
