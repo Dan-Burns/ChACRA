@@ -1,4 +1,5 @@
-# ChACRA![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/10424cf4-8797-4b56-b40e-c31d7c6710b9)
+# ChACRA![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/a030ffbb-0a97-4b33-a968-fab2ec7dbee9)
+
 
 
 
