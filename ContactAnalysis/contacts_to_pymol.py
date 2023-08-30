@@ -381,7 +381,7 @@ def contact_frequency_color_gradient(output='./colors.pml',df=None,
         resa, resb = contact.split('-')
         cha, resna, resnuma = resa.split(':')
         chb, resnb, resnumb = resb.split(':')
-        slope = _get_slope(df,contact)
+        slope = get_slope(df,contact)
         loading_score = loading_score_obj.get_scores(contact, (pc,pc))[0]['score']
 
         

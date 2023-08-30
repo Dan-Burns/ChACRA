@@ -12,6 +12,7 @@ from scipy.stats import linregress
 import MDAnalysis as mda
 import collections
 from ChACRA.ContactAnalysis.utils import *
+from ChACRA.ContactAnalysis.contact_functions import *
 
 
 
@@ -82,27 +83,6 @@ class ContactFrequencies:
     if __name__ == "__main__":
        pass
     
-    def _parse_id(self, contact):
-        '''
-        take the contact name (column id) and return a dictionary of
-        the residue A identfiers and residue B identifiers
-        '''
-        chaina, resna, resida, chainb, resnb, residb = re.split(":|-|\s+", contact)
-        return {'chaina':chaina, 'resna':resna, 'resida':resida,
-                 'chainb':chainb, 'resnb':resnb, 'residb':residb}
-    
-    def _split_id(self, contact):
-        '''
-        take the contact name and split it into its two residue parts
-        '''
-        resa, resb = re.split("-", contact)
-        return {'resa':resa, 'resb':resb}
-    
-    def _get_slope(self,contact,temp_range=(0,7)):
-        #TODO for networkx should combine slope and some min or max freq (b)
-        return linregress(self.freqs[contact].iloc[temp_range[0]:temp_range[1]].index, 
-                       self.freqs[contact].iloc[temp_range[0]:temp_range[1]]).slope
-    
     
     def contact_partners(self, resid1, resid2=None, id_only=False):
         '''
@@ -129,7 +109,7 @@ class ContactFrequencies:
         '''
         all_contacts = []
         for contact in self.freqs.columns:
-            partners = self._split_id(contact)
+            partners = _split_id(contact)
             if weights == True:
                 if inverse == True:
                     weight = float(1/self.freqs[contact].loc[temp])
@@ -155,7 +135,7 @@ class ContactFrequencies:
     def all_residues(self):
         all_residues = []
         for contact in self.freqs.columns:
-            partners = self._split_id(contact)
+            partners = _split_id(contact)
             all_residues.append(partners['resa'])
             all_residues.append(partners['resb'])
         
@@ -168,7 +148,7 @@ class ContactFrequencies:
         '''
         reduced_contacts = []
         for contact in self.freqs.columns:
-            id_dict = self._parse_id(contact)
+            id_dict = _parse_id(contact)
             # check this 
             if id_dict['chaina'] != id_dict['chainb']:
                 continue
@@ -257,7 +237,7 @@ class ContactFrequencies:
                 # picking up a new contact pattern
                 # can check to see which identical_subunits list this falls into and 
                 # adjust accordingly
-                resids = self._parse_id(df.columns[0])
+                resids = _parse_id(df.columns[0])
                 # intersubunit contacts can have swapped resids
                 # so search with both regexes 
                 regex1 = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
@@ -335,7 +315,7 @@ class ContactFrequencies:
         '''
         mapper = {}
         for column in self.freqs.columns:
-            split_ids = self._parse_id(column)
+            split_ids = _parse_id(column)
             mapper[column] = split_ids['chaina']+':'+ split_ids['resna']+':'+\
                 str(int(split_ids['resida'])+starting_residue_number-1)+'-'+\
                             split_ids['chainb']+':'+ split_ids['resnb']+':'+ \
@@ -371,12 +351,12 @@ class ContactFrequencies:
         # Turn the data into a heatmap 
         # format options are 'mean', 'stdev', 'difference', 'loading_score'
         # if 'difference', specify tuple of rows your interested in taking the difference from
-        # if 'loading_score' then specify contact_pca data
+        # if 'loading_score' then specify contact_pca data and pc from which you want the loading score
         # hold reslists with chain keys and list of resid values
         reslists = {}
 
         for contact in self.freqs.columns:
-            resinfo = self._parse_id(contact)
+            resinfo = _parse_id(contact)
 
             if resinfo['chaina'] in reslists.keys():
                 reslists[resinfo['chaina']].append(int(resinfo['resida']))
@@ -388,7 +368,6 @@ class ContactFrequencies:
                 reslists[resinfo['chainb']] = [int(resinfo['residb'])]
         
         # eliminate duplicates, sort the reslists in ascending order, and make a single list of all resis
-        ## TODO sort the dictionary by chain id
         all_resis = []
         for chain in reslists:
             reslists[chain] = list(set(reslists[chain]))
@@ -404,7 +383,7 @@ class ContactFrequencies:
 
         # get the index for the corresponding residue
         for contact in self.freqs.columns:
-            resinfo = self._parse_id(contact)
+            resinfo = _parse_id(contact)
             index1 = all_resis.index(f"{resinfo['chaina']}{resinfo['resida']}")
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
 
@@ -419,7 +398,7 @@ class ContactFrequencies:
         
         return pd.DataFrame(data, columns=all_resis, index=all_resis)                                 
 
-def de_correlate_df(df):
+def _de_correlate_df(df):
     '''
     randomize the values within a dataframe's columns
     '''
@@ -454,13 +433,6 @@ class ContactPCA:
                          (pca.explained_variance_ratio_)[0])], 
                         index=list(contact_df.columns))
         self.norm_loadings = _normalize(self.loadings)
-        
-    def _split_id(self, contact):
-        '''
-        take the contact name and split it into its two residue parts
-        '''
-        resa, resb = re.split("-", contact)
-        return {'resa':resa, 'resb':resb}
 
     def sorted_loadings(self, pc=1):
        
@@ -475,13 +447,15 @@ class ContactPCA:
         '''
         edit for PCA df format
         '''
+        #TODO this needs to be investigated - contact frequencies are the natural edge choice
+        # perhaps loading scores will be useful as edges
         percentile_df = self.sorted_loadings(pc).loc[
                         self.sorted_loadings(pc)['PC'+str(pc)] >
                         np.percentile(self.sorted_loadings(pc)[
                                 'PC'+str(pc)],percentile)]
         edges = []
         for contact in percentile_df.index:
-            partners = self._split_id(contact)
+            partners = _split_id(contact)
             if weights == True:
                 weight = float(percentile_df['PC'+str(pc)].loc[contact])
                 edges.append((partners['resa'],
@@ -498,7 +472,7 @@ class ContactPCA:
         '''
         all_contacts = []
         for contact in self.loadings.index:
-            partners = self._split_id(contact)
+            partners = _split_id(contact)
             if weights == True:
                 weight = float(self.loadings['PC'+str(pc)].loc[contact])
                 all_contacts.append((partners['resa'],
@@ -602,7 +576,7 @@ class ContactPCA:
         for i in range(N_permutations):
             if i%10 == 0:
                 print(i,end='..')
-            X_aux = de_correlate_df(df)
+            X_aux = _de_correlate_df(df)
             
             pca.fit(X_aux)
             variance[i, :] = pca.explained_variance_ratio_
