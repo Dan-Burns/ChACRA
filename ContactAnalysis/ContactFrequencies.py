@@ -427,6 +427,7 @@ class ContactPCA:
     #TODO ensure that signs of variables correspond to expected melting trend of PC1
     def __init__(self, contact_df):
         pca = PCA()
+        print("Opening the chacras.")
         self.pca = pca.fit(contact_df)
         self.loadings = pd.DataFrame(self.pca.components_.T, columns=
                         ['PC'+str(i+1) for i in range(np.shape
