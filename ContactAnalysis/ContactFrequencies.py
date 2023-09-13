@@ -249,7 +249,7 @@ class ContactFrequencies:
                 if resids['chaina'] ==  resids['chainb']:
                     # intra-subunit name format
                     contact = f"{chain1}:{resids['resna']}:{resids['resida']}-"\
-                            f"{chain1}:{resids['resnb']}:{resids['residb']}"
+                            f"{chain1}:{resids['resnb']}:{resids['residb']}"x
                 
                     # check to make sure none of the contacts in to_average have different chain IDs
                     # and remove them from to_average - they'll get picked up in the else block
@@ -313,6 +313,8 @@ class ContactFrequencies:
         get contacts was made with a incorrectly numbered structure file starting
         from 1.
         '''
+
+        # TODO add option to renumber from several starting points/chains
         mapper = {}
         for column in self.freqs.columns:
             split_ids = _parse_id(column)

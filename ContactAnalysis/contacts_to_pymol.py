@@ -153,6 +153,13 @@ def write_selections(contact_data, output_file):
             # done with a contact's commands
             f.write('\n')
 
+# TODO function to make PC selections so you can work with all the residues displaying a specific PC color at one time
+def make_pc_selection(contact_list, contactFrequencies, contactPCA, pc_range=(1,4)):
+    '''
+    Select all the residues exhibiting a the same top PC and label it PC{pc}_selection.
+    Addtional selection that expands this to include contact partners that might have a different PC contact as their top loading score.
+    '''
+    
 
 def to_pymol(contact_list, contactFrequencies, contactPCA,
                      output_file = 'output.pml',
@@ -218,6 +225,7 @@ def get_slope(df,contact,temp_range=(0,7)):
 
 def pc_color(pc):
     '''
+    TODO add option to specify colors
     Return a pymol color string corresponding to a PC
     '''
    
@@ -656,7 +664,7 @@ def coordinate_color_gradient(output='./colors.pml',structure=None,cmap_name='pl
 
         
 
-        
+#TODO Fix this function so it's more robust - the draft is at the bottom      
 def circular_color_gradient(output='./colors.pml',structure=None,
                             cmap_name='plasma', coords=('x','y'), 
                             seg_id=None,extra_id=None):
