@@ -1,6 +1,5 @@
 import re
 import numpy as np
-from Bio.PDB.PDBParser import PDBParser
 from scipy.stats import linregress 
 import matplotlib as mpl
 from pylab import cm
