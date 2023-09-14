@@ -543,7 +543,10 @@ def nx_path_to_pymol(output, sel_name, res_list):
             if i != len(res_list) - 1:
                 sel_string += '(resi '+resid+' and chain '+chain+') or '
                 if i > 0:
+                    # TODO the write_selections function replaced the label_distance function
+                    # TODO add replacement functions
                     prev_chain, _, prev_resi = res_list[i-1].split(':')
+
     
                     dist_string = label_distance(chain, resid, prev_chain, 
                                                  prev_resi)
@@ -621,7 +624,7 @@ def node_centrality_gradient(output='./colors.pml',
 
 
 ##################### GENERAL STRUCTURE COLORING ##################
-
+#TODO get rid of pdb parser and switch to mdanalysis pdb functions
 def coordinate_color_gradient(output='./colors.pml',structure=None,cmap_name='plasma', coord='y'):
     '''
     Produce a pymol coloring script to color a structure in a gradient

@@ -7,7 +7,7 @@ import numpy as np
 import re
 import pathlib
 from sklearn.decomposition import PCA
-from ChACRA.ContactAnalysis.contact_functions import _parse_id, check_distance_mda
+from ChACRA.ContactAnalysis.contact_functions import _parse_id, check_distance_mda, _split_id
 from scipy.stats import linregress
 import MDAnalysis as mda
 import collections
@@ -249,7 +249,7 @@ class ContactFrequencies:
                 if resids['chaina'] ==  resids['chainb']:
                     # intra-subunit name format
                     contact = f"{chain1}:{resids['resna']}:{resids['resida']}-"\
-                            f"{chain1}:{resids['resnb']}:{resids['residb']}"x
+                            f"{chain1}:{resids['resnb']}:{resids['residb']}"
                 
                     # check to make sure none of the contacts in to_average have different chain IDs
                     # and remove them from to_average - they'll get picked up in the else block
@@ -431,11 +431,13 @@ class ContactPCA:
         pca = PCA()
         print("Opening the chacras.")
         self.pca = pca.fit(contact_df)
+        self._transform = pca.transform(contact_df)
         self.loadings = pd.DataFrame(self.pca.components_.T, columns=
                         ['PC'+str(i+1) for i in range(np.shape
                          (pca.explained_variance_ratio_)[0])], 
                         index=list(contact_df.columns))
         self.norm_loadings = _normalize(self.loadings)
+        self._permutated_explained_variance = None
 
     def sorted_loadings(self, pc=1):
        
@@ -553,6 +555,9 @@ class ContactPCA:
         else:
             return False
         
+    #TODO make permuted variance an attribute -- @property
+    #TODO need an additional attribute to record N_permutations for plotting
+
     def permutated_explained_variance(self, contact_frequencies, N_permutations=100):
         '''
         Randomize the values within the contact frequency columns to test the significance of the contact PCs.
@@ -567,7 +572,7 @@ class ContactPCA:
             np.array of explained variance by PC for each permutation of the dataframe.
         '''    
         # borrowed code from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
-        
+        self._N_permutations = N_permutations
         df = contact_frequencies.copy()
         # This function changes the order of the columns independently to remove correlations
        
@@ -583,8 +588,9 @@ class ContactPCA:
             
             pca.fit(X_aux)
             variance[i, :] = pca.explained_variance_ratio_
-        
-        return variance
+
+        self._permutated_explained_variance = variance
+        #return variance
     
     #TODO heatmap the contributions of the original variables to each
     #eigenvector as part of a method to identify which contacts

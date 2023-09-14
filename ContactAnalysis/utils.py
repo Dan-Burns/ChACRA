@@ -6,6 +6,11 @@ import pandas as pd
 import numpy as np
 import re
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
+
+
+#TODO add option to globally define chacra color scheme
+# this will be imported into the plot and pymol modules
+chacra_colors = ['red','#02a8f8','#00b730','#7400ff','#434343','magenta','#fad300']
  
 def find_identical_subunits(universe):
     '''

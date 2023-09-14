@@ -8,7 +8,7 @@ from statistics import mode
 
 # loop to tabulate per frame contacts is in old/older/sandbox_trp 
 # uses from getcontacts.contact_calc.transformations import *
-
+#https://getcontacts.github.io/interactions.html
 
 
 ########## res_contacts taken directly from getcontacts to avoid dependencies ##################
@@ -148,20 +148,65 @@ def res_contacts_xl(input_lines, itypes=None):
 
 ## IN PROGRESS ##
 '''
-with open(per_frame_data,'r') as f:
+with open(per_frame_data,'rb') as f:
     # return the first 100 MB
     data = f.readlines(100000000) 
 
 
 
 '''
+
+def get_contact_directions(data):
+    records = {}
+    for line in data:
+    info = re.split(r'\s+',line)
+    if info[0] == '#':
+        continue
+    if info[1] not in ['hp', 'hbsb', 'vdw']:
+        rec1 = info[2].split(":")
+        rec2 = info[3].split(":")
+        resi1 = ":".join(rec1[0:3])
+        resi2 = ":".join(rec2[0:3])
+        contact = f'{resi1}-{resi2}'
+        if contact not in records.keys():
+            records[contact] = {resi1:0, resi2:0, 'bb':0}
+        if rec1[3] not in {'N','CA','C','O'}:
+            records[contact][resi1]+=1
+        if rec2[3] not in {'N','CA','C','O'}:
+            records[contact][resi2]+=1
+        if rec1[3] in {'N','CA','C','O'} and rec2[3] in {'N','CA','C','O'}:
+            records[contact]['bb']+=1
+    else:
+        rec1 = info[2].split(":")
+        rec2 = info[3].split(":")
+        resi1 = ":".join(rec1[0:3])
+        resi2 = ":".join(rec2[0:3])
+        contact = f'{resi1}-{resi2}'
+        if contact not in records.keys():
+            records[contact] = {resi1:0, resi2:0, 'bb':0}
+        
+        records[contact][resi1]+=1
+        
+        records[contact][resi2]+=1
+    return records
 # determine who the side chain donor is
 # backbone atoms are CA, C, O, N
 
 backbone_atoms = {'N','CA','C','O'}
 # Right now this is just concerned with hbsb
-# hbss, pc, ps, ts, sb can be inferred from the type
-# hp, vdw need to be checked 
+# hbss, hbbb, pc, ps, ts, sb can be inferred from the type
+# and are all treated as bidirectional edges
+# hp, hbsb, vdw need to be checked 
+# hp and vdw could be bidirectional
+# need to add weights such that if you have a mix of side chain and backbone
+# interactions between 2 residues, the one that donates the sc more has higher weight.
+'''
+dictionary = {contact_name: {resa:n sidechain donations,
+                                 resb:n side chain dontations,
+                                 bb: n backbone-backbone contacts
+                            }
+            }
+ ''' 
 def get_sc_donor(line_list):
     '''
     Take a line from per_frame_data and determine which
@@ -197,8 +242,9 @@ def record_sc_donors(data):
                 donors[pair].append(":".join(get_sc_donor(info)[0].split(":")[0:3]))
             except:
                 donors[pair]=[":".join(get_sc_donor(info)[0].split(":")[0:3])]
-        
+    # This is not going to catch sidechain-sidechain interactions   
     return {name:mode(donors[name]) for name in donors}
+
 
 def directed_contact_edges(donor_edges):
     '''
