@@ -157,12 +157,24 @@ with open(per_frame_data,'rb') as f:
 '''
 
 def get_contact_directions(data):
+    '''
+    Get the directional contact frequency where a residue in a contact pair
+    gets weight if its sidechain is contributing to the contact.
+
+    A separate record is maintained for backbone-backbone contacts.
+
+    This data can be used for directed graph analyses. 
+    '''
     records = {}
+    backbone = {'N','CA','C','O'}
+    n_frames = int(data[0].split()[1].split(':')[1])
     for line in data:
-    info = re.split(r'\s+',line)
-    if info[0] == '#':
-        continue
-    if info[1] not in ['hp', 'hbsb', 'vdw']:
+        info = re.split(r'\s+',line)
+        # format: ['0', 'sb', 'A:GLU:185:OE1', 'A:LYS:184:NZ', '2.753']
+        if info[0] == '#':
+            continue
+        
+        #if info[1] not in ['hp', 'hbsb', 'vdw']:
         rec1 = info[2].split(":")
         rec2 = info[3].split(":")
         resi1 = ":".join(rec1[0:3])
@@ -170,27 +182,16 @@ def get_contact_directions(data):
         contact = f'{resi1}-{resi2}'
         if contact not in records.keys():
             records[contact] = {resi1:0, resi2:0, 'bb':0}
-        if rec1[3] not in {'N','CA','C','O'}:
-            records[contact][resi1]+=1
-        if rec2[3] not in {'N','CA','C','O'}:
-            records[contact][resi2]+=1
-        if rec1[3] in {'N','CA','C','O'} and rec2[3] in {'N','CA','C','O'}:
-            records[contact]['bb']+=1
-    else:
-        rec1 = info[2].split(":")
-        rec2 = info[3].split(":")
-        resi1 = ":".join(rec1[0:3])
-        resi2 = ":".join(rec2[0:3])
-        contact = f'{resi1}-{resi2}'
-        if contact not in records.keys():
-            records[contact] = {resi1:0, resi2:0, 'bb':0}
-        
-        records[contact][resi1]+=1
-        
-        records[contact][resi2]+=1
+        if rec1[3] not in backbone:
+            records[contact][resi1]+=(1/n_frames)
+        if rec2[3] not in backbone:
+            records[contact][resi2]+=(1/n_frames)
+        if rec1[3] in backbone and rec2[3] in backbone:
+            records[contact]['bb']+=(1/n_frames)
+      
     return records
-# determine who the side chain donor is
-# backbone atoms are CA, C, O, N
+    # determine who the side chain donor is
+    # backbone atoms are CA, C, O, N
 
 backbone_atoms = {'N','CA','C','O'}
 # Right now this is just concerned with hbsb
@@ -224,6 +225,7 @@ def get_sc_donor(line_list):
 
 def record_sc_donors(data):
     '''
+    Alternative approach to get_contact_directions
     Returns
     -------
         dictionary of contact pair keys and sc donor values
@@ -243,6 +245,7 @@ def record_sc_donors(data):
             except:
                 donors[pair]=[":".join(get_sc_donor(info)[0].split(":")[0:3])]
     # This is not going to catch sidechain-sidechain interactions   
+    # instead of mode, get the actual counts from each list/n_frames
     return {name:mode(donors[name]) for name in donors}
 
 
