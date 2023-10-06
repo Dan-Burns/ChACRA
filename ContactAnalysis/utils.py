@@ -19,7 +19,7 @@ def find_identical_subunits(universe):
     Parameters
     ----------
     universe: 
-        mda.Universe() generated with the structure that the contact
+        mda.Universe from the structure that the contact
         data was calculated on.
     
     Returns
@@ -38,11 +38,16 @@ def find_identical_subunits(universe):
 
     # Go through all pairwise combinations of subunits
     for combo in combinations(segids,2):
-        bool = np.all(np.equal(residues[combo[0]],residues[combo[1]]))
-        # Enter True or False in both the upper tri and lower tri
-        identical_table[combo[1]][combo[0]], identical_table[combo[0]][combo[1]] =  bool, bool
-    
-    # Only keep one representative row that describes the identical sets of subunits
+        # not identical if lengths are different
+        if len(residues[combo[0]]) != len(residues[combo[1]]):
+            identical_table[combo[1]][combo[0]], identical_table[combo[0]][combo[1]] = False, False
+        else:
+            # catch anything that might have same number of residues but different sequences
+            bool = np.all(np.equal(residues[combo[0]],residues[combo[1]]))
+            # Enter True or False in both the upper tri and lower tri  
+            identical_table[combo[1]][combo[0]], identical_table[combo[0]][combo[1]] =  bool, bool
+
+    # Only keep one representative row for each unique chain that gives the identical sets of subunits
     identical_table.drop_duplicates(inplace=True)
 
     identical_subunits = {}

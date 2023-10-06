@@ -116,6 +116,3 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
     ax.legend([f'PC{i}' for i in range(1,n_pcs+1)], fontsize=12, loc='lower center', ncol=2)
     if filename:
         ax.savefig(filename)
-    
-    
-

@@ -161,7 +161,8 @@ class ContactFrequencies:
     
 
 
-    def average_contacts(self, structure=None, identical_subunits=None, neighboring_subunits=None, opposing_subunits=False):
+    def average_contacts(self, structure=None, identical_subunits=None, neighboring_subunits=None, opposing_subunits=False,
+                         protein_only=True):
         '''
         oppposing subunits should let the user specify which subunits are opposite of each other (rather than adjacent)
         and during averaging, it will distinguish between adjacent and opposing and assign them to the right contact id
@@ -187,6 +188,10 @@ class ContactFrequencies:
             This should be left as None in most cases where it's not obvious and 
             when there are fewer than 4 subunits.
             example: opposing_subunits = [('B','D'),('A','C')]
+
+        protein_only:  boolean
+            If your structure includes anything other than protein but your contact information only deals with protein
+        
         '''
         
         # original df
@@ -195,6 +200,10 @@ class ContactFrequencies:
 
         if structure:
             u = mda.Universe(structure)
+            if protein_only:
+                protein = u.select_atoms('protein')
+                u = mda.Merge(protein)
+
             if identical_subunits == None:
                 # dictionary to deal with potentially more than one set of identical subunits 
                 # mda segids picks up far right column of PDB seemingly if present - chainid option would be ideal
