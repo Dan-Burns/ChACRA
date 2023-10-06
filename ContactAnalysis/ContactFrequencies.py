@@ -207,6 +207,9 @@ class ContactFrequencies:
             if identical_subunits == None:
                 # dictionary to deal with potentially more than one set of identical subunits 
                 # mda segids picks up far right column of PDB seemingly if present - chainid option would be ideal
+                #TODO right now what follows doesn't deal with contacts between non-identical subunits
+                ## Could use the contact data to find which subunits interact with which other subunits
+                ## Then use a regex with the possible hetero-chain combinations 
                 identical_subunits = find_identical_subunits(u)
                 for value in identical_subunits.values():
                     print(f'Using subunit IDs {" ".join(value)} for averaging.')
@@ -214,11 +217,15 @@ class ContactFrequencies:
         averaged_data = {} 
         # dropped_columns = [] # not using atm
         # loop over each set of subunits in identical_subunits
+        #TODO use a different dictionary that has already filtered the columns
+        # then can jump straight to df = odf[contacts].copy()
         for z, subunits in enumerate(identical_subunits.values()):
 
             # put in alphabetical order 
             subunits.sort()
             # loop is using prefiltered dataframes containing chains involved in "subunits" 
+            #TODO this will end up including duplicates when you have two or more lists
+            ## if you don't remove the contacts from the original df
             contacts = get_all_subunit_contacts(subunits, odf)
           
             df = odf[contacts].copy()
@@ -239,7 +246,7 @@ class ContactFrequencies:
                 chain2 = subunits[1]
             # this will start a loop where after a column has been averaged,
             # the columns involved in the averaging will be dropped in place.
-            # exit condition is after all columns in the df have been dropped because they have been caught by the regular expression, 
+            # exit condition is after all columns in the filtered df have been dropped because they have been caught by the regular expression, 
             # sorted according to intra/ inter subunit condition, and averaged
             while len(df.columns) > 0:
                 

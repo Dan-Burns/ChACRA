@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import re
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
-
+from MDAnalysis.analysis.distances import distance_array
 
 #TODO add option to globally define chacra color scheme
 # this will be imported into the plot and pymol modules
@@ -214,3 +214,77 @@ def get_opposing_subunit_contacts(to_average, opposing_subunits):
                 # record it 
                 opposing_contacts.append(pair)
     return opposing_contacts
+
+
+def get_non_identical_subunit_contacts(df, identical_subunits):
+    '''
+    Return a filtered set of column names involving non-identical subunit contacts
+    '''
+
+    non_identical_subunit_sets = {}
+    combos = combinations(identical_subunits.keys(),2)
+    for combo in combos:
+        regex1 = f"[{'|'.join(identical_subunits[combo[0]])}]:[A-Z]+:[1-9]+-[{'|'.join(identical_subunits[combo[1]])}]:[A-Z]+:[1-9]+"
+        regex2 = f"[{'|'.join(identical_subunits[combo[1]])}]:[A-Z]+:[1-9]+-[{'|'.join(identical_subunits[combo[0]])}]:[A-Z]+:[1-9]+"
+        regex = f"{regex1}|{regex2}"
+    #this will have the identical_subunit key pairs and corresponding column names
+    # you can create the regex using these keys and identical_subunits dictionary
+    non_identical_subunit_sets[combo] = list(df.filter(regex=regex, axis=1).columns)
+    return non_identical_subunit_sets
+
+
+
+#####
+'''
+Need to pick a priority chain to base all the naming off
+If no priority chain provided, go alphabetic priority
+So specify the priority chain and then caclulate the distance to the other chains
+then sort then by distance (for non identical sets too)
+
+(Distance Matrix to centroid of chains or closest residue pair - go alphabetic if 2 are same distance)
+
+then as a new contact is encountered, you'll have a list of all the identical contacts after filtering
+will have to measure the distances to determine if this follows a closest neighbor pattern or another pattern
+and use the naming scheme for the priority chain and the adjacent chain that has a similar distance as the
+example contact.
+
+'''
+def get_chain_distances(identical_subunits,u):
+    '''
+    Determine which subunits are closest together in order to set up the averaged contact naming scheme
+    '''
+
+    # can make a table of the equivalent contacts...
+    sorted_distances = {}
+
+    #for identical_subunits_key in identical_subunits
+    # find distances between identical and non identical and for all non identical, choose the closest one to priority as the rep for those
+    for key in identical_subunits:
+        chain_distances = {}
+        priority = identical_subunits[key][0]
+        sel1 = u.select_atoms(f'chainID {priority}')
+        for chain in identical_subunits[key][1:]:
+            sel2 = u.select_atoms(f'chainID {chain}')
+
+            min_dist = distance_array(sel1.atoms, sel2.atoms,).min()
+            chain_distances[(priority, chain)] = min_dist
+        sorted_distances[key]={k:v for k, v in sorted(chain_distances.items(), key=lambda x:x[1])}
+
+    # then get mixed subunit distances
+    # this should possibly go after determining the priority chain
+    # but before determing the other identical subunit priority naming since it will find which of the 
+    # non identical subunits is closest....
+    for combo in combinations(identical_subunits.keys(),2):
+        chain_distances = {}
+        priority = identical_subunits[combo[0]][0]
+        sel1 = u.select_atoms(f'chainID {priority}')
+        for chain in identical_subunits[combo[1]]:
+            sel2 = u.select_atoms(f'chainID {chain}')
+
+            min_dist = distance_array(sel1.atoms, sel2.atoms,).min()
+            chain_distances[(priority, chain)] = min_dist
+        sorted_distances[combo]={k:v for k, v in sorted(chain_distances.items(), key=lambda x:x[1])}
+
+    # After determining the priority nameing scheme, contact distances can be checked to find the best partner subunit with allclose(2 decimals)
+    # in this case - intra is going to be A-A
+    # adjacent will be A-C, if it also occurs AB use all close to determine if it's equivalent 
