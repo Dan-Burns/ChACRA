@@ -288,3 +288,24 @@ def get_chain_distances(identical_subunits,u):
     # After determining the priority nameing scheme, contact distances can be checked to find the best partner subunit with allclose(2 decimals)
     # in this case - intra is going to be A-A
     # adjacent will be A-C, if it also occurs AB use all close to determine if it's equivalent 
+
+
+def get_contacting_chains():
+    '''
+    Use the get contacts data to identify which chains actually make contacts.
+
+    '''
+    partner_chains = {}
+
+    for contact in df.columns:
+        data = _parse_id(contact)
+        if data['chaina'] not in partner_chains:
+            partner_chains[data['chaina']] = set(data['chainb'])
+        else:
+            partner_chains[data['chaina']].add(data['chainb'])
+        if data['chainb'] not in partner_chains:
+            partner_chains[data['chainb']] = set(data['chaina'])
+        else:
+            partner_chains[data['chainb']].add(data['chaina'])
+    
+    return  partner_chains
