@@ -57,7 +57,7 @@ def find_identical_subunits(universe):
         subunits = identical_table.T[identical_table.loc[segid]==True].index
         # if there is only one, it's just identical with itself
         if len(subunits) >= 2:
-            identical_subunits[i] = list(subunits)
+            identical_subunits[i] = sorted(list(subunits))
 
     return identical_subunits
 
@@ -234,7 +234,7 @@ def get_non_identical_subunit_contacts(df, identical_subunits):
 
 
 
-#####
+#####################################
 '''
 Need to pick a priority chain to base all the naming off
 If no priority chain provided, go alphabetic priority
@@ -288,7 +288,7 @@ def get_chain_distances(identical_subunits,u):
     # After determining the priority nameing scheme, contact distances can be checked to find the best partner subunit with allclose(2 decimals)
     # in this case - intra is going to be A-A
     # adjacent will be A-C, if it also occurs AB use all close to determine if it's equivalent 
-
+    return sorted_distances
 
 def get_contacting_chains():
     '''
@@ -309,3 +309,136 @@ def get_contacting_chains():
             partner_chains[data['chainb']].add(data['chaina'])
     
     return  partner_chains
+
+def get_chain_group(chain, identical_subunits):
+    '''
+    Return the identical subunit group that the subunit is in
+    '''
+    for group in identical_subunits:
+        if chain in identical_subunits[group]:
+            return group
+        
+def get_chain_tuples(group1,group2):
+    '''
+    Gets the key id to use with the sorted_distances to use in searching
+    for closest pair involving priority names
+    '''
+    if group1 != group2:
+        return tuple(sorted((group1,group2)))
+    else:
+        return group1
+
+def check_distances(group, contact, u, sorted_distances):
+
+    dists = {}
+    chain_pairs = list(sorted_distances[group].keys())
+    resids = _parse_id(contact)
+    for pair in chain_pairs:
+        # for non identical subunits, got to make sure the right chain goes with the
+        # right residue number
+        # should also construct the reverse contact naming for identical subunits
+        # and settle on a way of preferentially choosing an A-B contact over C-A
+        # 
+        atoma = u.select_atoms(f'chainid {pair[0]} and resnum \
+                            {resids["resida"]} and name CA').positions
+        atomb = u.select_atoms(f'chainid {pair[1]} and resnum \
+                            {resids["residb"]} and name CA').positions
+        
+        ##### Test ##############
+        atomc = u.select_atoms(f'chainid {pair[1]} and resnum \
+                            {resids["resida"]} and name CA').positions
+        atomd = u.select_atoms(f'chainid {pair[0]} and resnum \
+                            {resids["residb"]} and name CA').positions
+
+
+        ###End Test ################
+        dists[f'{pair[0]}:{resids["resna"]}:{resids["resida"]}-{pair[1]}:{resids["resnb"]}:{resids["residb"]}'] = np.linalg.norm((atoma-atomb)) 
+        ### 
+        dists[f'{pair[1]}:{resids["resna"]}:{resids["resida"]}-{pair[0]}:{resids["resnb"]}:{resids["residb"]}'] = np.linalg.norm((atomc-atomd))
+    distances = {k:v for k, v in sorted(dists.items(), key=lambda x:x[1])}
+    return distances
+    # returns the priority subunit names to use
+    #return list(distances.keys())[0]
+
+def find_non_matching_angles(reference_contact, angles, cutoff=1):
+    '''
+    Return a list of contacts whose angles don't match the reference contact
+
+    reference_contact : string
+        The contact name whose angle will be used for comparison with the other angles.
+
+    angles : dict
+        The dictionary of contacts and corresponding angles 
+
+    cutoff : float or int
+        The maximum difference between reference_contact's angle and the comparison angle to be considered the same.
+        Contacts that differ in angle above this value will be returned in the list.
+
+    '''
+    non_matching_contacts = []
+
+    for contact in angles:
+        if np.abs(angles[reference_contact]-angles[contact]) > cutoff:
+            non_matching_contacts.append(contact)
+
+    return non_matching_contacts
+
+def get_all_chain_dists(segids, u)
+    sorted_all_chain_dists = {}
+    all_chain_dists = {chain:{} for chain in segids}
+    for chain in segids:
+        sel1 = u.select_atoms(f'chainID {chain}')
+        for chain2 in segids:
+            if chain2 != chain:
+                sel2 = u.select_atoms(f'chainID {chain2}')
+                min_dist = distance_array(sel1.atoms, sel2.atoms,).min()
+                all_chain_dists[chain][chain2] = min_dist
+        sorted_all_chain_dists[chain]={k:v for k, v in sorted(all_chain_dists[chain].items(), key=lambda x:x[1])}
+
+    return sorted_all_chain_dists
+
+def establish_equivalent_chain_interactions(seg_combo, identical_subunits, u):
+    '''
+    Use the closest residue pairs to determine equivalent orientations.
+    seg_combo : tuple
+        two segid/ chains that you want to identify equivalent interactions for for the rest of the chains
+        i.e. ('A','B')
+
+    identical_subunits : dictionary
+        The dictionary containing integer keys and lists of identical chains
+    '''
+    # get the indices of the atoms from each chain
+    A = np.where(u.atoms.segids == f'{seg_combo[0]}')[0]
+    B = np.where(u.atoms.segids == f'{seg_combo[1]}')[0]
+    # calculate all of the distances beteen the atoms from each chain
+    da = distance_array(u.atoms[A], u.atoms[B])
+    # find the index of the minimum distance value
+    Amin, Bmin = np.where(da == da.min())
+    # get the residue id and atom name for the closest distance atoms
+    resa, atoma = u.atoms[A][Amin[0]].resid, u.atoms[A][Amin[0]].name
+    resb, atomb= u.atoms[B][Bmin[0]].resid, u.atoms[B][Bmin[0]].name
+    # this identifies A's relationship to B.  
+    # Now you can establish this equivalent relationships by going through all the other combos
+    
+    # first you need to figure out the appropriate subunits to compare between
+    for key, seg_list in identical_subunits.items():
+        if seg_combo[0] in seg_list and seg_combo[1] in seg_list:
+            A_group, B_group = key, key
+        elif seg_combo[0] in seg_list and seg_combo[1] not in seg_list:
+            A_group = key
+        elif seg_combo[1] in seg_list and seg_combo[0] not in seg_list:
+            B_group = key
+
+    relationships = []
+    for seg1 in identical_subunits[A_group]:
+        # get all the distances between the atoma and atomb for one chain with all the other chains
+        distances = {}
+        for seg2 in identical_subunits[B_group]:
+            if seg1 != seg2:
+               
+                distances[(seg1,seg2)] = np.linalg.norm(u.select_atoms(f'chainID {seg1} and resnum {resa} and name {atoma}').positions - 
+                            u.select_atoms(f'chainID {seg2} and resnum {resb} and name {atomb}').positions)
+        # now take the key (2 chain tuple) corresponding to the minimum of these distances
+        # and this should be the same relationship identified between the input seg_combo
+        relationships.append(min(distances, key=distances.get))
+    return relationships

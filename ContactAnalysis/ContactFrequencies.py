@@ -338,7 +338,8 @@ class ContactFrequencies:
                 str(int(split_ids['resida'])+starting_residue_number-1)+'-'+\
                             split_ids['chainb']+':'+ split_ids['resnb']+':'+ \
                         str(int(split_ids['residb'])+starting_residue_number-1)
-                        
+        # TODO actually return the renumbered dataframe
+                
 
 
     def exclude_below(self,min_frequency=0.05,temp_range=None):
