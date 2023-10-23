@@ -383,7 +383,14 @@ def find_non_matching_angles(reference_contact, angles, cutoff=1):
 
     return non_matching_contacts
 
-def get_all_chain_dists(segids, u)
+def get_all_chain_dists(u):
+    '''
+    Minimum distances between each chain and all others
+    This takes several seconds so run it before passing output to other functions
+    
+    '''
+
+    segids = {segid for segid in u.segments.segids}
     sorted_all_chain_dists = {}
     all_chain_dists = {chain:{} for chain in segids}
     for chain in segids:
@@ -400,19 +407,34 @@ def get_all_chain_dists(segids, u)
 def establish_equivalent_chain_interactions(seg_combo, identical_subunits, u):
     '''
     Use the closest residue pairs to determine equivalent orientations.
+    Can use these equivalent interactions to make specific filtering regexes
+     (have to be careful here because some of the segids might get flipped between contact 1 and 2
+     if the alphabetical order is mixed.....)
+       so there is 
+    no need to deal with possible duplicates happening in different directions.  The priority
+    nameing will be dealt with also.
+
     seg_combo : tuple
         two segid/ chains that you want to identify equivalent interactions for for the rest of the chains
         i.e. ('A','B')
 
     identical_subunits : dictionary
         The dictionary containing integer keys and lists of identical chains
+
+    u : mda.Universe
+        The universe made with the crystal structure used to generate the contact data
+
+    Returns
+    -------
+    list of tuples 
+    The chain id pairs that are equivalent to the seg_combo reference pair.
     '''
     # get the indices of the atoms from each chain
     A = np.where(u.atoms.segids == f'{seg_combo[0]}')[0]
     B = np.where(u.atoms.segids == f'{seg_combo[1]}')[0]
     # calculate all of the distances beteen the atoms from each chain
     da = distance_array(u.atoms[A], u.atoms[B])
-    # find the index of the minimum distance value
+    # find the indices of the minimum distance value
     Amin, Bmin = np.where(da == da.min())
     # get the residue id and atom name for the closest distance atoms
     resa, atoma = u.atoms[A][Amin[0]].resid, u.atoms[A][Amin[0]].name
@@ -441,4 +463,138 @@ def establish_equivalent_chain_interactions(seg_combo, identical_subunits, u):
         # now take the key (2 chain tuple) corresponding to the minimum of these distances
         # and this should be the same relationship identified between the input seg_combo
         relationships.append(min(distances, key=distances.get))
+    return relationships
+
+from MDAnalysis.lib.distances import calc_dihedrals
+def get_farthest_point(seg,u):
+    com = u.select_atoms('protein').center_of_mass()
+    # get the indices of the atoms from each chain
+    A = np.where(u.atoms.segids == f'{seg}')[0]
+    
+    # calculate all of the distances beteen the atoms from each chain
+    daA = distance_array(u.atoms[A], com)
+
+    farthest_distance_A = daA.max()
+    
+    
+    # find the index of the minimum distance value
+    Amax = np.where(daA == farthest_distance_A)[0]
+    # get the residue id and atom name for the closest distance atoms
+    resa, atoma = u.atoms[A][Amax[0]].resid, u.atoms[A][Amax[0]].name
+    return resa, atoma
+    
+def get_dihedral_between_chains(sel1, sel2, u):
+    #pos1 = u.select_atoms(f'chainID {sel1[0]} and resnum {sel1[1]} and name {sel1[2]}').positions[0]
+    pos1 = u.select_atoms(f'chainID {sel1[0]} and resnum {sel1[1]} and name CA').positions[0]
+    com1 = u.select_atoms(f'chainID {sel1[0]}').center_of_mass()
+    #pos2 = u.select_atoms(f'chainID {sel2[0]} and resnum {sel2[1]} and name {sel2[2]}').positions[0]
+    pos2 = u.select_atoms(f'chainID {sel2[0]} and resnum {sel2[1]} and name CA').positions[0]
+    com2 = u.select_atoms(f'chainID {sel2[0]}').center_of_mass()
+    result = np.rad2deg(calc_dihedrals(pos1,com1,com2,pos2))
+    return result
+####################### Below is working #################################3
+
+def find_best_asymmetric_point(u, chain, all_chain_dists):
+    '''
+    Find the residue that creates the greates difference in distances between other chains
+    by finding a point in the chain that's near some other neighboring chain
+    '''
+    A = np.where(u.atoms.segids == f'{chain}')[0]
+    # asymmetric center of mass that is some point on the periphery of seg_combo[0] near seg_combo[1]
+    # if they're not within 5 angstroms, this won't work - need to just identify closest chain, pick one at random
+    # and then establish the as_com with that
+    minimum_difference = {}
+    for neighbor, distance in all_chain_dists[chain].items():
+        if distance < 5:
+            distances_to_chains = []
+            as_com = u.select_atoms(f'(around 5 chainID {neighbor}) and chainID {chain}').center_of_mass()
+            # the distances between all the atoms in seg_combo[0] and the asymmetric center of mass
+            dists = np.apply_along_axis(np.linalg.norm, 1,u.atoms[A].positions - as_com)
+            #find the closest res to the as_com so that this residue can be used for the reference point for other identical chains
+            resid = u.atoms[A][np.where(dists==dists.min())[0][0]].resid
+            A_pos = u.select_atoms(f'chainID {chain} and resnum {resid} and name CA').positions[0]
+            for seg in u.segments.segids:
+                if seg != chain:
+                    B_com = u.select_atoms(f'chainID {seg}').center_of_mass()
+                    distances_to_chains.append(np.linalg.norm(A_pos-B_com))
+            minimum_difference[neighbor] = min([np.abs(i-j) for i, k in enumerate(distances_to_chains)
+                                                for j, l in enumerate(distances_to_chains) if k !=l])
+    
+    return max(minimum_difference, key=minimum_difference.get)
+
+def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
+    '''
+    This will identify all the equivalent interaction pairs as seg_combo
+    all_chain_dists is included so the best residue is used to create the best variance in the measured distances 
+    
+    seg_combo : tuple(string, string)
+        The pair of chains that you want to identify all the equivalent interacting pairs for.
+        ('A','B') will find other identical chains pairs that interact with the same geometry as A and B
+    
+    identical_subunits : dictionary
+        The dictionary with integer values and lists of identical subunits.
+
+    all_chain_dists : dictionary
+        The dictionary with chain_id values and nest dictionaries giving the chain keys and the minimum distance to them as values
+    
+    Returns
+    -------
+    list of tuples
+    each tuple will be a pair of chains with equivalent interaction geometry
+    
+    '''
+
+    # whole protein center of mass
+    com = u.select_atoms('protein').center_of_mass()
+    # indices of atoms corresponding to chain seg_combo[0]
+    A = np.where(u.atoms.segids == f'{seg_combo[0]}')[0]
+    # asymmetric center of mass that is some point on the periphery of seg_combo[0] near seg_combo[1]
+    # if they're not within 5 angstroms, this won't work - need to just identify closest chain, pick one at random
+    # and then establish the as_com with that
+    neighbor = find_best_asymmetric_point(u, seg_combo[0], all_chain_dists)
+    as_com = u.select_atoms(f'(around 5 chainID {neighbor}) and chainID {seg_combo[0]}').center_of_mass()
+    # the distances between all the atoms in seg_combo[0] and the asymmetric center of mass
+    dists = np.apply_along_axis(np.linalg.norm, 1,u.atoms[A].positions - as_com)
+    #find the closest res to the as_com so that this residue can be used for the reference point for other identical chains
+    resid = u.atoms[A][np.where(dists==dists.min())[0][0]].resid
+    # better to just use CA instead of this atom for distance measurements since there's more variability in sidechain positions
+    atom = u.atoms[A][np.where(dists==dists.min())[0][0]].name
+    A_pos = u.select_atoms(f'chainID {seg_combo[0]} and resnum {resid} and name CA').positions[0]
+    # center of mass of seg_combo[1]
+    B_com = u.select_atoms(f'chainID {seg_combo[1]}').center_of_mass()
+    # this identifies A's relationship to B. 
+    comparison_dist = np.linalg.norm(A_pos-B_com)
+    comparison_angle = np.rad2deg(get_angle(A_pos,com,B_com))
+     
+    for key, seg_list in identical_subunits.items():
+        if seg_combo[0] in seg_list and seg_combo[1] in seg_list:
+            A_group, B_group = key, key
+        elif seg_combo[0] in seg_list and seg_combo[1] not in seg_list:
+            A_group = key
+        elif seg_combo[1] in seg_list and seg_combo[0] not in seg_list:
+            B_group = key
+
+    relationships = []
+    for seg1 in identical_subunits[A_group]:
+        distances = {}
+        distance_difs = {}
+        angle_difs = {}
+        for seg2 in identical_subunits[B_group]:
+            if seg1 != seg2:
+            
+                pos1 = u.select_atoms(f'chainID {seg1} and resnum {resid} and name CA').positions[0]
+                pos2 = u.select_atoms(f'chainID {seg2}').center_of_mass()
+                distance = np.linalg.norm(pos1-pos2)
+                distances[(seg1,seg2)] = distance
+                angle_difs[(seg1,seg2)] = np.abs(np.rad2deg(get_angle(pos1,com,pos2)) - comparison_angle)
+                distance_difs[(seg1,seg2)] = np.abs(distance-comparison_dist)
+
+        min_dist, min_angle = min(distance_difs, key=distance_difs.get), min(angle_difs, key=angle_difs.get)  
+        if min_dist != min_angle:
+            if ((distance_difs[min_dist]) + (angle_difs[min_dist])) < (distance_difs[min_angle]) + (angle_difs[min_angle]):
+                relationships.append(min_dist)
+            else:
+                relationships.append(min_angle)
+        else:       
+            relationships.append(min_dist)
     return relationships
