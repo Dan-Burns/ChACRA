@@ -290,7 +290,7 @@ def get_chain_distances(identical_subunits,u):
     # adjacent will be A-C, if it also occurs AB use all close to determine if it's equivalent 
     return sorted_distances
 
-def get_contacting_chains():
+def get_contacting_chains(df):
     '''
     Use the get contacts data to identify which chains actually make contacts.
 
@@ -404,69 +404,13 @@ def get_all_chain_dists(u):
 
     return sorted_all_chain_dists
 
-def establish_equivalent_chain_interactions(seg_combo, identical_subunits, u):
-    '''
-    Use the closest residue pairs to determine equivalent orientations.
-    Can use these equivalent interactions to make specific filtering regexes
-     (have to be careful here because some of the segids might get flipped between contact 1 and 2
-     if the alphabetical order is mixed.....)
-       so there is 
-    no need to deal with possible duplicates happening in different directions.  The priority
-    nameing will be dealt with also.
 
-    seg_combo : tuple
-        two segid/ chains that you want to identify equivalent interactions for for the rest of the chains
-        i.e. ('A','B')
-
-    identical_subunits : dictionary
-        The dictionary containing integer keys and lists of identical chains
-
-    u : mda.Universe
-        The universe made with the crystal structure used to generate the contact data
-
-    Returns
-    -------
-    list of tuples 
-    The chain id pairs that are equivalent to the seg_combo reference pair.
-    '''
-    # get the indices of the atoms from each chain
-    A = np.where(u.atoms.segids == f'{seg_combo[0]}')[0]
-    B = np.where(u.atoms.segids == f'{seg_combo[1]}')[0]
-    # calculate all of the distances beteen the atoms from each chain
-    da = distance_array(u.atoms[A], u.atoms[B])
-    # find the indices of the minimum distance value
-    Amin, Bmin = np.where(da == da.min())
-    # get the residue id and atom name for the closest distance atoms
-    resa, atoma = u.atoms[A][Amin[0]].resid, u.atoms[A][Amin[0]].name
-    resb, atomb= u.atoms[B][Bmin[0]].resid, u.atoms[B][Bmin[0]].name
-    # this identifies A's relationship to B.  
-    # Now you can establish this equivalent relationships by going through all the other combos
-    
-    # first you need to figure out the appropriate subunits to compare between
-    for key, seg_list in identical_subunits.items():
-        if seg_combo[0] in seg_list and seg_combo[1] in seg_list:
-            A_group, B_group = key, key
-        elif seg_combo[0] in seg_list and seg_combo[1] not in seg_list:
-            A_group = key
-        elif seg_combo[1] in seg_list and seg_combo[0] not in seg_list:
-            B_group = key
-
-    relationships = []
-    for seg1 in identical_subunits[A_group]:
-        # get all the distances between the atoma and atomb for one chain with all the other chains
-        distances = {}
-        for seg2 in identical_subunits[B_group]:
-            if seg1 != seg2:
-               
-                distances[(seg1,seg2)] = np.linalg.norm(u.select_atoms(f'chainID {seg1} and resnum {resa} and name {atoma}').positions - 
-                            u.select_atoms(f'chainID {seg2} and resnum {resb} and name {atomb}').positions)
-        # now take the key (2 chain tuple) corresponding to the minimum of these distances
-        # and this should be the same relationship identified between the input seg_combo
-        relationships.append(min(distances, key=distances.get))
-    return relationships
 
 from MDAnalysis.lib.distances import calc_dihedrals
 def get_farthest_point(seg,u):
+    '''
+    get farthest point of seg from center of mass of entire protein complex
+    '''
     com = u.select_atoms('protein').center_of_mass()
     # get the indices of the atoms from each chain
     A = np.where(u.atoms.segids == f'{seg}')[0]
@@ -498,6 +442,9 @@ def find_best_asymmetric_point(u, chain, all_chain_dists):
     '''
     Find the residue that creates the greates difference in distances between other chains
     by finding a point in the chain that's near some other neighboring chain
+
+    #TODO can also just sample N=20? random points on the chain taken from evenly spaced points in 3D
+        and take the one with the best differences
     '''
     A = np.where(u.atoms.segids == f'{chain}')[0]
     # asymmetric center of mass that is some point on the periphery of seg_combo[0] near seg_combo[1]
@@ -591,10 +538,40 @@ def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
 
         min_dist, min_angle = min(distance_difs, key=distance_difs.get), min(angle_difs, key=angle_difs.get)  
         if min_dist != min_angle:
+            # sorting everything to ensure alphabetical order will align with contact naming scheme
             if ((distance_difs[min_dist]) + (angle_difs[min_dist])) < (distance_difs[min_angle]) + (angle_difs[min_angle]):
-                relationships.append(min_dist)
+                relationships.append(tuple(sorted(min_dist)))
             else:
-                relationships.append(min_angle)
+                relationships.append(tuple(sorted(min_angle)))
         else:       
-            relationships.append(min_dist)
+            relationships.append(tuple(sorted(min_dist)))
     return relationships
+
+def get_equivalent_interactions(representative_chains, u):
+    '''
+    For each chain in representative_chains, find all other identical chains' interaction partners
+    that are equivalent to the representative_chains interactions with all the other chains in the protein.
+    For instance, chain A's interaction with a subunit D on the other side of the protein might be equivalent to
+    chain B's interaction with subunit E for a symmetric multimer.
+
+    This is useful when averaging the contact frequencies of a multimer and determining the correct naming
+    for the averaged contact record and to ensure it's depicted correctly when visualized.
+
+    Parameters
+    ----------
+    representative_chains : list of strings
+        A list with the names of the chain ids that you want to establish equivalent interactions for
+
+    '''
+
+    segids = u.segments.segids
+    all_chain_dists = get_all_chain_dists(u)
+    identical_subunits = find_identical_subunits(u)
+
+    equivalent_interactions = {}
+    for chain in [chain for chain in representative_chains]:
+        for segid in segids:
+            if segid != chain:
+                equivalent_interactions[tuple(sorted((chain,segid)))] = asymmetric_measurements((chain,segid),identical_subunits,u, all_chain_dists)
+
+    return equivalent_interactions
