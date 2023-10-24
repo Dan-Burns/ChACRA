@@ -436,7 +436,15 @@ def get_dihedral_between_chains(sel1, sel2, u):
     com2 = u.select_atoms(f'chainID {sel2[0]}').center_of_mass()
     result = np.rad2deg(calc_dihedrals(pos1,com1,com2,pos2))
     return result
-####################### Below is working #################################3
+####################### Below is working #################################
+
+def get_pair_distance(sel1, sel2, u):
+    '''
+    Return the distance between two selections
+    '''
+    a = u.select_atoms(sel1).positions[0]
+    b = u.select_atoms(sel2).positions[0]
+    return np.linalg.norm(a-b)
 
 def find_best_asymmetric_point(u, chain, all_chain_dists):
     '''
