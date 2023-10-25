@@ -7,9 +7,10 @@ import numpy as np
 import re
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
 from MDAnalysis.analysis.distances import distance_array
+from MDAnalysis.lib.distances import calc_dihedrals
 
 #TODO add option to globally define chacra color scheme
-# this will be imported into the plot and pymol modules
+# and import into the plot and pymol modules
 chacra_colors = ['red','#02a8f8','#00b730','#7400ff','#434343','magenta','#fad300']
  
 def find_identical_subunits(universe):
@@ -63,6 +64,8 @@ def find_identical_subunits(universe):
 
 def get_all_subunit_contacts(identical_subunits, df):
     '''
+    using in 1st average_contacts function
+
     return a list of contacts that involve at least one subunit in subunits
     
     Parameters
@@ -86,6 +89,8 @@ def get_all_subunit_contacts(identical_subunits, df):
 
 def filter_by_chain(contact_list, same_chain=False):
     '''
+    Using in 1st average_contacts function
+
     Take a list of contacts and return contacts that:
     have the same chain id for each residue in the contact: same_chain = True
     or have different chain ids for each residue in the contact: same_chain = False (default)
@@ -172,6 +177,10 @@ def get_angle(a,b,c):
     return angle
         
 def get_opposing_subunits(subunits, u):
+    '''
+    
+    
+    '''
     
     segids = set(u.segments.segids)
     seg_sels = {seg: u.select_atoms(f'segid {seg}') for seg in segids if seg in subunits} 
@@ -187,7 +196,7 @@ def get_opposing_subunits(subunits, u):
         for seg2 in [segid for segid in segids if segid != seg]:
             # segids will be in check if they have already been paired up with their opposing subunit
             if seg2 not in check:
-                # measuring angle between two subunits with the combined com as the vertex
+                # measuring angle between two subunits with the combined (not just the two) com as the vertex
                 # if the angle is ~180 degrees then they're opposing
                 print(seg,seg2)
                 print(np.rad2deg(get_angle(coms[seg],all_com,coms[seg2])))
@@ -360,28 +369,28 @@ def check_distances(group, contact, u, sorted_distances):
     # returns the priority subunit names to use
     #return list(distances.keys())[0]
 
-def find_non_matching_angles(reference_contact, angles, cutoff=1):
-    '''
-    Return a list of contacts whose angles don't match the reference contact
+# def find_non_matching_angles(reference_contact, angles, cutoff=1):
+#     '''
+#     Return a list of contacts whose angles don't match the reference contact
 
-    reference_contact : string
-        The contact name whose angle will be used for comparison with the other angles.
+#     reference_contact : string
+#         The contact name whose angle will be used for comparison with the other angles.
 
-    angles : dict
-        The dictionary of contacts and corresponding angles 
+#     angles : dict
+#         The dictionary of contacts and corresponding angles 
 
-    cutoff : float or int
-        The maximum difference between reference_contact's angle and the comparison angle to be considered the same.
-        Contacts that differ in angle above this value will be returned in the list.
+#     cutoff : float or int
+#         The maximum difference between reference_contact's angle and the comparison angle to be considered the same.
+#         Contacts that differ in angle above this value will be returned in the list.
 
-    '''
-    non_matching_contacts = []
+#     '''
+#     non_matching_contacts = []
 
-    for contact in angles:
-        if np.abs(angles[reference_contact]-angles[contact]) > cutoff:
-            non_matching_contacts.append(contact)
+#     for contact in angles:
+#         if np.abs(angles[reference_contact]-angles[contact]) > cutoff:
+#             non_matching_contacts.append(contact)
 
-    return non_matching_contacts
+#     return non_matching_contacts
 
 def get_all_chain_dists(u):
     '''
@@ -405,8 +414,6 @@ def get_all_chain_dists(u):
     return sorted_all_chain_dists
 
 
-
-from MDAnalysis.lib.distances import calc_dihedrals
 def get_farthest_point(seg,u):
     '''
     get farthest point of seg from center of mass of entire protein complex
@@ -437,6 +444,38 @@ def get_dihedral_between_chains(sel1, sel2, u):
     result = np.rad2deg(calc_dihedrals(pos1,com1,com2,pos2))
     return result
 ####################### Below is working #################################
+
+def make_equivalent_contact_regex(resids):
+     '''
+     resids : the _parse_id dictionary containing the contact data
+     '''
+     regex1 = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
+     regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
+     return f"{regex1}|{regex2}"
+
+def get_representative_pair_name(chaina, chainb, identical_subunits, representative_chains, equivalent_interactions):
+     '''
+     provide the chains from the contact and get the chain names to use for making a generalized/averaged contact name
+     '''
+     if chaina == chainb:
+          for key, identical_subunit_list in identical_subunits.items():
+               if chaina in identical_subunit_list:
+                    for representative_chain in representative_chains:
+                         if representative_chain in identical_subunit_list:
+                              representative_pair = (representative_chain, representative_chain)
+                                   
+     # determine which equivalent_interaction set it came from 
+     else:
+          paira = (chaina,chainb)
+          
+          for representative_pair_name, equivalent_interaction_list in equivalent_interactions.items():
+               for pair in equivalent_interaction_list:
+                    if paira == pair: #or pairb == pair:
+                         representative_pair = representative_pair_name
+                         
+                         break
+     
+     return representative_pair
 
 def get_pair_distance(sel1, sel2, u):
     '''
