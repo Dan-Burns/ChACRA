@@ -6,6 +6,7 @@ from pylab import cm
 from matplotlib.colors import to_hex
 import collections
 from scipy.interpolate import interp1d
+from ChACRA.ContactAnalysis.contact_functions import _parse_id
 
 ##TODO add means of depicting the chacras on all sets of subunits
 
@@ -38,6 +39,10 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     pc_range : tuple of in
         the lowest and highest PCs (inclusive and 1 indexed) to consider when
         identifying the highest loading scores, coloring, etc.
+    
+    Returns
+    -------
+    dictionary of dictionaries containing contact name and corresponding data for writing the pymol selections
          
     '''
     data = {contact:{} for contact in contact_list}
@@ -76,7 +81,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
                                         temp_range=(slope_range[0],
                                                     min(slope_range[1],cdf.shape[0])))
 
-
+        # TODO I don't think this is being used anywhere....
         data[contact]['sel_1'] = f'resname {resna} and resnum {resia} and chain {chaina}'
         data[contact]['sel_2'] = f'resname {resnb} and resnum {resib} and chain {chainb}'
 
@@ -187,6 +192,15 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     pc_range : tuple of in
         The lowest and highest PCs (inclusive and 1 indexed) to consider when
         identifying the highest loading scores, coloring, etc.
+
+    Usage
+    -----
+    max_pc = 7
+    top_contacts = []
+    for i in range(1,max_pc+1):
+        top_contacts.extend(cpca.sorted_norm_loadings(i).index[:20])
+    top_contacts = list(set(top_contacts))
+    to_pymol(top_contacts, ContactFrequencies, ContactPCA, output_file, pc_range(1,max_pc))
     '''
 
     # remove any duplicates
@@ -311,6 +325,64 @@ def get_sphere_scale(interpolator, pc, variance):
 
     '''
     return interpolator(variance[pc-1])
+
+
+
+
+def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
+    '''
+    Create data for contacts_to_pymol.write_selections so that you can visualize the averaged contact
+    data's top PC contacts (chacras) applied back to all the subunits from which they were averaged.
+    
+    mapped_contacts : dictionary
+        dictionary containing the averaged contact name keys and list values that contain the equivalent
+        contact name for the other subunits. Generate this with everything_from_averaged(as_map=True).
+    
+    pymol_data : dictionary
+        dictionary of all the data needed for write_selections.  Generate with contacts_to_pymol.get_contact_data
+        
+    Returns
+    -------
+    Dictionary of contact data for input to write_selections.  
+    
+    Usage
+    -----
+    max_pc = 7
+    top_contacts = []
+    for i in range(1,max_pc+1):
+        top_contacts.extend(cpca.sorted_norm_loadings(i).index[:20])
+    top_contacts = list(set(top_contacts))
+    mapped_contacts = everything_from_averaged(avg_contact_df[top_contacts], all_contact_frequency_df, 
+                                    mda.universe, ['A','G'],as_map=True)
+    # ['A','G'] is the list of representative chains used when generating averaged_contacts
+    
+    pymol_data = get_contact_data(mapped_contacts.keys(),average_ContactFrequencies,ContactPCA, pc_range=(1,max_pc))
+
+    pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, 'path/to/output.pml')
+    
+    '''
+    full_protein_pymol_data = {}
+    for averaged_contact_name in pymol_data:
+        full_protein_pymol_data[averaged_contact_name] = pymol_data[averaged_contact_name]
+        for replicated_name in mapped_contacts[averaged_contact_name]:
+            if replicated_name != averaged_contact_name:
+                resids = _parse_id(replicated_name)
+                full_protein_pymol_data[replicated_name] = {
+                            'chaina': resids['chaina'],
+                            'resna': resids['resna'],
+                            'resia': resids['resida'],
+                            'chainb': resids['chainb'],
+                            'resnb': resids['resnb'],
+                            'resib': resids['residb'],
+                            'top_pc': pymol_data[averaged_contact_name]['top_pc'],
+                            'loading_score': pymol_data[averaged_contact_name]['loading_score'],
+                            'color': pymol_data[averaged_contact_name]['color'],
+                            'slope': pymol_data[averaged_contact_name]['slope'],
+                            'sel_1': f"resname {resids['resna']} and resnum {resids['resida']} and chain {resids['chaina']}",
+                            'sel_2': f"resname {resids['resnb']} and resnum {resids['residb']} and chain {resids['chainb']}"
+                            }
+                
+    write_selections(full_protein_pymol_data, output)
 
 
 ###### GRADIENT COLORING #################

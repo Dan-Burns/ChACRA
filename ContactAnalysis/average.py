@@ -148,16 +148,28 @@ def average_multimer(structure, denominator, df, representative_chains):
     return pd.DataFrame(averaged_data)
 
 
-def everything_from_averaged(averaged_contacts, original_contacts, u, representative_chains):
+def everything_from_averaged(averaged_contacts, original_contacts, u, representative_chains,
+                             as_map=False):
     '''
     Take the averaged contacts and regenerate the entire protein's contacts using this data.
     Useful for visualizing the flow of chacras across the whole protein and doing network analysis
     on more statistically robust data.
 
-    averaged_contacts : The averaged contact data
+    averaged_contacts : pd.DataFrame
+        The averaged contact data
 
     u : MDA.Universe 
-    The same universe used for averaging contacts
+        The same universe used for averaging contacts
+
+    representative_chains : list of strings
+        The list of chain ids used when generating the averaged contact names.
+
+    as_map : bool
+        Returns a dictionary mapping each averaged contact name to a list of the corresponding
+        replicated contact names
+
+    TODO Reduce the size of this function - one call to append to replicated contacts per iteration
+    TODO function to generate alternate names and measure distances - can be used in average_hetermultimer too
 
     Returns
     -------
@@ -170,6 +182,7 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
     #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
     equivalent_interactions = get_equivalent_interactions(representative_chains,u)
     replicated_contacts = {}
+    mapped_contacts = {contact:[] for contact in averaged_contacts.columns}
     #unreplicated_contacts = []
     identical_subunits = find_identical_subunits(u)
     for contact in tqdm.tqdm(averaged_contacts.columns):
@@ -181,11 +194,13 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
                   if identical_subunit != chaina:
                        equivalent_contact = f"{identical_subunit}:{resids['resna']}:{resids['resida']}-{identical_subunit}:{resids['resnb']}:{resids['residb']}"
                        replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                       mapped_contacts[contact].append(equivalent_contact)
         else:   
             equivalent_pairs = equivalent_interactions[(chaina,chainb)]
             for equivalent_pair in equivalent_pairs:
                 if equivalent_pair == (chaina, chainb):
                     replicated_contacts[contact] = averaged_contacts[contact]
+                    mapped_contacts[contact].append(contact)
                     continue
                 # now have to check every time to determine if the averaged_contact happens to have
                 # a flipped name relative to the other chain pairs
@@ -237,8 +252,19 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
                         equivalent_contact = testa
                     else:
                         equivalent_contact = testb
-                        replicated_contacts[equivalent_contact] = averaged_contacts[contact]
-                    #unreplicated_contacts.append(equivalent_contact)
+                    replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+            
+                mapped_contacts[contact].append(equivalent_contact)
+                #unreplicated_contacts.append(equivalent_contact)
                     
+    if as_map:
+         return mapped_contacts
+    else:
+        return replicated_contacts #, unreplicated_contacts
 
-    return replicated_contacts #, unreplicated_contacts
+#### For depicting selections of high loading score contacts with pymol functions
+## need to provide the averaged dataframe with just the high loading score contacts
+## Then retrieve the data for writing the pymol selection for that contact
+## then find the equivalent contacts to that one and write the same pymol selection
+## with just the new resid info replacing the averaged name data
+# use get_contact_data on the averaged data, then duplicate the entries for all of the replicated contacts
