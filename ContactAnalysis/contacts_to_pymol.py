@@ -7,6 +7,7 @@ from matplotlib.colors import to_hex
 import collections
 from scipy.interpolate import interp1d
 
+##TODO add means of depicting the chacras on all sets of subunits
 
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),

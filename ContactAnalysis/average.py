@@ -4,6 +4,7 @@ import pandas as pd
 from ChACRA.ContactAnalysis.ContactFrequencies import *
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
 from ChACRA.ContactAnalysis.utils import *
+import tqdm
 
 
 def average_multimer(structure, denominator, df, representative_chains):
@@ -29,11 +30,11 @@ def average_multimer(structure, denominator, df, representative_chains):
     u = mda.Merge(protein)
     # For now can leave it equal to the minimum number of identical subunits involved in the contact 
     #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
-    denominator = 6
+    identical_subunits = find_identical_subunits(u)
     df_copy = df.copy()
     # hold the averaged data
     averaged_data = {}
-
+    # standard_deviation = {} # use this to compute error later
     # determine what the equivalent chain interactions relative to representative chains are for all the subunits
     print("Finding interactions equivalent to those involving representative_chains. One moment.")
     equivalent_interactions = get_equivalent_interactions(representative_chains,u)
@@ -106,7 +107,7 @@ def average_multimer(structure, denominator, df, representative_chains):
                         else:
                             # have to determine if the original contact for this iteration happens to have the flipped inter-subunit naming
                             # and to_average didn't include the contact with the representative naming scheme (should not happen often)
-
+                            # TODO can't flip names for inter-hetero subunit....
                             # so we measure the distance between the contacting residues for each contact and determine the distance that these residues should be apart
                             # and then test the representative_pair residue distances with the default name and with the flipped resid info
                             ################# measure each distance in to_average's contacts ##################################
@@ -135,7 +136,7 @@ def average_multimer(structure, denominator, df, representative_chains):
                                 averaged_name =  f"{representative_pair[0]}:{resids['resnb']}:{resids['residb']}-{representative_pair[1]}:{resids['resna']}:{resids['resida']}"
                             ##################################### End flipped contact name adjustment ##########################################################################
             ################################ End inter-subunit #####################################################################################
-            
+            # TODO record stdev of every averaged contact 
             averaged_data[averaged_name] = df_copy[to_average].sum(axis=1)/denominator
 
             # get rid of the contacts that were just averaged and reduce the number of remaining contacts to check in the dataframe
@@ -145,3 +146,99 @@ def average_multimer(structure, denominator, df, representative_chains):
             progress.update(columns_removed)
 
     return pd.DataFrame(averaged_data)
+
+
+def everything_from_averaged(averaged_contacts, original_contacts, u, representative_chains):
+    '''
+    Take the averaged contacts and regenerate the entire protein's contacts using this data.
+    Useful for visualizing the flow of chacras across the whole protein and doing network analysis
+    on more statistically robust data.
+
+    averaged_contacts : The averaged contact data
+
+    u : MDA.Universe 
+    The same universe used for averaging contacts
+
+    Returns
+    -------
+    pd.DataFrame 
+    '''
+    print("Collecting some information. One moment.")
+    protein = u.select_atoms('protein')
+    u = mda.Merge(protein)
+    # For now can leave it equal to the minimum number of identical subunits involved in the contact 
+    #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
+    equivalent_interactions = get_equivalent_interactions(representative_chains,u)
+    replicated_contacts = {}
+    #unreplicated_contacts = []
+    identical_subunits = find_identical_subunits(u)
+    for contact in tqdm.tqdm(averaged_contacts.columns):
+        resids = _parse_id(contact)
+        chaina = resids['chaina']
+        chainb = resids['chainb']
+        if chaina == chainb:
+             for identical_subunit in identical_subunits[get_chain_group(chaina,identical_subunits)]:
+                  if identical_subunit != chaina:
+                       equivalent_contact = f"{identical_subunit}:{resids['resna']}:{resids['resida']}-{identical_subunit}:{resids['resnb']}:{resids['residb']}"
+                       replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+        else:   
+            equivalent_pairs = equivalent_interactions[(chaina,chainb)]
+            for equivalent_pair in equivalent_pairs:
+                if equivalent_pair == (chaina, chainb):
+                    replicated_contacts[contact] = averaged_contacts[contact]
+                    continue
+                # now have to check every time to determine if the averaged_contact happens to have
+                # a flipped name relative to the other chain pairs
+                testa = f"{equivalent_pair[0]}:{resids['resna']}:{resids['resida']}-{equivalent_pair[1]}:{resids['resnb']}:{resids['residb']}"
+                testb = f"{equivalent_pair[0]}:{resids['resnb']}:{resids['residb']}-{equivalent_pair[1]}:{resids['resna']}:{resids['resida']}"
+                testa_in = testa in original_contacts.columns
+                testb_in = testb in original_contacts.columns
+                # if both contact names are in the original data, then measure distances and compare them to the averaged contact
+                # if they're hetero-subunit, can name without further consideration
+                if get_chain_group(chaina, identical_subunits) != get_chain_group(chainb, identical_subunits):
+                    equivalent_contact = testa
+                    replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                elif testa_in and testb_in:
+                    sel1 = f"chainID {chaina} and resnum {resids['resida']} and name CA"
+                    sel2 = f"chainID {chainb} and resnum {resids['residb']} and name CA"
+                    ref_dist = get_pair_distance(sel1, sel2, u)
+
+                    testa1 = f"chainID {equivalent_pair[0]} and resnum {resids['resida']} and name CA"
+                    testa2 = f"chainID {equivalent_pair[1]} and resnum {resids['residb']} and name CA"
+                    testb1 = f"chainID {equivalent_pair[1]} and resnum {resids['resida']} and name CA"
+                    testb2 = f"chainID {equivalent_pair[0]} and resnum {resids['residb']} and name CA"
+                    testa_dist = get_pair_distance(testa1, testa2, u)
+                    testb_dist = get_pair_distance(testb1, testb2, u)
+                    # can print pairs of distances that are under some difference threshhold
+                    if np.abs(testa_dist-ref_dist) < np.abs(testb_dist-ref_dist):
+                        equivalent_contact = testa
+                    else:
+                        equivalent_contact = testb
+                    replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                elif testa in original_contacts.columns:
+                    equivalent_contact = testa
+                    replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                elif testb in original_contacts.columns:
+                    equivalent_contact = testb
+                    replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                elif (testa not in original_contacts.columns) and (testb not in original_contacts.columns) :
+                    sel1 = f"chainID {chaina} and resnum {resids['resida']} and name CA"
+                    sel2 = f"chainID {chainb} and resnum {resids['residb']} and name CA"
+                    ref_dist = get_pair_distance(sel1, sel2, u)
+
+                    testa1 = f"chainID {equivalent_pair[0]} and resnum {resids['resida']} and name CA"
+                    testa2 = f"chainID {equivalent_pair[1]} and resnum {resids['residb']} and name CA"
+                    testb1 = f"chainID {equivalent_pair[1]} and resnum {resids['resida']} and name CA"
+                    testb2 = f"chainID {equivalent_pair[0]} and resnum {resids['residb']} and name CA"
+                    testa_dist = get_pair_distance(testa1, testa2, u)
+                    testb_dist = get_pair_distance(testb1, testb2, u)
+                    # can print pairs of distances that are under some difference threshhold
+                    if np.abs(testa_dist-ref_dist) < np.abs(testb_dist-ref_dist):
+                        equivalent_contact = testa
+                    else:
+                        equivalent_contact = testb
+                        replicated_contacts[equivalent_contact] = averaged_contacts[contact]
+                    #unreplicated_contacts.append(equivalent_contact)
+                    
+
+    return replicated_contacts #, unreplicated_contacts

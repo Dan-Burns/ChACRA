@@ -13,6 +13,7 @@ import MDAnalysis as mda
 import collections
 from ChACRA.ContactAnalysis.utils import *
 from ChACRA.ContactAnalysis.contact_functions import *
+import tqdm
 
 
 
@@ -575,7 +576,7 @@ class ContactPCA:
     #TODO make permuted variance an attribute -- @property
     #TODO need an additional attribute to record N_permutations for plotting
 
-    def permutated_explained_variance(self, contact_frequencies, N_permutations=100):
+    def permutated_explained_variance(self, contact_frequencies, N_permutations=200):
         '''
         Randomize the values within the contact frequency columns to test the significance of the contact PCs.
 
@@ -597,12 +598,9 @@ class ContactPCA:
         pca = PCA()
 
         variance = np.zeros((N_permutations, len(df.index)))
-        print('This can take a moment. Progress updates every 10 iterations.')
-        for i in range(N_permutations):
-            if i%10 == 0:
-                print(i,end='..')
-            X_aux = _de_correlate_df(df)
-            
+        print('This can take a moment.')
+        for i in tqdm.tqdm(range(N_permutations)):
+            X_aux = _de_correlate_df(df)    
             pca.fit(X_aux)
             variance[i, :] = pca.explained_variance_ratio_
 
