@@ -367,6 +367,16 @@ class ContactFrequencies:
 
 
     def to_heatmap(self,format='mean', range=None, contact_pca=None, pc=None):
+
+        '''
+        Convert the deata into a symmetric matrix with residues mirrored on x and y axis.
+        The residues will be named as "chainResid" e.g. A100.  You can easily plot the 
+        heatmap with seaborn.heatmap().  If you want a heatmap of a subset of residues,
+        filter the contact dataframe to your contacts of interest and generate a new
+        ContactFrequencies object with the filtered dataframe before calling to_heatmap().
+
+        Parameter
+        '''
         
         # Turn the data into a heatmap 
         # format options are 'mean', 'stdev', 'difference', 'loading_score'
@@ -374,7 +384,7 @@ class ContactFrequencies:
         # if 'loading_score' then specify contact_pca data and pc from which you want the loading score
         # hold reslists with chain keys and list of resid values
         reslists = {}
-
+        res_append = lambda res: f"{chain}{res}"
         for contact in self.freqs.columns:
             resinfo = _parse_id(contact)
 
@@ -387,6 +397,9 @@ class ContactFrequencies:
             else:
                 reslists[resinfo['chainb']] = [int(resinfo['residb'])]
         
+        # sort the dictionary by the chain id keys
+        reslists = {key: reslists[key] for key in sorted(reslists.keys())}
+        
         # eliminate duplicates, sort the reslists in ascending order, and make a single list of all resis
         all_resis = []
         for chain in reslists:
@@ -395,7 +408,6 @@ class ContactFrequencies:
             # map the chain id onto the resid
             # this will be the indices and columns for the heatmap
             # lambda function for mapping chain id back onto residue
-            res_append = lambda res: f"{chain}{res}"
             all_resis.extend(list(map(res_append,reslists[chain])))
 
         # create an empty heatmap
@@ -408,7 +420,7 @@ class ContactFrequencies:
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
 
             values = {}
-            values['mean'], values['stdev'], values['difference'] = self.freqs[contact].mean(), self.freqs[contact].std(), self.freqs[contact].iloc[-1]-self.freqs[contact].iloc[0]
+            values['mean'], values['stdev'], values['difference'] = self.freqs[contact].mean(), self.freqs[contact].std(), np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
             if contact_pca:
                 #TODO offer sorted loadings to catch sign
                 values['loading_score'] = contact_pca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
@@ -576,7 +588,7 @@ class ContactPCA:
     #TODO make permuted variance an attribute -- @property
     #TODO need an additional attribute to record N_permutations for plotting
 
-    def permutated_explained_variance(self, contact_frequencies, N_permutations=200):
+    def permutated_pca(self, contact_frequencies, N_permutations=200, get_loading_pvals=False):
         '''
         Randomize the values within the contact frequency columns to test the significance of the contact PCs.
 
@@ -596,25 +608,42 @@ class ContactPCA:
        
         #original_variance = self.pca.explained_variance_ratio_
         pca = PCA()
-
         variance = np.zeros((N_permutations, len(df.index)))
         print('This can take a moment.')
         for i in tqdm.tqdm(range(N_permutations)):
             X_aux = _de_correlate_df(df)    
             pca.fit(X_aux)
+            # record the explained variance of this iteration's PCs
             variance[i, :] = pca.explained_variance_ratio_
-
+            # track the behavior of the loading scores too
+            if get_loading_pvals:
+                if i == 0:
+                    permutated_components = (np.abs(pca.components_) >= np.abs(self.pca.components_))*1
+                else:
+                    # summing up the number of times that the randomized data loadings have greater values than the 
+                    # real data
+                    permutated_components += (np.abs(pca.components_) >= np.abs(self.pca.components_))*1
         self._permutated_explained_variance = variance
-        #return variance
+        # The average of this tells you the probability of randomized data having higher loading scores
+        # if this value is low (<0.05) then the real loading score is significant
+        if get_loading_pvals:
+            self.permutated_component_pvals = permutated_components/N_permutations
     
-    #TODO heatmap the contributions of the original variables to each
-    #eigenvector as part of a method to identify which contacts
-    # (or residues) are junctions between modes (PC1 interactions that feed PC2 etc)
-            
-                    
-                    
 
+    #######################
+    # def bootstrapped_pca(self):
+    #     '''
+        
+    #     '''
 
-
-
-
+    #     # Bootstrap
+    #     # Empirical loadings
+    #     loadings = cpca.pca.components_.T 
+    #     nboot=1000
+    #     # Bootstrap samples
+    #     loadings_boot = []
+    #     for i in range(nboot):
+    #         X_boot = df.sample(df.shape[0], replace=True) 
+    #         pca_boot = PCA().fit(X_boot)
+    #         loadings_boot.append(np.abs(pca_boot.components_.T)>=np.abs(loadings))
+    #     pvals = np.dstack(loadings_boot).mean(axis=2) 

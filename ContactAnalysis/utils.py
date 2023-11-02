@@ -9,9 +9,7 @@ from ChACRA.ContactAnalysis.contact_functions import _parse_id
 from MDAnalysis.analysis.distances import distance_array
 from MDAnalysis.lib.distances import calc_dihedrals
 
-#TODO add option to globally define chacra color scheme
-# and import into the plot and pymol modules
-chacra_colors = ['red','#02a8f8','#00b730','#7400ff','#434343','magenta','#fad300']
+
  
 def find_identical_subunits(universe):
     '''

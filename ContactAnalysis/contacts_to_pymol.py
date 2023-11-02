@@ -165,6 +165,15 @@ def make_pc_selection(contact_list, contactFrequencies, contactPCA, pc_range=(1,
     Addtional selection that expands this to include contact partners that might have a different PC contact as their top loading score.
     '''
     
+def assign_color_by_proximity():
+    '''
+    apply colors to every residue in the protein based on how close it is to the list of 
+    top scoring contacts.
+
+    Can incorporate the contactfrequency records.
+
+    '''
+
 
 def to_pymol(contact_list, contactFrequencies, contactPCA,
                      output_file = 'output.pml',
@@ -643,7 +652,7 @@ def nx_path_to_pymol(output, sel_name, res_list):
         file.write('show spheres, '+sel_name+' and name CA \n')
         
                 
-        
+
         
     
 

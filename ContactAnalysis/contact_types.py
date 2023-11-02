@@ -321,6 +321,9 @@ def parse_contact(line):
     return frame, contact_type, ch1, resn1, resid1, atom1, ch2, resn2, resid2, atom2, distance
     
 def make_contact_name(ch1,resn1,resid1,ch2,resn2,resid2):
+    '''
+    
+    '''
     
     contact_name = ch1+":"+resn1+":"+resid1+"-"+ch2+":"+resn2+":"+resid2
     
