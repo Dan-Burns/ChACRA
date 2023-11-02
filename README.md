@@ -22,6 +22,7 @@ The loading scores within a PC also report on correlated interactions and as a c
 You can make nice visualizations of the different PC mode interactions with contacts_to_pymol.to_visualize to help you grasp the complex dynamics of your protein.
 
 If you use ChACRA, please cite:
+
 [Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)](https://www.pnas.org/doi/10.1073/pnas.2210537119)
 
 [Burns, D., Venditti, V. & Potoyan, D. A. Temperature sensitive contact modes allosterically gate TRPV3. PLoS Comput. Biol. 19, e1011545 (2023)}(https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011545)
