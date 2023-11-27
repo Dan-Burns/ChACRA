@@ -81,7 +81,7 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
     '''
     Plot the projections of n principal components
     smoothing is applied
-    #TODO find that pretty plotting library and give the lines a plasma glow
+    #TODO offer plasma glow 
     '''
     if temps is None and contacts is not None:
         print('Using the axis labels from the contact data as temperature labels. '
@@ -116,7 +116,7 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
     #ax.vlines(x=373,ymin=0,ymax=.84,linestyles='dotted')
     ax.legend([f'PC{i}' for i in range(1,n_pcs+1)], fontsize=12, loc='lower center', ncol=2)
     if filename:
-        ax.savefig(filename)
+        fig.savefig(filename)
 
 def biplots(cpca, pcs=list(range(1,5)), label_top=None, output_file=None):
     '''
