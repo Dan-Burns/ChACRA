@@ -1,7 +1,7 @@
 import numpy as np
 #TODO add option to globally define chacra color scheme
 # and import into the plot and pymol modules
-chacra_colors = ['#ff0000ff','#02a8f8ff','#00b730ff','#7400ffff','#434343ff','#ff00ffff','#fad300ff']
+chacra_colors = ['#ff0000ff','#02a8f8ff','#00b730ff','#7400ffff','#434343ff','#ff00ffff','#fad300ff','#b2a8b1c0','#b3ad45c0']
 cherenkov_blue = '#00bfff'
 
 # adopted next two functions from https://medium.com/@BrendanArtley/matplotlib-color-gradients-21374910584b

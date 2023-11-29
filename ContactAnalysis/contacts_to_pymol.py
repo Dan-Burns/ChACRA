@@ -8,7 +8,7 @@ import collections
 from scipy.interpolate import interp1d
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
 
-##TODO add means of depicting the chacras on all sets of subunits
+## Create a "visualizations" module for graph, blender, nglview, pymol, etc.
 
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
@@ -843,3 +843,7 @@ def circular_color_gradient(output='./colors.pml',structure=None,
                         )
                     
                     '''
+
+## nglview visualizations
+
+## blender visualizations
