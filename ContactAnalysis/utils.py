@@ -9,7 +9,34 @@ from ChACRA.ContactAnalysis.contact_functions import _parse_id
 from MDAnalysis.analysis.distances import distance_array
 from MDAnalysis.lib.distances import calc_dihedrals
 
+def geometric_progression(tmin, tmax, n):
+    '''
+    
 
+    Parameters
+    ----------
+    tmin : int or float
+        lowest end of temperature range.
+    tmax : int or float
+        highest end of temperature range.
+    n : int
+        number of temperatures.
+
+    Returns
+    -------
+    temps : list
+        temperatures.
+
+    '''
+    
+    t = lambda tmin, tmax, n, i: tmin*np.exp(i*np.log(tmax/tmin)/(n-1))
+    
+    temps = []
+    
+    for i in range(n):
+        temps.append(t(tmin,tmax,n,i))
+        
+    return temps
  
 def find_identical_subunits(universe):
     '''
