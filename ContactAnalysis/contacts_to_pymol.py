@@ -7,6 +7,7 @@ from matplotlib.colors import to_hex
 import collections
 from scipy.interpolate import interp1d
 from ChACRA.ContactAnalysis.contact_functions import _parse_id
+from ChACRA.ContactAnalysis.colors import chacra_colors
 
 ## Create a "visualizations" module for graph, blender, nglview, pymol, etc.
 
@@ -43,7 +44,9 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     Returns
     -------
     dictionary of dictionaries containing contact name and corresponding data for writing the pymol selections
-         
+    
+
+    # TODO have to figure out how to deal with duplicate names in different pc groups so you can depict just spheres of one color 
     '''
     data = {contact:{} for contact in contact_list}
 
@@ -109,6 +112,72 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     result = collections.OrderedDict(sorted(data.items(), key=lambda t:t[1]["loading_score"]))
     return result
 
+def write_group_selections(contact_data, output_file, ca_only=True):
+
+    ###################
+    # collect the data to produce group selections
+    chacra_ids = set()
+    for val in contact_data.values():
+        chacra_ids.add(val['top_pc'])
+    # hold the selection names under each pc id    
+    chacra_selections = {pc:'' for pc in chacra_ids}
+    # hold the line ids under each 
+    lines = {pc:'' for pc in chacra_ids}
+    #####################
+
+
+    with open(output_file, 'w') as f:
+        # iterating through dictionary and taking the contact name (contact)
+        # and the corresponding dictionary (data) 
+
+        for contact, data in contact_data.items():
+
+            # name the selection
+            contact = f"{data['chaina']}{data['resna']}{data['resia']}-{data['chainb']}{data['resnb']}{data['resib']}"
+            if ca_only == True:
+                # can't use group selections plus a modifier like "CA" so using this as workaround
+                f.write(f"select {contact}, (chain {data['chaina']} and resi {data['resia']} "
+                        f"or chain {data['chainb']} and resi {data['resib']}) and name CA\n")
+            else:
+                f.write(f"select {contact}, chain {data['chaina']} and resi {data['resia']} "
+                        f"or chain {data['chainb']} and resi {data['resib']}\n")
+            
+            chacra_selections[data['top_pc']] += f'{contact} '
+
+            # draw the line
+            f.write(f"distance {contact}-line, (chain {data['chaina']} and resi {data['resia']} and name CA), "
+                   f"(chain {data['chainb']} and resi {data['resib']} and name CA)\n")
+
+            lines[data['top_pc']] += f'{contact}-line '
+
+            # set the line dash gap (just need to set it to 0 for positive slopes)
+            # Can add the options for different line width and dash gaps here
+            if data['slope'] >= 0.0:
+                f.write(f"set dash_gap, 0, {contact}-line\n")
+
+            if 'sphere_transparency' in data.keys():
+                f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
+
+            # done with a contact's commands
+            f.write('\n')
+            f.write('#### Grouping commands ##### \n')
+        for group in chacra_selections:
+            f.write(f'group chacra_{group}, {chacra_selections[group]} \n')
+            # add spheres
+            f.write(f'show spheres, chacra_{group} and name CA \n')
+            # color
+            f.write(f'color 0x{chacra_colors[group-1][1:-2]}, chacra_{group} \n')
+            
+        for group in lines:
+            f.write(f'group {group}_line, {lines[group]}\n')
+            f.write(f'color 0x{chacra_colors[group-1][1:-2]}, {group}_line \n')
+
+
+
+
+
+
+
 
 def write_selections(contact_data, output_file):
     '''
@@ -125,9 +194,13 @@ def write_selections(contact_data, output_file):
 
     '''
 
+
     with open(output_file, 'w') as f:
         # iterating through dictionary and taking the contact name (contact)
         # and the corresponding dictionary (data) 
+
+
+
         for contact, data in contact_data.items():
 
             # name the selection
@@ -158,6 +231,9 @@ def write_selections(contact_data, output_file):
             # done with a contact's commands
             f.write('\n')
 
+            
+
+
 # TODO function to make PC selections so you can work with all the residues displaying a specific PC color at one time
 def make_pc_selection(contact_list, contactFrequencies, contactPCA, pc_range=(1,4)):
     '''
@@ -179,8 +255,8 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
                      output_file = 'output.pml',
                     slope_range=(0,7),
                     pc_range=(1,4),
-                    variable_sphere_transparency=False
-                    ):
+                    variable_sphere_transparency=False,
+                    group=True):
     '''
      Parameters
     ----------
@@ -223,7 +299,11 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     # write it to pymol file
     if output_file.split('.')[-1] != 'pml':
         print("You're output file must have '.pml' appended for pymol to run it.")
-    write_selections(contact_data, output_file)
+    if group == True:
+        write_group_selections(contact_data, output_file)
+    else:
+        write_selections(contact_data, output_file)
+
 
 
 
@@ -391,7 +471,7 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
                             'sel_2': f"resname {resids['resnb']} and resnum {resids['residb']} and chain {resids['chainb']}"
                             }
                 
-    write_selections(full_protein_pymol_data, output)
+    write_group_selections(full_protein_pymol_data, output)
 
 
 ###### GRADIENT COLORING #################

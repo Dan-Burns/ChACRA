@@ -530,6 +530,7 @@ class ContactPCA:
         pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
         contacts = []
         for contact in self.norm_loadings.index:
+            #TODO add resname and/or chain 
             if str(resnum) in _parse_id(contact).values():
                 contacts.append(contact)
 
@@ -584,6 +585,29 @@ class ContactPCA:
             return True
         else:
             return False
+        
+    def get_chacra_centers(self, pc, cutoff=0.6, absolute=True):
+        '''
+        Return the loading score dataframe containing only the contacts with loading scores above the cutoff
+
+        Parameters
+        ----------
+        pc : int
+            The principal component from which to retrieve the most responsive contacts.
+
+        cutoff : float
+            The minimum absolute value of loading score to include in the top sensitive contacts
+
+        absolute : bool
+            Whether to return the dataframe with normalized absolute values or original loading scores 
+        '''
+
+    
+        chacra_centers = self.sorted_norm_loadings(pc).loc[(self.sorted_norm_loadings(pc)[f'PC{pc}'] >= cutoff)].index
+        if absolute == True:
+            return self.sorted_norm_loadings(pc).loc[chacra_centers]
+        else:
+            return self.loadings.loc[chacra_centers]
         
     #TODO make permuted variance an attribute -- @property
     #TODO need an additional attribute to record N_permutations for plotting
