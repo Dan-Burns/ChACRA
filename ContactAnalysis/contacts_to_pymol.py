@@ -328,8 +328,7 @@ def get_slope(df,contact,temp_range=(0,7)):
 
 def pc_color(pc):
     '''
-    TODO add option to specify colors
-    Return a pymol color string corresponding to a PC
+    TODO deprecate - write_group_selections pulls from chacra_colors based on top_pc - update get_contact_data accordingly
     '''
    
     

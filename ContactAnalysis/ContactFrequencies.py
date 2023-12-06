@@ -609,8 +609,7 @@ class ContactPCA:
         else:
             return self.loadings.loc[chacra_centers]
         
-    #TODO make permuted variance an attribute -- @property
-    #TODO need an additional attribute to record N_permutations for plotting
+   
 
     def permutated_pca(self, contact_frequencies, N_permutations=200, get_loading_pvals=False):
         '''

@@ -10,7 +10,7 @@ def hex_to_RGB(hex_str,alpha=False):
     #Pass 16 to the integer function for change of base
     if alpha == True:
         if len(hex_str) == 7:
-            # no transparency so prepend 0 transparency
+            # no transparency so append 0 transparency
             hex_str = hex_str + "ff"
             return [int(hex_str[i:i+2], 16) for i in range(1,8,2)]
         else:
