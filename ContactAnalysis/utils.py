@@ -9,6 +9,9 @@ from ChACRA.ContactAnalysis.contact_functions import _parse_id
 from MDAnalysis.analysis.distances import distance_array
 from MDAnalysis.lib.distances import calc_dihedrals
 
+def sort_dictionary_values(dictionary):
+    return dict(sorted(dictionary.items(), key=lambda item: -item[1]))
+
 def geometric_progression(tmin, tmax, n):
     '''
     

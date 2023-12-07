@@ -60,7 +60,7 @@ class ContactFrequencies:
     
     def __init__(self, contact_data, temps=None):
         '''
-        supply list of temperatures to replace index
+        TODO supply endpoints or list of temperatures and replace index
         '''
         try:
             file_extension = pathlib.Path(contact_data).suffix
