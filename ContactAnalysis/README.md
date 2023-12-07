@@ -6,7 +6,7 @@ Chemically Accurate Contact Response Analysis
 
 Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD).  The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature.  The chacras can reveal functionally critical residue interactions.
 
-To start, first generate a set of md trajectories across (an effective) temperature range.  This is most efficiently done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
+To start, first generate a set of md trajectories across a temperature range.  This is most efficiently done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
 
 Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). Many of the functions in ChACRA use pandas dataframes and the naming scheme for the columns is based off of getcontacts' format so it is essentially a requirement to generate your contact data with this package. It has the benefit of being very a very rigorous method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
 
@@ -68,6 +68,7 @@ plot_difference_of_roots(cpca)
 '''
 
 Project the data onto the principal components to visualize the energy-dependent trend of each of the chacras.
+The lower eigenvalue modes (e.g. PCs 4 and above) can exhibit a decaying oscillatory pattern.  This is an artifact of the PCA; however, these modes' lowest temperature peak should coincide with the peaks seen in their highest loading score contacts. 
 
 '''
 from ChACRA.ContactAnalysis.plot import plot_chacras
