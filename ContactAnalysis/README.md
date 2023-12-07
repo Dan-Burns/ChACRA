@@ -1,9 +1,9 @@
-ChACRA![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/a030ffbb-0a97-4b33-a968-fab2ec7dbee9)
+![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/a030ffbb-0a97-4b33-a968-fab2ec7dbee9)
+
+# ChACRA
 
 
-
-
-**Ch**emically **A**ccurate **C**ontact **R**esponse **A**nalysis
+## **Ch**emically **A**ccurate **C**ontact **R**esponse **A**nalysis
 
 Created by Dan Burns
 https://github.com/Dan-Burns/ChACRA
