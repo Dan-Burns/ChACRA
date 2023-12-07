@@ -1,8 +1,13 @@
+ChACRA![chacra_logo](https://github.com/Dan-Burns/ChACRA/assets/58605062/a030ffbb-0a97-4b33-a968-fab2ec7dbee9)
+
+
+
+
+**Ch**emically **A**ccurate **C**ontact **R**esponse **A**nalysis
+
 Created by Dan Burns
 https://github.com/Dan-Burns/ChACRA
 
-ChACRA
-Chemically Accurate Contact Response Analysis
 
 Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD).  The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature.  The chacras can reveal functionally critical residue interactions.
 
