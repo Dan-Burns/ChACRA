@@ -1,7 +1,7 @@
 ## Networkx functions
 
 
-
+# network visualization
 # https://robert-haas.github.io/gravis-docs/
 # construct minimal graph that connects all the most sensitive contacts
 import networkx as nx
@@ -32,7 +32,7 @@ def edge_to_contact(edge,contacts):
             return
     return contact
 
-def make_network(cont, temp):
+def make_network(cont, temp, exclude_below=None, exclude_above=None):
     '''
     cont : ContactFrequencies
         The ContactFrequencies object containing the contacts 
@@ -43,36 +43,18 @@ def make_network(cont, temp):
     '''
     # you want the edge weights to be inverse contact frequencies
     # lower edge weight value means "closer"/ higher contact frequency
+    #TODO add exclusion cutoffs
    
     inverse = cont.all_edges(temp=temp, as_dict=True)
-    original = cont.all_edges(temp=temp, as_dict=True, inverse=False)
+    original = cont.all_edges(temp=temp, inverse=False)
 
-    G = nx.graph()
+    G = nx.Graph()
 
     G.add_weighted_edges_from(original)
     nx.set_edge_attributes(G,inverse,name='inverse')
     return G
 
-def most_central_edge(G, removed_edges=removed_edges):
-    '''
-    Use in girvan_newman community analysis to identify the removed edge on each iteration
-   
-    Example
-    -------
-    removed_edges = {}
-    comp = community.girvan_newman(network_obj, most_valuable_edge=most_central_edge)
-    # choose number of communities
-    k = 6
-    limited = itertools.takewhile(lambda c: len(c) <= k, comp)
-    # pull the community lists out with itertools 'takewhile' 
-    for communities in limited:
-        print(tuple(sorted(c) for c in communities))
-    
-    '''
-    centrality = betweenness(G, weight="inverse")
-    edge = max(centrality, key=centrality.get)
-    removed_edges[edge] = centrality[edge]
-    return edge
+
 
 def get_communities(G, n_communities=5, removed_edges=False):
     '''
@@ -82,10 +64,32 @@ def get_communities(G, n_communities=5, removed_edges=False):
 
     
     '''
-    if removed_edges = True:
-        comp = community.girvan_newman(network_obj, most_valuable_edge=most_central_edge)
+    if removed_edges == True:
+        removed_edges = {}
+        def most_central_edge(G):
+            '''
+            Use in girvan_newman community analysis to identify the removed edge on each iteration
+        
+            Example
+            -------
+            removed_edges = {}
+            comp = community.girvan_newman(network_obj, most_valuable_edge=most_central_edge)
+            # choose number of communities
+            k = 6
+            limited = itertools.takewhile(lambda c: len(c) <= k, comp)
+            # pull the community lists out with itertools 'takewhile' 
+            for communities in limited:
+                print(tuple(sorted(c) for c in communities))
+            
+            '''
+            centrality = betweenness(G, weight="inverse")
+            edge = max(centrality, key=centrality.get)
+            removed_edges[edge] = centrality[edge]
+            return edge
+        comp = community.girvan_newman(G, most_valuable_edge=most_central_edge)
+        
     else:
-         comp = community.girvan_newman(network_obj)
+        comp = community.girvan_newman(G)
     # choose number of communities
     k = n_communities
     limited = itertools.takewhile(lambda c: len(c) <= k, comp)
@@ -93,10 +97,17 @@ def get_communities(G, n_communities=5, removed_edges=False):
     stored_communities = {}
     for i, communities in enumerate(limited):
         stored_communities[i] = tuple(sorted(c) for c in communities)
+    if removed_edges is True:
 
-    return communities
+        return communities, removed_edges
+    else:
+        return communities
 
-def get_betweeness(G, weight='inverse'):
+def get_betweenness_centrality(G, weight='inverse'):
+    '''
+    If using on averaged data, consider reconstructing the whole complex's network with average.everything_from_averaged
+    before investigating centrality.
+    '''
 
     #TODO check weight argument as None
 

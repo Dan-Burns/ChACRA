@@ -234,3 +234,5 @@ class Visualizer:
             for color, indices in sphere_colors.items():
                 # color requires "#" and 6 string characters
                 self.view.add_representation('spacefill', selection=f'@{indices}', color=color[:7], radius_scale=sphere_scale)
+
+    # TODO add network visualization

@@ -58,9 +58,22 @@ class ContactFrequencies:
     
     
     
-    def __init__(self, contact_data, temps=None):
+    def __init__(self, contact_data, temps=None, temp_progression=None, min_max_temp=None):
         '''
         TODO supply endpoints or list of temperatures and replace index
+        TODO supply path to freq files and make everything.
+        contact_data : 
+
+        temps : list
+            Option to specify all of the index values as temperature provided in temps.
+
+        temp_progression : string
+            'linear' or 'geometric' 
+            If no list of temps is provided, make a list of temperatures between min_max_temp values in either
+            linear or geometric progression.
+        
+        min_max_temp : tuple of int or float
+            The highest and lowest temperatures to interpolate between with temp_progression.
         '''
         try:
             file_extension = pathlib.Path(contact_data).suffix
@@ -76,10 +89,18 @@ class ContactFrequencies:
         
             
         if temps:
-            mapper = {key:0 for key in self.freqs.index}
-            for i,temp in enumerate(temps):
-                mapper[i]=temp
+            mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
+            
             self.freqs = self.freqs.rename(mapper, axis=0)
+        if temp_progression is not None and min_max_temp is not None:
+            if temp_progression == 'linear':
+                temps = np.linspace(min_max_temp[0], min_max_temp[1], len(self.freqs))
+            elif temp_progression == 'geometric':
+                temps = geometric_progression(min_max_temp[0], min_max_temp[1], len(self.freqs))
+            mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
+            
+            self.freqs = self.freqs.rename(mapper, axis=0)
+
     
     if __name__ == "__main__":
        pass
