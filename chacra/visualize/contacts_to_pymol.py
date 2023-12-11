@@ -46,6 +46,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     
 
     # TODO have to figure out how to deal with duplicate names in different pc groups so you can depict just spheres of one color 
+    # TODO update to new get_scores function, eliminate 'rank' and anything but highest score
     '''
     data = {contact:{} for contact in contact_list}
 
@@ -65,11 +66,11 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         # get the PC that the contact scores highest on
         # dictionary where first key is top PC
-        scores = contactPCA.get_scores(contact, pc_range=(pc_range[0],pc_range[1]))
+        score = contactPCA.get_top_score(contact, pc_range=(pc_range[0],pc_range[1]))
 
-        top_pc = list(scores.keys())[0]
+        top_pc = list(score.keys())[0]
 
-        top_score = scores[top_pc]['score']
+        top_score = score[top_pc]
 
         data[contact]['top_pc'] = top_pc
 
@@ -475,7 +476,7 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
 ###### GRADIENT COLORING #################
         
 def contact_frequency_color_gradient(output='./colors.pml',df=None, 
-                                     loading_score_obj=None, pc=1,
+                                     contact_pca=None, pc=1,
                                      cmap_name='plasma', contact_list=None):
     '''
     Find top scoring contact for each residue and color according to slope
@@ -491,8 +492,8 @@ def contact_frequency_color_gradient(output='./colors.pml',df=None,
         cha, resna, resnuma = resa.split(':')
         chb, resnb, resnumb = resb.split(':')
         slope = get_slope(df,contact)
-        loading_score = loading_score_obj.get_scores(contact, (pc,pc))[0]['score']
-
+        loading_score = contact_pca.get_top_score(contact, (pc,pc))
+        loading_score = loading_score[loading_score.keys()[0]]
         
         if resa in list(residue_slopes.keys()):
             continue

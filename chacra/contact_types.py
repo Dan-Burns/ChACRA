@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from statistics import mode
 
-
+# Not Used - intended to analyze frame by frame interactions 
 #TODO return directionality of contact i.e. when one is contributing the sidechain then the direction goes from that one 
 
 # loop to tabulate per frame contacts is in old/older/sandbox_trp 

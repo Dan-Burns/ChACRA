@@ -60,6 +60,7 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_
             with permutated_explained_variance method previously called
     n_pcs : 
     '''
+    #TODO automatically run _permutated_ since it's way faster now.
     if cpca._permutated_explained_variance is None:
         print("You have to run the ContactPCA.permutated_pca \n method before "
               "you can plot the difference of roots results. ")

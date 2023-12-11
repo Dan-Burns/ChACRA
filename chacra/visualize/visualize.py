@@ -7,12 +7,12 @@ import numpy as np
 
 # class to easily depict ChACRA data in nglview
 # if you want more than one atom at a time use np.isin
-#np.where(np.isin(u.atoms.resids,[2,1]) & (u.atoms.segids == 'G') & (u.atoms.names == 'CA'))
+# np.where(np.isin(u.atoms.resids,[2,1]) & (u.atoms.segids == 'G') & (u.atoms.names == 'CA'))
 # nglview reindex from 0 if you take a subset of atoms from the original universe
-# use this line to get the new 0 based indices for a subselection
+# use this line to get the new 0 based indices for a subselection if the entire protein is not in nv.view
 # np.where(np.in1d(all_indices,indices_to_select))[0]
 
-# offer in pointing or away pointing arrows depending on contact breaking, forming
+
 # offer cylinder width option to depict most sensitive contact with largest cylinder
 
 def get_midpoint(a,b):

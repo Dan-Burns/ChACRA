@@ -37,16 +37,18 @@ done
 
 ``` 
 
-Produce a dictionary from these contact frequency files with ChACRA.ContactFrequencies.make_contact_frequency_dictionary 
+Produce dataframe wrapped by ContactFrequencies 
 
 ```
+from ChACRA.chacra.ContactFrequencies import *
 
-# make a list of the frequency files
-files = [file for file in os.listdir('.') if file.endswith('.tsv') and file.startwith('freqs')]
-files.sort()
-contact_dictionary = make_contact_frequency_dictionary(files)
-# convert to pandas DataFrame and then to a ContactFrequencies object
-df = pd.DataFrame(contact_dictionary)
+# point to the directory containing the contact frequency files
+file_dir = 'path/to/files'
+cont = ContactFrequencies(file_dir)
+
+# you can save the dataframe and generate the cont object alternatively
+cont.freqs.to_pickle('contact_frequencies.pd')
+df = pd.read_pickle('contact_frequencies.pd')
 cont = ContactFrequencies(df)
 
 ```
@@ -54,11 +56,9 @@ cont = ContactFrequencies(df)
 If you're dealing with a homomultimeric protein, you can average the contact frequencies to obtain more robust statistics.
 
 ```
-
+from ChACRA.chacra.average import average_multimer
 # return a dataframe of the averaged data
-# provide a structure to the method to obtain the correct naming conventions for later visualization
-# to be replaced with more robust/automated function in average.average_heteromultimer
-avg = cont.average_contacts()
+avg = average_multimer('structure.pdb',denominator=6,df=cont.freqs,representative_chains=['A','G'])
 
 ```
 
@@ -93,7 +93,7 @@ plot_chacras(cpca, temps=[i for i in np.linspace(290,440,32)])
 
 ```
 
-Now you can explore these PCs/chacras with the various methods avaible in the ContactPCA object.
+Now you can explore these PCs/chacras.
 
 Contacts with relatively large absolute loading score values (the PC components) are highly energy-sensitive (within a given chacra).
 These can be easily identified:

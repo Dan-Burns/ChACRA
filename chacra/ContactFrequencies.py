@@ -125,7 +125,7 @@ class ContactFrequencies:
             if temp_progression == 'linear':
                 temps = [int(i) for i in np.linspace(min_max_temp[0], min_max_temp[1], len(self.freqs))]
             elif temp_progression == 'geometric':
-                temps = [int(i) for i in geometric_progression(min_max_temp[0], min_max_temp[1], len(self.freqs))]
+                temps = [int(i) for i in np.geomspace(min_max_temp[0], min_max_temp[1], len(self.freqs))]
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
@@ -474,6 +474,11 @@ class ContactPCA:
         highest score
         
         pc_range is inclusive
+        #TODO this needs to be specific with chainid
+        ## TODO Remove after confirming - just need get_top_score
+        Get everything at once
+        norm_loadings[['PC1','PC2','PC3']].max(axis=1)
+        test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
         '''
         pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
         contacts = []
@@ -490,30 +495,44 @@ class ContactPCA:
         return {'contact':contact, 'PC':top_pc, 'loading_score':top_score}
     
     
-    ## TODO this is slow - minutes to run on the entire contact list
-    def get_scores(self, contact, pc_range=(1,4)):
+    ## Adjust the dependent functions to use this:
+    def get_top_score(self, contact, pc_range=(1,4)):
+
         '''
-        Return the normalized loading score,
-        rank, and percentile it falls in for the contact on each pc in pc_range
-        dictionary keys are PC numbers corresponding to dictionaries of these
-        items
-        pc_range is inclusive
+        Get everything at once
+        norm_loadings[['PC1','PC2','PC3']].max(axis=1)
+        test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
         '''
 
-        pc_range = range(pc_range[0],pc_range[1]+1)
+        data = {}
+        vals = self.norm_loadings[[f'PC{i}' for i in range(pc_range[0],pc_range[1]+1)]].loc[contact].values
+        data[vals.argmax()+1] = vals.max()
+        
+        return data
 
-        contacts = {pc:{} for pc in pc_range}
-        for pc in pc_range:
+    # def get_scores(self, contact, pc_range=(1,4)):
+    #     '''
+    #     Return the normalized loading score,
+    #     rank, and percentile it falls in for the contact on each pc in pc_range
+    #     dictionary keys are PC numbers corresponding to dictionaries of these
+    #     items
+    #     pc_range is inclusive
+    #     '''
+
+    #     pc_range = range(pc_range[0],pc_range[1]+1)
+
+    #     contacts = {pc:{} for pc in pc_range}
+    #     for pc in pc_range:
             
-            contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
-                                   ).index(contact) +1
-            contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
+    #         contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
+    #                                ).index(contact) +1
+    #         contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
             
       
-        # sort the dictionary by score
-        result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))
-        # put in descending order
-        return collections.OrderedDict(reversed(list(result.items())))
+    #     # sort the dictionary by score
+    #     result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))
+    #     # put in descending order
+    #     return collections.OrderedDict(reversed(list(result.items())))
         
             
         
