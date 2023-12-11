@@ -6,9 +6,8 @@ from pylab import cm
 from matplotlib.colors import to_hex
 import collections
 from scipy.interpolate import interp1d
-from ChACRA.ContactAnalysis.contact_functions import _parse_id
-from ChACRA.ContactAnalysis.colors import chacra_colors
-
+from ..utils import parse_id
+from .colors import chacra_colors
 ## Create a "visualizations" module for graph, blender, nglview, pymol, etc.
 
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
@@ -454,7 +453,7 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
         full_protein_pymol_data[averaged_contact_name] = pymol_data[averaged_contact_name]
         for replicated_name in mapped_contacts[averaged_contact_name]:
             if replicated_name != averaged_contact_name:
-                resids = _parse_id(replicated_name)
+                resids = parse_id(replicated_name)
                 full_protein_pymol_data[replicated_name] = {
                             'chaina': resids['chaina'],
                             'resna': resids['resna'],

@@ -5,14 +5,10 @@
 # https://robert-haas.github.io/gravis-docs/
 # construct minimal graph that connects all the most sensitive contacts
 import networkx as nx
-import pandas as pd
-import numpy as np
-import MDAnalysis as mda
 import itertools
-from itertools import combinations
 from networkx.algorithms import community
 from networkx import edge_betweenness_centrality as betweenness
-from ChACRA.ContactAnalysis.utils import sort_dictionary_values
+from .utils import sort_dictionary_values
 
 def edge_to_contact(edge,contacts):
     '''
@@ -45,8 +41,8 @@ def make_network(cont, temp, exclude_below=None, exclude_above=None):
     # lower edge weight value means "closer"/ higher contact frequency
     #TODO add exclusion cutoffs
    
-    inverse = cont.all_edges(temp=temp, as_dict=True)
-    original = cont.all_edges(temp=temp, inverse=False)
+    inverse = cont.get_all_edges(temp=temp, as_dict=True)
+    original = cont.get_all_edges(temp=temp, inverse=False)
 
     G = nx.Graph()
 

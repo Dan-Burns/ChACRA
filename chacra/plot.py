@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.interpolate import make_interp_spline
-from ChACRA.ContactAnalysis.colors import *
+from .visualize.colors import *
 from itertools import combinations
 
 # example darkmode/neon 
@@ -51,7 +51,7 @@ plt.show()
 
 
 
-def plot_difference_of_roots(cpca,n_pcs=None,filename=None):
+def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_blue, cutoff_color='r'):
     '''
     Plot the difference of roots test results
     Parameters
@@ -72,12 +72,12 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None):
         # difference of roots
         p_val = np.sum(np.abs(np.diff(variance, axis=1, prepend=0)) > \
                     np.abs(np.diff(original_variance, prepend=0)), axis=0) / cpca._N_permutations
-        ax.hlines(.05,xmin=0,xmax=n_pcs,color='r',zorder=1)
-        ax.scatter([f'{i+1}' for i in range(n_pcs)], p_val[:n_pcs], color=cherenkov_blue, label='p-value on significance')
+        ax.hlines(.05,xmin=0,xmax=n_pcs,color=cutoff_color,zorder=1)
+        ax.scatter([f'{i+1}' for i in range(n_pcs)], p_val[:n_pcs], color=dot_color, label='p-value on significance')
         if filename is not None:
             fig.savefig(filename)
     
-def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
+def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors, filename=None):
     '''
     Plot the projections of n principal components
     smoothing is applied
@@ -108,7 +108,7 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
         
         # Plotting the Graph
         #plt.ylim((-6,4))
-        ax.plot(X_, -1*Y_,color=chacra_colors[pc-1])
+        ax.plot(X_, -1*Y_,color=colors[pc-1])
                 
     ax.set_title(f'ChACRA Modes')
     ax.set_xlabel("Temperature ", fontsize=12)
@@ -118,7 +118,7 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, filename=None):
     if filename:
         fig.savefig(filename)
 
-def biplots(cpca, pcs=list(range(1,5)), label_top=None, output_file=None):
+def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, output_file=None):
     '''
     option to label outliers/ corners/ top loading scores and color on a mixing gradient
     so something that's in a corner of a pc1-pc2 biplot appears purple
@@ -153,8 +153,8 @@ def biplots(cpca, pcs=list(range(1,5)), label_top=None, output_file=None):
         pc_a = combo[0]
         pc_b = combo[1]
         # get the color gradient from transparent white to the pc's hex code
-        a_grad = get_color_gradient('#ffffff00',chacra_colors[pc_a-1],100, return_rgb=True,alpha=True)
-        b_grad = get_color_gradient('#ffffff00',chacra_colors[pc_b-1],100, return_rgb=True, alpha=True)
+        a_grad = get_color_gradient('#ffffff00',colors[pc_a-1],100, return_rgb=True,alpha=True)
+        b_grad = get_color_gradient('#ffffff00',colors[pc_b-1],100, return_rgb=True, alpha=True)
 
         # use for indexing the list of colors by multiplying by the normalized loading score 
         a_grad_len = len(a_grad)-1

@@ -1,9 +1,8 @@
 import MDAnalysis as mda
 import numpy as np
 import pandas as pd
-from ChACRA.ContactAnalysis.ContactFrequencies import *
-from ChACRA.ContactAnalysis.contact_functions import _parse_id
-from ChACRA.ContactAnalysis.utils import *
+from .ContactFrequencies import *
+from .utils import *
 import tqdm
 
 
@@ -44,7 +43,7 @@ def average_multimer(structure, denominator, df, representative_chains):
     with tqdm.tqdm(total=total_count) as progress:
 
         while len(df_copy.columns) > 0:
-            resids = _parse_id(df_copy.columns[0])
+            resids = parse_id(df_copy.columns[0])
 
             # find all of the other contacts that involve these residue names and numbers
             regex = make_equivalent_contact_regex(resids)
@@ -67,7 +66,7 @@ def average_multimer(structure, denominator, df, representative_chains):
                 averaged_name =  f"{representative_pair[0]}:{resids['resna']}:{resids['resida']}-{representative_pair[1]}:{resids['resnb']}:{resids['residb']}"
                 to_drop = []
                 for contact_name in to_average:
-                        contact_info = _parse_id(contact_name)
+                        contact_info = parse_id(contact_name)
                         # if the chaina variable isn't in the same identical subunit group as the current contact's chain you know it's wrong
                         # drop it (this means it happens to have the same resname and resnum but is happening on a different kind of subunit - very unlikely)
                         if (contact_info['chaina'] not in identical_subunits[get_chain_group(chaina, identical_subunits)]):
@@ -81,7 +80,7 @@ def average_multimer(structure, denominator, df, representative_chains):
                 matched_name = None
                 
                 for contact_name in to_average:
-                        contact_info = _parse_id(contact_name)
+                        contact_info = parse_id(contact_name)
                         # drop everything that's not from the equivalent_interaction set
                         if (contact_info['chaina'],contact_info['chainb']) not in equivalent_interactions[representative_pair]:
                             to_drop.append(contact_name)
@@ -113,7 +112,7 @@ def average_multimer(structure, denominator, df, representative_chains):
                             ################# measure each distance in to_average's contacts ##################################
                             contact_distances = []
                             for contact_name in to_average:
-                                contact_info = _parse_id(contact_name)
+                                contact_info = parse_id(contact_name)
                                 sel1 = f"chainID {contact_info['chaina']} and resnum {contact_info['resida']} and name CA"
                                 sel2 = f"chainID {contact_info['chainb']} and resnum {contact_info['residb']} and name CA"
                                 contact_distances.append(get_pair_distance(sel1, sel2, u))
@@ -186,7 +185,7 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
     #unreplicated_contacts = []
     identical_subunits = find_identical_subunits(u)
     for contact in tqdm.tqdm(averaged_contacts.columns):
-        resids = _parse_id(contact)
+        resids = parse_id(contact)
         chaina = resids['chaina']
         chainb = resids['chainb']
         if chaina == chainb:

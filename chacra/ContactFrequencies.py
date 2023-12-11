@@ -5,14 +5,13 @@ Author: Dan Burns
 import pandas as pd
 import numpy as np
 import re
+import os
 import pathlib
 from sklearn.decomposition import PCA
-from ChACRA.ContactAnalysis.contact_functions import _parse_id, check_distance_mda, _split_id
-from scipy.stats import linregress
+from .utils import *
 import MDAnalysis as mda
 import collections
-from ChACRA.ContactAnalysis.utils import *
-from ChACRA.ContactAnalysis.contact_functions import *
+from .utils import *
 import tqdm
 
 
@@ -62,7 +61,10 @@ class ContactFrequencies:
         '''
         TODO supply endpoints or list of temperatures and replace index
         TODO supply path to freq files and make everything.
-        contact_data : 
+
+        contact_data : string or pd.DataFrame or dict
+            Path to file ('.csv') or pickle ('.pd') of the prepared contact frequency data or the path to the directory
+            containing the getcontacts '.tsv' frequency files or a dictionary or dataframe containing the contact frequencies.
 
         temps : list
             Option to specify all of the index values as temperature provided in temps.
@@ -74,69 +76,161 @@ class ContactFrequencies:
         
         min_max_temp : tuple of int or float
             The highest and lowest temperatures to interpolate between with temp_progression.
+
+        Returns
+        -------
+        A ContactFrequencies object that wraps a pd.DataFrame with conventient methods to investigate contact frequencies.
+    
         '''
         try:
-            file_extension = pathlib.Path(contact_data).suffix
-            if file_extension == '.csv':
-                self.freqs = pd.read_csv(contact_data, index_col=0 )
-            else:
-                try:
+            if os.path.isfile(contact_data):
+            
+                
+                file_extension = pathlib.Path(contact_data).suffix
+                if file_extension == '.csv':
+                    self.freqs = pd.read_csv(contact_data, index_col=0 )
+
+                elif file_extension == '.pd':
                     self.freqs = pd.read_pickle(contact_data)
-                except:
-                    print('You can only use .csv or pickle format')
+                else:
+        
+                    print('Provide a file with a .csv or .pd (pickle format) file extension. \n'\
+                            'Or provide a path the folder containing the original getcontacts .tsv files.')
+            
+            elif os.path.isdir(contact_data):
+
+                contact_files = [f'{contact_data}/{file}' for file in sorted(os.listdir(contact_data)) if file.endswith('.tsv')]
+                print("Arranging the data in the following order :", flush=True)
+                for file in contact_files:
+                    print(file, flush=True)
+                contact_dictionary = make_contact_frequency_dictionary(contact_files)
+                self.freqs = pd.DataFrame(contact_dictionary)
         except:
-            self.freqs = contact_data
+            try:
+                # assuming that you're handing it a dataframe or dictionary
+                if type(contact_data) == pd.DataFrame:
+                    self.freqs = contact_data
+                elif type(contact_data) == dict:
+                    self.freqs = pd.DataFrame(contact_data)
+            except:
+                ("Provide one of file (.pd or .csv extension), pd.DataFrame, dict, or path to original getcontacts .tsv frequency files.")
+            
         
             
         if temps:
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
-        if temp_progression is not None and min_max_temp is not None:
+        elif temp_progression is not None and min_max_temp is not None:
             if temp_progression == 'linear':
-                temps = np.linspace(min_max_temp[0], min_max_temp[1], len(self.freqs))
+                temps = [int(i) for i in np.linspace(min_max_temp[0], min_max_temp[1], len(self.freqs))]
             elif temp_progression == 'geometric':
-                temps = geometric_progression(min_max_temp[0], min_max_temp[1], len(self.freqs))
+                temps = [int(i) for i in geometric_progression(min_max_temp[0], min_max_temp[1], len(self.freqs))]
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
+        
 
     
     if __name__ == "__main__":
        pass
     
     
-    def contact_partners(self, resid1, resid2=None, id_only=False):
+    def get_contact_partners(self, resid1, resid2=None, ):
         '''
-        filter the dataframe to only return contacts involving the provided residue(s)
+        Filter the dataframe to only return contacts involving the provided residue(s).
 
+        Parameters
+        ----------
+
+        resid1 : int or tuple (chain, resname, resid)
+            If providing a single integer, returns all contacts involving that resid.
+            If tuple, must contain integer resid in third position.  Chain and 
+            resname are optional.
+        resid2 : int
+            If resid2 is provided, resid1 can only take an integer value
+
+        Returns
+        -------
+        DataFrame 
+        DataFrame filtered to only contacts involving resid(s)
+        
+        #TODO allow for chain and id only or resn only
         '''
-        if resid2:
-            regex1 = f"[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:{resid2}(?!\d)"
-            regex2 = f"[A-Z1-9]+:[A-Z]+:{resid2}(?!\d)-[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)"
+
+        if resid2 is not None:
+            if type(resid2) == tuple:
+                chain2 = resid2[0]
+                resn2 = resid2[1]
+                resid2 = resid2[2]
+            else:
+                chain2 = '[A-Z1-9]+'
+                resn2 = '[A-Z]+'
+            if type(resid1) == tuple:
+                chain = resid1[0]
+                resn = resid1[1]
+                resid1 = resid1[2]
+            else:
+                chain = '[A-Z1-9]+'
+                resn = '[A-Z]+'
+            regex1 = f"{chain}:{resn}:{resid1}(?!\d)-{chain2}:{resn2}:{resid2}(?!\d)"
+            regex2 = f"{chain2}:{resn2}:{resid2}(?!\d)-{chain}:{resn}:{resid1}(?!\d)"
             regex = f"{regex1}|{regex2}"
         else:
-            regex1 = f"[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:\d+"
-            regex2 = f"[A-Z1-9]+:[A-Z]+:\d+-[A-Z1-9]+:[A-Z]+:{resid1}(?!\d)"
+            if type(resid1) == tuple:
+                chain = resid1[0]
+                resn = resid1[1]
+                resid1 = resid1[2]
+            else:
+                chain = '[A-Z1-9]+'
+                resn = '[A-Z]+'
+            regex1 = f"{chain}:{resn}:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:\d+"
+            regex2 = f"[A-Z1-9]+:[A-Z]+:\d+-{chain}:{resn}:{resid1}(?!\d)"
             regex = f"{regex1}|{regex2}"
         return self.freqs.filter(regex=regex, axis=1)
     
       
-    def all_edges(self, weights=True, inverse=True, temp=0, as_dict=False):
+    def get_all_edges(self, weights=True, inverse=True, temp=0, index=None, as_dict=False):
         '''
         returns list of contact id tuples for network analysis input
         inverse inverts the edge weight so something with a high contact
         frequency has a low edge weight and is treated as if it is 
         'closer' in network analysis.
+
+        Parameters
+        ----------
+        weights : bool
+            If True, return the connected nodes as well as the associated edge weight.
+
+        inverse : bool
+            Whether or not to return the inverse edge weight (inverse contact frequency) or original contact
+            frequency as the edge weight.
+
+        temp : int
+            The row (.loc) from which to collect the data.
+
+        index : None or int
+            The row from which to collect the data. If temp is provided, the index (.iloc) overrides the temp.
+
+        as_dict : bool
+            If True, return the data in dictionary formate with tuple node names as keys and edge weight values.
         '''
+        if as_dict == True:
+            weights = True
         all_contacts = []
         for contact in self.freqs.columns:
-            partners = _split_id(contact)
+            partners = split_id(contact)
             if weights == True:
                 if inverse == True:
-                    weight = float(1/self.freqs[contact].loc[temp])
+                    if index is not None:
+                        weight = float(1/self.freqs[contact].iloc[index])
+                    else:
+                        weight = float(1/self.freqs[contact].loc[temp])
                 else:
-                    weight = float(self.freqs[contact].loc[temp])
+                    if index is not None:
+                        weight = float(self.freqs[contact].iloc[temp])
+                    else:
+                        weight = float(self.freqs[contact].loc[temp])
                 all_contacts.append((partners['resa'],
                                      partners['resb'], weight))
             
@@ -144,8 +238,6 @@ class ContactFrequencies:
                 all_contacts.append([partners['resa'], partners['resb']])
             
         if as_dict == True:
-            if weights != True:
-                print('Cannot use dictionary format without weights = True')
             contact_dict = {}
             for contact in all_contacts:
                 contact_dict[(contact[0],contact[1])] = contact[2]
@@ -154,10 +246,10 @@ class ContactFrequencies:
         else:
             return all_contacts
 
-    def all_residues(self):
+    def get_all_residues(self):
         all_residues = []
         for contact in self.freqs.columns:
-            partners = _split_id(contact)
+            partners = split_id(contact)
             all_residues.append(partners['resa'])
             all_residues.append(partners['resb'])
         
@@ -165,184 +257,20 @@ class ContactFrequencies:
     
     def exclude_neighbors(self, n_neighbors=1):
         '''
-        Reduce the contact dataframe to contacts separated by at least
+        Reduce the contact dataframe contacts list to those separated by at least
         n_neighbors
         '''
         reduced_contacts = []
         for contact in self.freqs.columns:
-            id_dict = _parse_id(contact)
+            id_dict = parse_id(contact)
             # check this 
             if id_dict['chaina'] != id_dict['chainb']:
                 continue
             else:
-                if np.sqrt((int(id_dict['resida'])
-                            -int(id_dict['residb']))**2) > n_neighbors:
+                if np.abs(int(id_dict['resida'])
+                            -int(id_dict['residb'])) > n_neighbors:
                     reduced_contacts.append(contact)
         return reduced_contacts
-    
-    
-
-
-    def average_contacts(self, structure=None, identical_subunits=None, neighboring_subunits=None, opposing_subunits=False,
-                         protein_only=True):
-        '''
-        oppposing subunits should let the user specify which subunits are opposite of each other (rather than adjacent)
-        and during averaging, it will distinguish between adjacent and opposing and assign them to the right contact id
-        i.e. A:res:num-C:res:num for oppsing and A....-B for adjacent
-
-        # NOTE: Have to be careful if there are non protein molecules in the structure when averaging or else the identical_subunits
-            list will not reflect what the protein subunits that you want to average.
-            Supply the identical subunits in this case! e.g. ['A','B']
-            # This should be taken care of now with the find_identical_subunits function
-
-        neighboring_subunits: list of tuples
-            for each list of identical subunits, you can specify which two of those should be used to name the averaged contact so they can be depicted 
-            on the structure.  If None, the first two chain IDs from each identical subunit list will be used for the averaged contact naming.
-            lists of neighboring subunits must be in same order as identical_subunits and must include a tuple of chain ids for each list in identical_subunits
-
-        opposing_subunits: list of tuples
-            Leave as False for dimers. This is intended for special cases like ion channels where it might be interesting to 
-            specify contacts occurring between different pairs of identical subunits
-
-            specify which subunits are opposite of one another (like in a tetrameric ion channel)
-            if you want to separately track contacts that occur directly across an interface rather than
-            contacts that occur on adjacent subunits.
-            This should be left as None in most cases where it's not obvious and 
-            when there are fewer than 4 subunits.
-            example: opposing_subunits = [('B','D'),('A','C')]
-
-        protein_only:  boolean
-            If your structure includes anything other than protein but your contact information only deals with protein
-        
-        '''
-        
-        # original df
-        print(opposing_subunits)
-        odf = self.freqs.copy()
-
-        if structure:
-            u = mda.Universe(structure)
-            if protein_only:
-                protein = u.select_atoms('protein')
-                u = mda.Merge(protein)
-
-            if identical_subunits == None:
-                # dictionary to deal with potentially more than one set of identical subunits 
-                # mda segids picks up far right column of PDB seemingly if present - chainid option would be ideal
-                #TODO right now what follows doesn't deal with contacts between non-identical subunits
-                ## Could use the contact data to find which subunits interact with which other subunits
-                ## Then use a regex with the possible hetero-chain combinations 
-                identical_subunits = find_identical_subunits(u)
-                for value in identical_subunits.values():
-                    print(f'Using subunit IDs {" ".join(value)} for averaging.')
-       
-        averaged_data = {} 
-        # dropped_columns = [] # not using atm
-        # loop over each set of subunits in identical_subunits
-        #TODO use a different dictionary that has already filtered the columns
-        # then can jump straight to df = odf[contacts].copy()
-        for z, subunits in enumerate(identical_subunits.values()):
-
-            # put in alphabetical order 
-            subunits.sort()
-            # loop is using prefiltered dataframes containing chains involved in "subunits" 
-            #TODO this will end up including duplicates when you have two or more lists
-            ## if you don't remove the contacts from the original df
-            contacts = get_all_subunit_contacts(subunits, odf)
-          
-            df = odf[contacts].copy()
-            
-            # create chain names for the new averaged contact name        
-            if structure and opposing_subunits == None and neighboring_subunits == None:
-                opposing_subunits = get_opposing_subunits(subunits, u)
-                opposing_subunits.sort()
-                chain1, chain2, alt_chain2 = opposing_subunits[0][0], opposing_subunits[1][0], opposing_subunits[1][1]
-                print(opposing_subunits)
-                # not using alt_chain2 atm but can use it when shortest contact is not AB but AC 
-                # take first position
-            if neighboring_subunits:
-                chain1 = neighboring_subunits[z][0]
-                chain2 = neighboring_subunits[z][1]
-            else:
-                chain1 = subunits[0]
-                chain2 = subunits[1]
-            # this will start a loop where after a column has been averaged,
-            # the columns involved in the averaging will be dropped in place.
-            # exit condition is after all columns in the filtered df have been dropped because they have been caught by the regular expression, 
-            # sorted according to intra/ inter subunit condition, and averaged
-            while len(df.columns) > 0:
-                
-                # picking up a new contact pattern
-                # can check to see which identical_subunits list this falls into and 
-                # adjust accordingly
-                resids = _parse_id(df.columns[0])
-                # intersubunit contacts can have swapped resids
-                # so search with both regexes 
-                regex1 = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
-                regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
-                regex = f"{regex1}|{regex2}"
-                to_average = list(df.filter(regex=regex, axis=1).columns)
-
-                # If the contact is happening in the same subunit
-                if resids['chaina'] ==  resids['chainb']:
-                    # intra-subunit name format
-                    contact = f"{chain1}:{resids['resna']}:{resids['resida']}-"\
-                            f"{chain1}:{resids['resnb']}:{resids['residb']}"
-                
-                    # check to make sure none of the contacts in to_average have different chain IDs
-                    # and remove them from to_average - they'll get picked up in the else block
-                    to_remove = filter_by_chain(to_average, same_chain=False)
-                    for pair in to_remove:
-                        to_average.remove(pair)
-                    # record the averaged contact
-                    averaged_data[contact] = get_standard_average(df, to_average, subunits)
-                    # and then remove the original contacts from the df
-                    df.drop(to_average, axis=1, inplace=True)
-                    # odf.drop(to_average, axis=1, inplace=True) # can just 
-                    #dropped_columns.extend(to_average)
-
-                else:
-                    # Average contacts that are occuring inter-chain
-                    contact = f"{chain1}:{resids['resna']}:{resids['resida']}-"\
-                            f"{chain2}:{resids['resnb']}:{resids['residb']}"
-                    # moved to average from here
-                    # Return contacts that have the same chain ids (same_chain=True)
-                    to_remove = filter_by_chain(to_average, same_chain=True)               
-                    for pair in list(set(to_remove)):
-                        to_average.remove(pair)
-        
-                    if structure:
-                        # this tries to ensure the correct depiction if visualized on the structure using functions in contacts_to_pymol
-                        #  TODO alt_chain2 is not consistent with other options of naming subunits
-                        contact = check_distance_mda(contact,u, chain1, chain2)     
-
-                    ################## catch opposing subunits 
-                    # treating opposing subunits differently might be useful. 
-                    if opposing_subunits == False:
-                        pass
-                    else:
-                        # (Unnecessary for dimers)
-                        opposing_contacts = get_opposing_subunit_contacts(to_average, opposing_subunits)
-
-                        for pair in opposing_contacts:
-                            # remove it from main record
-                            to_average.remove(pair)
-                        # get the mean
-                        if len(opposing_contacts) > 0:
-                            opposing_contact_name = f"{opposing_subunits[0][0]}:{resids['resna']}:{resids['resida']}-"\
-                                                    f"{opposing_subunits[0][1]}:{resids['resnb']}:{resids['residb']}"
-                            averaged_data[opposing_contact_name] = df[opposing_contacts].mean(axis=1)
-                        # done with these contacts
-                        df.drop(opposing_contacts, axis=1, inplace=True)
-                        #dropped_columns.extend(opposing_contacts)
-                    ########################################################################################
-                    # get the average.
-                    averaged_data[contact] = get_standard_average(df,to_average, subunits, check=False)
-                    # done with this iteration
-                    df.drop(to_average, axis=1, inplace=True)
-                    #dropped_columns.extend(to_average)
-            return pd.DataFrame(averaged_data)
-
 
 
     def renumber_residues(self, starting_residue_number):   
@@ -355,7 +283,7 @@ class ContactFrequencies:
         # TODO add option to renumber from several starting points/chains
         mapper = {}
         for column in self.freqs.columns:
-            split_ids = _parse_id(column)
+            split_ids = parse_id(column)
             mapper[column] = split_ids['chaina']+':'+ split_ids['resna']+':'+\
                 str(int(split_ids['resida'])+starting_residue_number-1)+'-'+\
                             split_ids['chainb']+':'+ split_ids['resnb']+':'+ \
@@ -407,7 +335,7 @@ class ContactFrequencies:
         reslists = {}
         res_append = lambda res: f"{chain}{res}"
         for contact in self.freqs.columns:
-            resinfo = _parse_id(contact)
+            resinfo = parse_id(contact)
 
             if resinfo['chaina'] in reslists.keys():
                 reslists[resinfo['chaina']].append(int(resinfo['resida']))
@@ -436,7 +364,7 @@ class ContactFrequencies:
 
         # get the index for the corresponding residue
         for contact in self.freqs.columns:
-            resinfo = _parse_id(contact)
+            resinfo = parse_id(contact)
             index1 = all_resis.index(f"{resinfo['chaina']}{resinfo['resida']}")
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
 
@@ -449,18 +377,17 @@ class ContactFrequencies:
             data[index1][index2] = values[format]
             data[index2][index1] = values[format]
         
-        return pd.DataFrame(data, columns=all_resis, index=all_resis)                                 
+        return pd.DataFrame(data, columns=all_resis, index=all_resis)           
 
 def _de_correlate_df(df):
     '''
     randomize the values within a dataframe's columns
     '''
     
-    X_aux = df.copy()
-    for col in df.columns:
-        X_aux[col] = df[col].sample(len(df)).values
-        
-    return X_aux
+    a = df.values
+    idx = np.random.rand(*a.shape).argsort(0) # argsort(0) returns row indices
+    out = a[idx, np.arange(a.shape[1])] # index a by independently randomized rows and original column order
+    return pd.DataFrame(out, columns=df.columns)                  
 
 def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
     '''
@@ -511,7 +438,7 @@ class ContactPCA:
                                 'PC'+str(pc)],percentile)]
         edges = []
         for contact in percentile_df.index:
-            partners = _split_id(contact)
+            partners = split_id(contact)
             if weights == True:
                 weight = float(percentile_df['PC'+str(pc)].loc[contact])
                 edges.append((partners['resa'],
@@ -528,7 +455,7 @@ class ContactPCA:
         '''
         all_contacts = []
         for contact in self.loadings.index:
-            partners = _split_id(contact)
+            partners = split_id(contact)
             if weights == True:
                 weight = float(self.loadings['PC'+str(pc)].loc[contact])
                 all_contacts.append((partners['resa'],
@@ -552,7 +479,7 @@ class ContactPCA:
         contacts = []
         for contact in self.norm_loadings.index:
             #TODO add resname and/or chain 
-            if str(resnum) in _parse_id(contact).values():
+            if str(resnum) in parse_id(contact).values():
                 contacts.append(contact)
 
 

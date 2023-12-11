@@ -1,8 +1,8 @@
 import nglview as nv
 import MDAnalysis as mda
-from ChACRA.ContactAnalysis.colors import chacra_colors, hex_to_RGB
-from ChACRA.ContactAnalysis.contact_functions import _parse_id
-from ChACRA.ContactAnalysis.contacts_to_pymol import get_contact_data
+from .colors import chacra_colors, hex_to_RGB
+from ..utils import parse_id
+from .contacts_to_pymol import get_contact_data
 import numpy as np
 
 # class to easily depict ChACRA data in nglview
@@ -44,7 +44,7 @@ def get_contact_indices(contact, u, ca_only=True):
     Returns
     np.array of atom or residue indices
     '''
-    c = _parse_id(contact)
+    c = parse_id(contact)
 
     indices = []
     for res in ['a','b']:
