@@ -10,6 +10,8 @@ from ..utils import parse_id
 from .colors import chacra_colors
 ## Create a "visualizations" module for graph, blender, nglview, pymol, etc.
 
+# TODO offer red, blue etc spectrums to link individual contact plots to color codes on pymol depiction
+# TODO update all the functions to just accept one contact object and add a single function to write a pymol file for specific chacra(s)
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),

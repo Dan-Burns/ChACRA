@@ -25,9 +25,6 @@ def split_id(contact):
     resa, resb = re.split("-", contact)
     return {'resa':resa, 'resb':resb}
 
-
-
-
 def get_angle(a,b,c):
     ba = a - b
     bc = c - b
@@ -36,4 +33,8 @@ def get_angle(a,b,c):
     angle = np.arccos(cosine_angle)
     return angle
         
-
+def normit(data, center=True):
+    if center == True:
+        return (data - data.mean())/np.abs((data - data.mean())).max()
+    else:
+        return data/np.abs(data).max()

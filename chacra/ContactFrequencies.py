@@ -614,6 +614,7 @@ class ContactPCA:
     def permutated_pca(self, N_permutations=500, get_loading_pvals=False):
         '''
         Randomize the values within the contact frequency columns to test the significance of the contact PCs.
+        After this is run the suggested chacras for further investigation are available as .top_chacras.
 
         contact_frequencies : pd.DataFrame
             The dataframe of contact frequencies that the ContactPCA is based off of.

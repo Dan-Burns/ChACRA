@@ -138,8 +138,10 @@ def get_betweenness_centrality(G, weight='inverse'):
 
 def make_minimum_graph(contact_data, return_contacts=True):
     '''
-    Construct the minimal graph that connects the top chacra contacts
+    Not Implemented
 
+    Construct the minimal graph that connects the top chacra contacts
+   
     Parameters
     ----------
     contact_data : ContactFrequencies or ContactPCA
@@ -149,7 +151,8 @@ def make_minimum_graph(contact_data, return_contacts=True):
         If True, return a list of contacts. If False, return the networkx Graph.
     '''
 
-    #TODO option to specify chacras in arguments
+    #TODO option to specify which chacras in arguments
+    # https://en.wikipedia.org/wiki/Steiner_tree_problem
     # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.mst.minimum_spanning_tree.html
     # cycle graph....
     edges = contact_data.get_edges()
