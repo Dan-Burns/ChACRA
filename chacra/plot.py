@@ -71,6 +71,7 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_
         if n_pcs == None:
             n_pcs = variance.shape[1]
         # difference of roots
+        # can just do cpca.chacra_pvals 
         p_val = np.sum(np.abs(np.diff(variance, axis=1, prepend=0)) > \
                     np.abs(np.diff(original_variance, prepend=0)), axis=0) / cpca._N_permutations
         ax.hlines(.05,xmin=0,xmax=n_pcs,color=cutoff_color,zorder=1)
@@ -87,12 +88,17 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
     if temps is None and contacts is not None:
         print('Using the axis labels from the contact data as temperature labels. '
               'If this is incorrect, you can supply the list of temperatures.')
-        temps = list(cont.freqs.index)
-    if temps is not None:
+        try:
+            temps = list(contacts.freqs.index)
+        except:
+            temps = list(contacts.index)
+    elif temps is not None:
         if len(temps) != cpca.pca.components_.shape[0]:
             print("The temperature (or x axis) list does not contain the same number of entries "
-                  "as there are rows in the principal components.")
-    # temp_units = °C
+                  "as there are principal components.")
+    elif temps is None:
+        temps = list(range(cpca.loadings.shape[1]))
+        print("No temperatures or contact frequency data provided to obtain temperatures from. X-axis corresponds to system id.")
 
     fig, ax = plt.subplots()
     x = np.array(temps)
@@ -109,7 +115,7 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
         
         # Plotting the Graph
         #plt.ylim((-6,4))
-        ax.plot(X_, -1*Y_,color=colors[pc-1])
+        ax.plot(X_, 1*Y_,color=colors[pc-1])
                 
     ax.set_title(f'ChACRA Modes')
     ax.set_xlabel("Temperature ", fontsize=12)

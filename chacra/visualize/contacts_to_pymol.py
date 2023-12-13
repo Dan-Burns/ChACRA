@@ -76,7 +76,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         data[contact]['loading_score'] = top_score
 
-        data[contact]['color'] = pc_color(top_pc)
+        data[contact]['color'] = chacra_colors[top_pc-1]
 
         # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
         data[contact]['slope'] = get_slope(cdf,
@@ -326,35 +326,35 @@ def get_slope(df,contact,temp_range=(0,7)):
                    df[contact].iloc[temp_range[0]:temp_range[1]]).slope
 
 
-def pc_color(pc):
-    '''
-    TODO deprecate - write_group_selections pulls from chacra_colors based on top_pc - update get_contact_data accordingly
-    '''
+# def pc_color(pc):
+#     '''
+#     DEPRECATED
+#     '''
    
     
-    if int(pc) == 1:
-        color = 'red'
-    elif int(pc) == 2:
-        color = '0x02a8f8'
-    elif int(pc) == 3:
-        color = 'ytterbium'
-    elif int(pc) == 4:
-        color = 'purpleblue'
-    elif int(pc) == 5:
-        color = 'gray30'
-    elif int(pc) == 6:
-        color = 'magenta'
-    elif int(pc) == 7:
-        color = '0xfad300'
-    elif int(pc) == 8:
-        color = 'greencyan'
-    elif int(pc) == 9:
-        color = 'gray50'
+#     if int(pc) == 1:
+#         color = 'red'
+#     elif int(pc) == 2:
+#         color = '0x02a8f8'
+#     elif int(pc) == 3:
+#         color = 'ytterbium'
+#     elif int(pc) == 4:
+#         color = 'purpleblue'
+#     elif int(pc) == 5:
+#         color = 'gray30'
+#     elif int(pc) == 6:
+#         color = 'magenta'
+#     elif int(pc) == 7:
+#         color = '0xfad300'
+#     elif int(pc) == 8:
+#         color = 'greencyan'
+#     elif int(pc) == 9:
+#         color = 'gray50'
    
-    else:
-        color = 'yellow'
+#     else:
+#         color = 'yellow'
 
-    return color
+#     return color
 
 
 def get_variance_to_sphere_scale_interpolator(eigenvalues,

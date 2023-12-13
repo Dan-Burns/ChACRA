@@ -258,7 +258,7 @@ def directed_contact_edges(donor_edges):
     # networkx wants directed edges in the format of 
     # G = nx.DiGraph()
     # G.add_edges_from([(1, 2), (1, 3)])
-    # Then go back through and add weights using cont_obj.get_all_edges 
+    # Then go back through and add weights using cont_obj.get_edges 
     directed_edges = []
     for pair, donor in donor_edges.items():
         resi1, resi2 = pair.split("-")

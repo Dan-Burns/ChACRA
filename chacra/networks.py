@@ -10,25 +10,47 @@ from networkx.algorithms import community
 from networkx import edge_betweenness_centrality as betweenness
 from .utils import sort_dictionary_values
 
-def edge_to_contact(edge,contacts):
+def edge_to_contact(edge_data,contact_data):
     '''
     Convert networkx edge back to original contact name.
-    edge : tuple
-        networkx formatted contact name
-    contacts : list
-        list of contacts to check which residue comes first
-        TODO (shouldn't be necessary)
-    '''
-    resa,resb = edge[0], edge[1]
-    contact =  f'{resa}-{resb}'
-    if contact not in contacts:
-        contact = f'{resb}-{resa}'
-        if contact not in contacts:
-            print(f"can't find {resa}-{resb} or {resb}-{resa}")
-            return
-    return contact
+    edge : tuple or list of tuples
+        networkx formatted contact name or list of them.
+    
+    contact_data : ContactFrequencies or ContactPCA
 
-def make_network(cont, temp, exclude_below=None, exclude_above=None):
+
+    '''
+    if hasattr(contact_data, 'freqs'):
+        contacts = contact_data.freqs.columns
+    elif hasattr(contact_data, 'loadings'):
+        contacts = contact_data.loadings.index
+    else:
+        print("You must provide a ContactFrequencies or ContactPCA object.")
+    
+    if type(edge_data) == list:
+        contact_list = []
+        for edge in edge_data:
+            resa,resb = edge[0], edge[1]
+            contact =  f'{resa}-{resb}'
+            if contact not in contacts:
+                contact = f'{resb}-{resa}'
+                if contact not in contacts:
+                    print(f"can't find {resa}-{resb} or {resb}-{resa}")
+                    
+            contact_list.append(contact)
+        return contact_list
+    else:
+        resa,resb = edge_data[0], edge_data[1]
+        contact =  f'{resa}-{resb}'
+        if contact not in contacts:
+            contact = f'{resb}-{resa}'
+            if contact not in contacts:
+                print(f"can't find {resa}-{resb} or {resb}-{resa}")
+                return
+
+        return contact
+
+def make_network(cont, temp, exclude_below=None, exclude_above=None, selection=None):
     '''
     cont : ContactFrequencies
         The ContactFrequencies object containing the contacts 
@@ -36,13 +58,15 @@ def make_network(cont, temp, exclude_below=None, exclude_above=None):
     
     temp : the temperature corresponding to the data row to take your contact
     
+    selection : list
+        list of selected contacts to construct the graph from.
     '''
     # you want the edge weights to be inverse contact frequencies
     # lower edge weight value means "closer"/ higher contact frequency
     #TODO add exclusion cutoffs
    
-    inverse = cont.get_all_edges(temp=temp, as_dict=True)
-    original = cont.get_all_edges(temp=temp, inverse=False)
+    inverse = cont.get_edges(temp=temp, as_dict=True)
+    original = cont.get_edges(temp=temp, inverse=False)
 
     G = nx.Graph()
 
@@ -111,3 +135,30 @@ def get_betweenness_centrality(G, weight='inverse'):
     sorted_edges = sort_dictionary_values(betweeness)
     
     return sorted_edges
+
+def make_minimum_graph(contact_data, return_contacts=True):
+    '''
+    Construct the minimal graph that connects the top chacra contacts
+
+    Parameters
+    ----------
+    contact_data : ContactFrequencies or ContactPCA
+        calls .get_edges on whichever object is provided
+
+    return_contacts : bool
+        If True, return a list of contacts. If False, return the networkx Graph.
+    '''
+
+    #TODO option to specify chacras in arguments
+    # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.mst.minimum_spanning_tree.html
+    # cycle graph....
+    edges = contact_data.get_edges()
+    G = nx.Graph()
+    #TODO add inverse or original weights
+    #TODO make_network should handle contact frequencies or loading scores
+    G.add_weighted_edges_from(edges)
+    min_graph = nx.minimum_spanning_tree(G)
+    if return_contacts == True:
+        return edge_to_contact(list(min_graph.edges), contact_data)
+    else:
+        return min_graph

@@ -9,10 +9,9 @@ import os
 import pathlib
 from sklearn.decomposition import PCA
 from .utils import *
-import MDAnalysis as mda
-import collections
 from .utils import *
 import tqdm
+from scipy.stats import linregress 
 
 
 
@@ -57,7 +56,7 @@ class ContactFrequencies:
     
     
     
-    def __init__(self, contact_data, temps=None, temp_progression=None, min_max_temp=None):
+    def __init__(self, contact_data, temps=None, temp_progression=None, min_max_temp=None, get_chacras=True, N_permutations=500):
         '''
         TODO supply endpoints or list of temperatures and replace index
         TODO supply path to freq files and make everything.
@@ -76,6 +75,14 @@ class ContactFrequencies:
         
         min_max_temp : tuple of int or float
             The highest and lowest temperatures to interpolate between with temp_progression.
+
+        get_chacras : bool
+            Make the ContactPCA class an attribute of this object.  
+            i.e. cont = ContactFrequencies(data,get_chacras=True)
+                cont.cpca.get_chacra_centers(1)...
+        
+        N_permutations : int
+            If get_chacras == True, the number of times to permutate the data for obtaining chacra (PC) significance values.
 
         Returns
         -------
@@ -129,6 +136,14 @@ class ContactFrequencies:
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
+        
+        # give this object access to the ContactPCA 
+        if get_chacras == True:
+            self.cpca = ContactPCA(self.freqs, N_permutations=N_permutations)
+        else:
+            self.cpca = None
+        
+        
         
 
     
@@ -190,7 +205,7 @@ class ContactFrequencies:
         return self.freqs.filter(regex=regex, axis=1)
     
       
-    def get_all_edges(self, weights=True, inverse=True, temp=0, index=None, as_dict=False):
+    def get_edges(self, weights=True, inverse=True, temp=0, index=None, as_dict=False):
         '''
         returns list of contact id tuples for network analysis input
         inverse inverts the edge weight so something with a high contact
@@ -257,8 +272,12 @@ class ContactFrequencies:
     
     def exclude_neighbors(self, n_neighbors=1):
         '''
-        Reduce the contact dataframe contacts list to those separated by at least
-        n_neighbors
+        Reduce the contact dataframe contacts to those separated by at least
+        n_neighbors. Returns a list of contact ids.
+        
+        Returns
+        -------
+        list
         '''
         reduced_contacts = []
         for contact in self.freqs.columns:
@@ -274,7 +293,10 @@ class ContactFrequencies:
 
 
     def renumber_residues(self, starting_residue_number):   
-        '''renumber the residues so the first residue begins with
+        '''
+        NOT IMPLEMENTED
+
+        renumber the residues so the first residue begins with
         starting_residue_number.  Useful if the contact_files generated with
         get contacts was made with a incorrectly numbered structure file starting
         from 1.
@@ -320,18 +342,22 @@ class ContactFrequencies:
         '''
         Convert the deata into a symmetric matrix with residues mirrored on x and y axis.
         The residues will be named as "chainResid" e.g. A100.  You can easily plot the 
-        heatmap with seaborn.heatmap().  If you want a heatmap of a subset of residues,
-        filter the contact dataframe to your contacts of interest and generate a new
-        ContactFrequencies object with the filtered dataframe before calling to_heatmap().
+        heatmap with seaborn.heatmap().  
+        If you want a heatmap of a subset of residues, filter the contact dataframe to your contacts of interest
+        and generate a new ContactFrequencies object with the filtered dataframe before calling to_heatmap().
 
-        Parameter
+        Parameters
+        ----------
+         
+        format : str
+            format options are 'mean', 'stdev', 'difference', 'loading_score'
+            if 'difference', specify tuple of rows your interested in taking the difference from
+            if 'loading_score' then specify contact_pca data and pc from which you want the loading score
+
+        
         '''
         
-        # Turn the data into a heatmap 
-        # format options are 'mean', 'stdev', 'difference', 'loading_score'
-        # if 'difference', specify tuple of rows your interested in taking the difference from
-        # if 'loading_score' then specify contact_pca data and pc from which you want the loading score
-        # hold reslists with chain keys and list of resid values
+        #hold reslists with chain keys and list of resid values
         reslists = {}
         res_append = lambda res: f"{chain}{res}"
         for contact in self.freqs.columns:
@@ -383,7 +409,7 @@ def _de_correlate_df(df):
     '''
     randomize the values within a dataframe's columns
     '''
-    
+    # improved version!
     a = df.values
     idx = np.random.rand(*a.shape).argsort(0) # argsort(0) returns row indices
     out = a[idx, np.arange(a.shape[1])] # index a by independently randomized rows and original column order
@@ -400,22 +426,35 @@ def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
     
 class ContactPCA:
     '''
-    Class takes a ContactFrequency object and performs principal component 
-    analysis on it. 
+    Performs PCA on the contact frequency data and provides methods to investigate the chacras.
     '''
-
-    #TODO ensure that signs of variables correspond to expected melting trend of PC1
-    def __init__(self, contact_df):
+    #TODO anything with a pc range argument should be None and use self.top_chacras or if None, pcs 1-4
+    
+    def __init__(self, contact_df, significance_test=True, N_permutations=500):
+        #TODO allow for ContactFrequencies input
         pca = PCA()
         print("Opening the chacras.")
         self.pca = pca.fit(contact_df)
         self._transform = pca.transform(contact_df)
-        self.loadings = pd.DataFrame(self.pca.components_.T, columns=
-                        ['PC'+str(i+1) for i in range(np.shape
+        self.loadings = pd.DataFrame(self.pca.components_.T, 
+                        columns=['PC'+str(i+1) for i in range(np.shape
                          (pca.explained_variance_ratio_)[0])], 
                         index=list(contact_df.columns))
         self.norm_loadings = _normalize(self.loadings)
-        self._permutated_explained_variance = None
+
+        # ensure that PC1 projection has a negative slope to reflect expected melting trend
+        if linregress(range(self.loadings.shape[1]), self._transform[:,0]).slope > 0:
+            self._transform = self._transform*-1
+            self.loadings = self.loadings*-1
+            self.pca.components_ = self.pca.components_*-1
+        self.freqs = contact_df
+        if significance_test == True:
+            self.permutated_pca(N_permutations=N_permutations)
+        else:
+            self._permutated_explained_variance = None
+            self.permutated_component_pvals = None
+            self.chacra_pvals = None
+            self.top_chacras = None
 
     def sorted_loadings(self, pc=1):
        
@@ -426,28 +465,42 @@ class ContactPCA:
         return self.norm_loadings.iloc[(-self.norm_loadings['PC'+str(pc)]
                                                             .abs()).argsort()]
     
-    def edges(self, weights=True, pc=1, percentile=99):
+    def get_edges(self, pcs=None, weights=True, inverse=True, as_dict=False):
         '''
-        edit for PCA df format
-        '''
-        #TODO this needs to be investigated - contact frequencies are the natural edge choice
-        # perhaps loading scores will be useful as edges
-        percentile_df = self.sorted_loadings(pc).loc[
-                        self.sorted_loadings(pc)['PC'+str(pc)] >
-                        np.percentile(self.sorted_loadings(pc)[
-                                'PC'+str(pc)],percentile)]
-        edges = []
-        for contact in percentile_df.index:
-            partners = split_id(contact)
-            if weights == True:
-                weight = float(percentile_df['PC'+str(pc)].loc[contact])
-                edges.append((partners['resa'],
-                                     partners['resb'], weight))
-            else:
-                edges.append((partners['resa'], partners['resb']))
-        
-        return edges   
+        Generate networkx input for a network based on contact sensitivities
+        Vinyasa
 
+        '''
+        if pcs == None and self.top_chacras == None:
+    
+            print("Provide list of chacras from which to collect edge weights")
+        
+        elif pcs is not None:
+            pcs = [f'PC{i}' for i in pcs]
+
+        elif self.top_chacras is not None:
+            pcs = [f'PC{i}' for i in self.top_chacras]
+
+        # TODO - positive and negative loading scores?
+        edges = []
+        edge_dict = {}
+        top_scores = self.norm_loadings[pcs].max(axis=1).values
+        contacts = self.norm_loadings[pcs].max(axis=1).index
+        for contact, score in zip(contacts,top_scores):
+            partners = split_id(contact)
+            if inverse == True:
+                weight = 1/score
+            else:
+                weight = score
+            edges.append((partners['resa'],partners['resb'],weight))
+
+            
+        if as_dict == True:
+            for contact in edges:
+                edge_dict[(contact[0],contact[1])] = contact[2]
+            return edge_dict
+        else:
+            return edges
     
     def all_edges(self, weights=True, pc=1):
         '''
@@ -466,7 +519,7 @@ class ContactPCA:
         return all_contacts   
 
                 
-    def get_top_contact(self, resnum, pc_range=(1,4)):
+    def get_top_contact(self, resnum, pc_range=None):
         '''
         Return the contact name, normalized loading score, pc on which it has 
         its highest score, and the overall rank the score represents on the pc.
@@ -480,7 +533,16 @@ class ContactPCA:
         norm_loadings[['PC1','PC2','PC3']].max(axis=1)
         test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
         '''
-        pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
+        if pc_range == None and self.top_chacras == None:
+            pcs = ['PC'+str(i) for i in range(1,5)]
+        
+        elif pc_range is not None:
+            pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
+
+        else:
+            pcs = ['PC'+str(i) for i in self.top_chacras]
+
+
         contacts = []
         for contact in self.norm_loadings.index:
             #TODO add resname and/or chain 
@@ -496,64 +558,30 @@ class ContactPCA:
     
     
     ## Adjust the dependent functions to use this:
-    def get_top_score(self, contact, pc_range=(1,4)):
+    def get_top_score(self, contact, pc_range=None):
 
         '''
         Get everything at once
         norm_loadings[['PC1','PC2','PC3']].max(axis=1)
         test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
         '''
+        if pc_range == None and self.top_chacras == None:
+            pcs = ['PC'+str(i) for i in range(1,5)]
+        
+        elif pc_range is not None:
+            pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
+
+        else:
+            pcs = ['PC'+str(i) for i in self.top_chacras]
 
         data = {}
-        vals = self.norm_loadings[[f'PC{i}' for i in range(pc_range[0],pc_range[1]+1)]].loc[contact].values
+        vals = self.norm_loadings[pcs].loc[contact].values
         data[vals.argmax()+1] = vals.max()
         
         return data
 
-    # def get_scores(self, contact, pc_range=(1,4)):
-    #     '''
-    #     Return the normalized loading score,
-    #     rank, and percentile it falls in for the contact on each pc in pc_range
-    #     dictionary keys are PC numbers corresponding to dictionaries of these
-    #     items
-    #     pc_range is inclusive
-    #     '''
-
-    #     pc_range = range(pc_range[0],pc_range[1]+1)
-
-    #     contacts = {pc:{} for pc in pc_range}
-    #     for pc in pc_range:
-            
-    #         contacts[pc]['rank'] = list(self.sorted_norm_loadings(pc).index
-    #                                ).index(contact) +1
-    #         contacts[pc]['score'] = (self.sorted_norm_loadings(pc)['PC'+str(pc)].loc[contact])
-            
-      
-    #     # sort the dictionary by score
-    #     result = collections.OrderedDict(sorted(contacts.items(), key=lambda t:t[1]["score"]))
-    #     # put in descending order
-    #     return collections.OrderedDict(reversed(list(result.items())))
-        
-            
-        
-    def in_percentile(self, contact, percentile, pc=None):
-        '''Provide a contact and a percentile cutoff to consider the top range
-        and the pc to search and return True if the contact falls in the top 
-        range on that pc.
-        '''
-        
-        percentile_df = self.sorted_norm_loadings(pc).loc[
-                        self.sorted_norm_loadings(pc)['PC'+str(pc)] >
-                        np.percentile(self.sorted_norm_loadings(pc)[
-                                'PC'+str(pc)],percentile)]
-                
-        
-        if contact in percentile_df['PC'+str(pc)].index:
-            return True
-        else:
-            return False
-        
-    def get_chacra_centers(self, pc, cutoff=0.6, absolute=True):
+ 
+    def get_chacra_center(self, pc, cutoff=0.6, absolute=True):
         '''
         Return the loading score dataframe containing only the contacts with loading scores above the cutoff
 
@@ -576,9 +604,14 @@ class ContactPCA:
         else:
             return self.loadings.loc[chacra_centers]
         
+    def dynamic_energy_warping(self):
+        '''
+        Use dynamic time warping to find the contacts that fit their chacra projections with minimal warping
+        '''
+        
    
 
-    def permutated_pca(self, contact_frequencies, N_permutations=200, get_loading_pvals=False):
+    def permutated_pca(self, N_permutations=500, get_loading_pvals=False):
         '''
         Randomize the values within the contact frequency columns to test the significance of the contact PCs.
 
@@ -593,19 +626,20 @@ class ContactPCA:
         '''    
         # borrowed code from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
         self._N_permutations = N_permutations
-        df = contact_frequencies.copy()
-        # This function changes the order of the columns independently to remove correlations
+        df = self.freqs
+        
        
         #original_variance = self.pca.explained_variance_ratio_
         pca = PCA()
         variance = np.zeros((N_permutations, len(df.index)))
-        print('This can take a moment.')
+        print('This can take a moment. Kshama.')
         for i in tqdm.tqdm(range(N_permutations)):
             X_aux = _de_correlate_df(df)    
             pca.fit(X_aux)
             # record the explained variance of this iteration's PCs
             variance[i, :] = pca.explained_variance_ratio_
             # track the behavior of the loading scores too
+            # ....probably no value in it
             if get_loading_pvals:
                 if i == 0:
                     permutated_components = (np.abs(pca.components_) >= np.abs(self.pca.components_))*1
@@ -619,21 +653,11 @@ class ContactPCA:
         if get_loading_pvals:
             self.permutated_component_pvals = permutated_components/N_permutations
     
+        self.chacra_pvals = np.sum(np.abs(np.diff(variance, axis=1, prepend=0)) > \
+                    np.abs(np.diff(self.pca.explained_variance_ratio_, prepend=0)), axis=0) / N_permutations
 
-    #######################
-    # def bootstrapped_pca(self):
-    #     '''
+        deepest_chacra = np.where((self.chacra_pvals  > 0.05)==False)[0][-1] + 1
+        self.top_chacras = list(range(1,deepest_chacra+1))
+
+
         
-    #     '''
-
-    #     # Bootstrap
-    #     # Empirical loadings
-    #     loadings = cpca.pca.components_.T 
-    #     nboot=1000
-    #     # Bootstrap samples
-    #     loadings_boot = []
-    #     for i in range(nboot):
-    #         X_boot = df.sample(df.shape[0], replace=True) 
-    #         pca_boot = PCA().fit(X_boot)
-    #         loadings_boot.append(np.abs(pca_boot.components_.T)>=np.abs(loadings))
-    #     pvals = np.dstack(loadings_boot).mean(axis=2) 
