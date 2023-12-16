@@ -123,7 +123,97 @@ def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
 
 #TODO example plumed/ replica gmx grompp
     
-def get_contacts_prolif(topology, trajectory, guess_bonds=False, sel1='protein',sel2='protein',itypes='all',
+
+
+
+
+
+
+
+########### PROLIF SANDBOX #################
+# results with these parameters are quite different than getcontacts results
+# at least 1/3 of the contacts differ by more than 10% - calculated at stride 10 so unless the initial
+# frame was different, only difference can be the cutoffs and angles are still not right
+# OR atom classification from prolif SMARTS pattern is picking up different atoms.
+# prolif also recorded about 10% more interactions.
+    
+# Something to try. Subclass VdWcontact for hydrophobic and make sure the right atoms are in it
+# and then use the same tolerance -
+    
+
+get_contacts_parameters = {
+            
+            'Anionic':{"distance":4.0, # considered 4.5 by prolif
+                       },
+ 
+            'CationPi':{"distance":6.0, # 4.5 for prolif
+                        "angle":(0,60)},# 0 to 30 for prolif
+            
+            'Cationic':{"distance":4.0,
+                        },
+      
+            'EdgeToFace':{"distance":5.0, 
+                        "plane_angle":(60,90), # (50, 90) in prolif
+                        "normal_to_centroid_angle":(0,45)}, # (0,30) in prolif
+            
+            'FaceToFace':{"distance":7.0, # 5.5 for prolif
+                        "plane_angle":(0,30),
+                        "normal_to_centroid_angle":(0,45)},
+
+            'Hydrophobic':{"distance":4,}, # Needs to be a 0.5 threshold + VdW radii
+                                
+            'HBAcceptor':{
+                        "DHA_angle":(110,180)}, #<70 from AHD
+            
+            'HBDonor':{
+                        "DHA_angle":(110,180)},
+               
+            'PiCation':{"distance":6.0, 
+                        "angle":(0,60)},
+        
+            'VdWContact':{"tolerance":0.5, 
+                        },
+            }
+
+class HydrophobicMod(plf.interactions.VdWContact):
+    def __init__(self, tolerance=0.5, vdwradii=None):
+        # Initialize the parent class with the specified tolerance and vdwradii
+        super().__init__(tolerance=tolerance, vdwradii=vdwradii)
+        # Define the hydrophobic SMARTS pattern
+        hydrophobic = (
+            "[c,s,Br,I,S&H0&v2,$([D3,D4;#6])&!$([#6]~[#7,#8,#9])&!$([#6X4H0]);+0]"
+        )
+
+    def detect(self, ligand, residue):
+        # Filter atoms in ligand and residue based on the hydrophobic pattern
+        hydrophobic_ligand_atoms = [
+            atom for atom in ligand.GetAtoms() if atom.HasSubstructMatch(self.hydrophobic_pattern)
+        ]
+        hydrophobic_residue_atoms = [
+            atom for atom in residue.GetAtoms() if atom.HasSubstructMatch(self.hydrophobic_pattern)
+        ]
+
+        # Proceed with the original VdWContact detection logic, but only for hydrophobic atoms
+        lxyz = ligand.GetConformer()
+        rxyz = residue.GetConformer()
+        for la, ra in product(hydrophobic_ligand_atoms, hydrophobic_residue_atoms):
+            lig = la.GetSymbol()
+            res = ra.GetSymbol()
+            elements = frozenset((lig, res))
+            try:
+                vdw = self._vdw_cache[elements]
+            except KeyError:
+                vdw = self.vdwradii.get(lig, VDWRADII[lig]) + self.vdwradii.get(res, VDWRADII[res]) + self.tolerance
+                self._vdw_cache[elements] = vdw
+            dist = lxyz.GetAtomPosition(la.GetIdx()).Distance(
+                rxyz.GetAtomPosition(ra.GetIdx())
+            )
+            if dist <= vdw:
+                yield self.metadata(
+                    ligand, residue, (la.GetIdx(),), (ra.GetIdx(),), distance=dist
+                )
+    
+def get_prolif_contacts(topology, trajectory, guess_bonds=False, sel1='protein',sel2='protein',itypes='all',
                         contacts_output='contacts.pd', contact_frequencies_output='contact_frequencies.pd'):
     '''
     Not implemented
@@ -173,47 +263,47 @@ def get_contacts_prolif(topology, trajectory, guess_bonds=False, sel1='protein',
 
     df.to_pickle('traj_0_prolif_bonds.pd')
 
-get_prolif_freqs()
-'''
-Not Implemented
-'''
-reslabels = set([a for tup in df.columns for a in tup[:1]])
-data = {}
-n_frames = df.shape[0]
-for res in reslabels:
-    res1 = mapper[res] # added to adjust for mismatch from using tpr
-    resa, chaina = res1.split(".")# changed
-    resna, resida = resa[:3], resa[3:]
-    cols = set([a for tup in df.xs(res,level="ligand",axis=1).columns for a in tup[:1]])
-    for col in cols:
-        col2 = mapper[col] # added to adjust
-        resb, chainb = col2.split(".")# changed
-        resnb, residb = resb[:3], resb[3:]
-        if f'{chaina}:{resna}:{resida}' == f'{chainb}:{resnb}:{residb}':
-            continue
-        elif chaina < chainb:
-            contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'
-        elif chaina > chainb:
-            contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'                  
-        elif chaina == chainb and resna < resnb:
-            contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'                    
-        elif chaina == chainb and resna > resnb:
-            contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'
-        elif chaina == chainb and resna == resnb and resida < residb:
-            contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}' 
-        elif chaina == chainb and resna == resnb and resida > residb:
-            contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'
-        else:
-            print(f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}')
-                            
-        if contact in data.keys():
-            continue
-        else:
-             
-            bool_contacts = df.xs(res,level="ligand",axis=1).xs(col, level='protein', axis=1)
-            #data[contact] = bool_contacts.index[bool_contacts.values.squeeze()].shape[0]/n_frames
-            result = len(bool_contacts.loc[bool_contacts.any(axis=1)==True])/n_frames
-            if np.allclose(result, 0.0):
-                pass
+def get_prolif_freqs():
+    '''
+    Not Implemented
+    '''
+    reslabels = set([a for tup in df.columns for a in tup[:1]])
+    data = {}
+    n_frames = df.shape[0]
+    for res in reslabels:
+        res1 = mapper[res] # added to adjust for mismatch from using tpr
+        resa, chaina = res1.split(".")# changed
+        resna, resida = resa[:3], resa[3:]
+        cols = set([a for tup in df.xs(res,level="ligand",axis=1).columns for a in tup[:1]])
+        for col in cols:
+            col2 = mapper[col] # added to adjust
+            resb, chainb = col2.split(".")# changed
+            resnb, residb = resb[:3], resb[3:]
+            if f'{chaina}:{resna}:{resida}' == f'{chainb}:{resnb}:{residb}':
+                continue
+            elif chaina < chainb:
+                contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'
+            elif chaina > chainb:
+                contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'                  
+            elif chaina == chainb and resna < resnb:
+                contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'                    
+            elif chaina == chainb and resna > resnb:
+                contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'
+            elif chaina == chainb and resna == resnb and resida < residb:
+                contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}' 
+            elif chaina == chainb and resna == resnb and resida > residb:
+                contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'
             else:
-                data[contact] = result
+                print(f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}')
+                                
+            if contact in data.keys():
+                continue
+            else:
+                
+                bool_contacts = df.xs(res,level="ligand",axis=1).xs(col, level='protein', axis=1)
+                #data[contact] = bool_contacts.index[bool_contacts.values.squeeze()].shape[0]/n_frames
+                result = len(bool_contacts.loc[bool_contacts.any(axis=1)==True])/n_frames
+                if np.allclose(result, 0.0):
+                    pass
+                else:
+                    data[contact] = result
