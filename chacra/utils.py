@@ -34,6 +34,9 @@ def get_angle(a,b,c):
     return angle
         
 def normit(data, center=True):
+    '''
+    normalize a list of values.
+    '''
     if center == True:
         return (data - data.mean())/np.abs((data - data.mean())).max()
     else:

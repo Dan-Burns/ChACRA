@@ -50,3 +50,34 @@ def mix_color(colorRGBA1, colorRGBA2):
 # b_grad = get_color_gradient('#02a8f800','#02a8f8ff',100, return_rgb=True, alpha=True)
 # rgb = get_color(r_grad[50],b_grad[50])
 # rgb_to_hex(get_color(r_grad[50],b_grad[50]))
+
+
+class ANSI():
+    '''
+    credit: https://www.geeksforgeeks.org/how-to-add-colour-to-text-python/
+
+    example_ansi = ANSI.background(
+    97) + ANSI.color_text(35) + ANSI.style_text(4) + " TESTE ANSI ESCAPE CODE"
+    print(example_ansi)
+    '''
+    def background(code):
+        return "\33[{code}m".format(code=code)
+ 
+    def style_text(code):
+        return "\33[{code}m".format(code=code)
+ 
+    def color_text(code):
+        return "\33[{code}m".format(code=code)
+    
+wheel_of_dharma_ascii = '\u2638'
+ 
+red_ascii = 31
+green_ascii = 32
+yellow_ascii = 33
+blue_ascii = 34
+magenta_ascii = 35
+cyan_ascii = 36
+white_ascii = 37
+black_ascii = 90
+
+dharma_string = ANSI.color_text(35) + wheel_of_dharma_ascii

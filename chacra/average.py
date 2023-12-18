@@ -4,23 +4,25 @@ import pandas as pd
 from .ContactFrequencies import *
 from .utils import *
 import tqdm
+import os
 
 
-def average_multimer(structure, denominator, df, representative_chains):
+def average_multimer(structure, df, representative_chains, denominator=None,
+                     return_stdev=False, 
+                     check_folder='equivalent_interactions'):
     '''
-    This should be able to replace ContactFrequencies.average_contacts.
-
-    Takes a contact df, pdb structure, and a selection of chains to use for representing the average contacts and finds all of the equivalent interactions
-    and returns a dataframe of the averaged values.  These values are more robust and easier to visualize
+    
+    Takes a contact df, pdb structure, and a selection of chains to use for 
+    representing the average contacts and finds all of the equivalent interactions
+    and returns a dataframe of the averaged values.  These values are more robust
+    and easier to visualize. Currently, this should only be used in cases where
+    the subunits in the structure are all identical or there are equal numbers of 
+    each unique subunit type.
 
     Parameters
     ----------
     structure : str
         Path to pdb file that contact frequencies/ simulations are based on.
-
-    denominator : int
-        The number of subunits to devide the contact frequency sums by.  Planning to make this automated or accept lists for unique situations.
-        e.g. If you have a tetramer, denominator is 4.  If you have a heteromultimer with 6 subunits of each type, denominator is 6.
 
     df : pd.DataFrame
         The contact frequency dataframe to average.
@@ -28,19 +30,36 @@ def average_multimer(structure, denominator, df, representative_chains):
     representative_chains : list
         List of pdb chain ids to use for depicting the averaged contacts on.
         e.g. if you have a tetramer of 'A', 'B', 'C', 'D' subunits, representative_chains=['A'].
-        If you have a heteromultimer, select one of each chain type that are in contact with one another. representative_chains=['A','G'].
+        If you have a heteromultimer, select one of each chain type that are in contact with one another
+        and will give you the appropriate visualization. e.g. representative_chains=['A','G'].
 
+    denominator : int
+        The number of subunits to devide the contact frequency sums by.  If None,
+        this value is determined automatically assuming there are only identical
+        subunits in the structure or equal numbers of the unique subunit types.
+    
+    return_stedev : bool
+        If True, returns averaged_contacts and standard_deviation dataframes.
+    
+    check_folder : str
+        Name of folder to write pymol selections to. These should be used to 
+        confirm that the averaging is being done between the correct pairs of 
+        subunits.
+   
     Returns
     -------
     pd.DataFrame containing the values for averaged among the identical contacts.
 
     Some todos:
-    #TODO figure out non redundant equivalent interactions and make that the denominator if the contact comes from that set
-    #  denominator = len(longest_identical_chain_group participating in intersubunit contact)
-    # TODO denominator needs to be cut in half if separate identical chains are making contact between the same resid and they're 180 deg to one another based off the entire complex com
-    # something like this will help deal with opposing subunit contacts inside of a channel pore (might not really be needed)
-    # ALSO - add a function to automatically identify the representative_chains based on identical_chain type, alphabetical order and proximities to one another
-    # opposing chain iding and handling.
+   
+    
+    # TODO situations with different numbers of different subunit types
+    # need special handling.  As is, averaging should only be done with 
+    # structures involving all identical subunits or equal numbers of each type
+    # of subunits in a heteromultimer case. In ion channels there are also a 
+    # handful of contacts that will make contact with the opposing subunit
+    # i.e. only have two partners instead of 4, or even make contacts with 
+    # identical partners on the opposing subunit and the neighboring subunit.
     
     '''
 
@@ -50,15 +69,38 @@ def average_multimer(structure, denominator, df, representative_chains):
     # For now can leave it equal to the minimum number of identical subunits involved in the contact 
     #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
     identical_subunits = find_identical_subunits(u)
+    # determine averaging denominator.  
+    if denominator is None:
+        n_subunits_each = np.asarray([len(list(i)) for i in identical_subunits.values()])
+        # If the subunits are not all identical and there are more of one type
+        # of subunit than another, user must specify what to divide by for 
+        # averaging.
+        if np.all(n_subunits_each == n_subunits_each[0]):
+            denominator = n_subunits_each[0]
+        else:
+            print("The number of non-identical subunits is not equal between types."\
+                " \n Specify the value to dividy by for averaging with the" \
+                " 'denominator' argument. \n")
+    print(f'Sums of identical contacts will be divided by {denominator} '\
+          'for averaging.')
     df_copy = df.copy()
     # hold the averaged data
     averaged_data = {}
-    # standard_deviation = {} # use this to compute error later
+    standard_deviation = {} # can collect this for error bars
     # determine what the equivalent chain interactions relative to representative chains are for all the subunits
-    print("Finding interactions equivalent to those involving representative_chains. One moment.")
+    print("Finding interactions equivalent to those involving representative_chains. One moment. \n")
     equivalent_interactions = get_equivalent_interactions(representative_chains,u)
+    if check_folder is not None:
+        equivalent_interactions_check(equivalent_interactions, 
+                                  output_folder=check_folder)
+        print(f"Pymol selection files are saved in {check_folder} folder.\n"\
+              "Confirm that averaging is being done between the correct subunit pairs that "\
+              "are equivalent to those in the filename. \n"\
+              "If there are issues, please post them to https://github.com/Dan-Burns/ChACRA/issues"
+              )
+
     
-    print('Collecting equivalent contacts and averaging.')
+    print('Collecting equivalent contacts and averaging.\n')
     total_count = len(df.columns)
     with tqdm.tqdm(total=total_count) as progress:
 
@@ -157,14 +199,16 @@ def average_multimer(structure, denominator, df, representative_chains):
             ################################ End inter-subunit #####################################################################################
             # TODO record stdev of every averaged contact 
             averaged_data[averaged_name] = df_copy[to_average].sum(axis=1)/denominator
-
+            standard_deviation[averaged_name] = df_copy[to_average].std(axis=1)
             # get rid of the contacts that were just averaged and reduce the number of remaining contacts to check in the dataframe
             df_copy.drop(to_average, axis=1, inplace=True)
             # update the progress bar
             columns_removed = len(to_average)
             progress.update(columns_removed)
-
-    return pd.DataFrame(averaged_data)
+    if return_stdev == True:
+        return pd.DataFrame(averaged_data), pd.DataFrame(standard_deviation)
+    else:
+        return pd.DataFrame(averaged_data)
 
 
 def everything_from_averaged(averaged_contacts, original_contacts, u, representative_chains,
@@ -418,8 +462,8 @@ def find_best_asymmetric_point(u, chain, all_chain_dists):
     Find the residue that creates the greates difference in distances between other chains
     by finding a point in the chain that's near some other neighboring chain
 
-    #TODO can also just sample N=20? random points on the chain taken from evenly spaced points in 3D
-        and take the one with the best differences
+    #TODO can also just sample random points on the chain taken and take the one
+     with the best differences
     '''
     A = np.where(u.atoms.segids == f'{chain}')[0]
     # asymmetric center of mass that is some point on the periphery of seg_combo[0] near seg_combo[1]
@@ -446,18 +490,21 @@ def find_best_asymmetric_point(u, chain, all_chain_dists):
 
 def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
     '''
-    This will identify all the equivalent interaction pairs as seg_combo
-    all_chain_dists is included so the best residue is used to create the best variance in the measured distances 
+    This will identify all of the interaction pairs equivalent to seg_combo
+    all_chain_dists is included so the best residue is used to create the best
+      variance in the measured distances 
     
     seg_combo : tuple(string, string)
-        The pair of chains that you want to identify all the equivalent interacting pairs for.
-        ('A','B') will find other identical chains pairs that interact with the same geometry as A and B
+        The pair of chains that you want to identify all the equivalent 
+        interacting pairs for. ('A','B') will find other identical chains pairs 
+        that interact with the same geometry as A and B
     
     identical_subunits : dictionary
         The dictionary with integer values and lists of identical subunits.
 
     all_chain_dists : dictionary
-        The dictionary with chain_id values and nest dictionaries giving the chain keys and the minimum distance to them as values
+        The dictionary with chain_id values and nest dictionaries giving the 
+        chain keys and the minimum distance to them as values
     
     Returns
     -------
@@ -470,18 +517,24 @@ def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
     com = u.select_atoms('protein').center_of_mass()
     # indices of atoms corresponding to chain seg_combo[0]
     A = np.where(u.atoms.segids == f'{seg_combo[0]}')[0]
-    # asymmetric center of mass that is some point on the periphery of seg_combo[0] near seg_combo[1]
-    # if they're not within 5 angstroms, this won't work - need to just identify closest chain, pick one at random
-    # and then establish the as_com with that
+    # asymmetric center of mass that is some point on the periphery of 
+    # seg_combo[0] near seg_combo[1]
+    # if they're not within 5 angstroms, this won't work - need to just identify
+    # closest chain, pick one at random and then establish the as_com with that
     neighbor = find_best_asymmetric_point(u, seg_combo[0], all_chain_dists)
-    as_com = u.select_atoms(f'(around 5 chainID {neighbor}) and chainID {seg_combo[0]}').center_of_mass()
-    # the distances between all the atoms in seg_combo[0] and the asymmetric center of mass
+    as_com = u.select_atoms(f'(around 5 chainID {neighbor}) and chainID ' \
+                            f'{seg_combo[0]}').center_of_mass()
+    # the distances between all the atoms in seg_combo[0] and the asymmetric 
+    # center of mass
     dists = np.apply_along_axis(np.linalg.norm, 1,u.atoms[A].positions - as_com)
-    #find the closest res to the as_com so that this residue can be used for the reference point for other identical chains
+    #find the closest res to the as_com so that this residue can be used for the
+    # reference point for other identical chains
     resid = u.atoms[A][np.where(dists==dists.min())[0][0]].resid
-    # better to just use CA instead of this atom for distance measurements since there's more variability in sidechain positions
+    # better to just use CA instead of this atom for distance measurements since 
+    #there's more variability in sidechain positions
     atom = u.atoms[A][np.where(dists==dists.min())[0][0]].name
-    A_pos = u.select_atoms(f'chainID {seg_combo[0]} and resnum {resid} and name CA').positions[0]
+    A_pos = u.select_atoms(f'chainID {seg_combo[0]} and resnum {resid} and name CA'
+                           ).positions[0]
     # center of mass of seg_combo[1]
     B_com = u.select_atoms(f'chainID {seg_combo[1]}').center_of_mass()
     # this identifies A's relationship to B. 
@@ -504,17 +557,22 @@ def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
         for seg2 in identical_subunits[B_group]:
             if seg1 != seg2:
             
-                pos1 = u.select_atoms(f'chainID {seg1} and resnum {resid} and name CA').positions[0]
+                pos1 = u.select_atoms(f'chainID {seg1} and resnum {resid} and name CA'
+                                      ).positions[0]
                 pos2 = u.select_atoms(f'chainID {seg2}').center_of_mass()
                 distance = np.linalg.norm(pos1-pos2)
                 distances[(seg1,seg2)] = distance
-                angle_difs[(seg1,seg2)] = np.abs(np.rad2deg(get_angle(pos1,com,pos2)) - comparison_angle)
+                angle_difs[(seg1,seg2)] = np.abs(np.rad2deg(
+                    get_angle(pos1,com,pos2)) - comparison_angle)
                 distance_difs[(seg1,seg2)] = np.abs(distance-comparison_dist)
 
-        min_dist, min_angle = min(distance_difs, key=distance_difs.get), min(angle_difs, key=angle_difs.get)  
+        min_dist, min_angle = min(distance_difs, key=distance_difs.get), min(
+                                                angle_difs, key=angle_difs.get)  
         if min_dist != min_angle:
-            # sorting everything to ensure alphabetical order will align with contact naming scheme
-            if ((distance_difs[min_dist]) + (angle_difs[min_dist])) < (distance_difs[min_angle]) + (angle_difs[min_angle]):
+            # sorting everything to ensure alphabetical order will align with 
+            #contact naming scheme
+            if ((distance_difs[min_dist]) + (angle_difs[min_dist])
+                ) < (distance_difs[min_angle]) + (angle_difs[min_angle]):
                 relationships.append(tuple(sorted(min_dist)))
             else:
                 relationships.append(tuple(sorted(min_angle)))
@@ -524,18 +582,21 @@ def asymmetric_measurements(seg_combo, identical_subunits, u, all_chain_dists):
 
 def get_equivalent_interactions(representative_chains, u):
     '''
-    For each chain in representative_chains, find all other identical chains' interaction partners
-    that are equivalent to the representative_chains interactions with all the other chains in the protein.
-    For instance, chain A's interaction with a subunit D on the other side of the protein might be equivalent to
-    chain B's interaction with subunit E for a symmetric multimer.
+    For each chain in representative_chains, find all other identical chains' 
+    interaction partners that are equivalent to the representative_chains 
+    interactions with all the other chains in the protein. For instance, chain 
+    A's interaction with a subunit D on the other side of the protein might be
+    equivalent to chain B's interaction with subunit E for a symmetric multimer.
 
-    This is useful when averaging the contact frequencies of a multimer and determining the correct naming
-    for the averaged contact record and to ensure it's depicted correctly when visualized.
+    This is useful when averaging the contact frequencies of a multimer and 
+    determining the correct naming for the averaged contact record and to 
+    ensure it's depicted correctly when visualized.
 
     Parameters
     ----------
     representative_chains : list of strings
-        A list with the names of the chain ids that you want to establish equivalent interactions for
+        A list with the names of the chain ids that you want to establish 
+        equivalent interactions for
 
     '''
 
@@ -547,6 +608,31 @@ def get_equivalent_interactions(representative_chains, u):
     for chain in [chain for chain in representative_chains]:
         for segid in segids:
             if segid != chain:
-                equivalent_interactions[tuple(sorted((chain,segid)))] = asymmetric_measurements((chain,segid),identical_subunits,u, all_chain_dists)
+                equivalent_interactions[tuple(sorted((chain,segid)))
+                                        ] = asymmetric_measurements(
+                                        (chain,segid),identical_subunits,
+                                        u, all_chain_dists)
 
     return equivalent_interactions
+
+def equivalent_interactions_check(equivalent_interactions, 
+                                  output_folder='equivalent_interactions'):
+    '''
+    Confirm that the averaging is taking place between the appropriate subunits
+    with a series of pymol selections.
+
+    The pair names are in alphabetical order so the ordering of the letter
+    does not necessarily correspond to the interaction order of the original 
+    pair that each file is named after.
+    '''
+    if os.path.exists(output_folder):
+        pass
+    else:
+        os.makedirs(output_folder)
+
+    for pair, equivalent_pair_list in equivalent_interactions.items():
+        with open(f'{output_folder}/chains_{pair[0]}-{pair[1]}_check.pml','w') as f:
+            for equiv_pair in equivalent_pair_list:
+                selection_string = f"select {equiv_pair[0]}-{equiv_pair[1]}, "\
+                        f"chain {equiv_pair[0]} or chain {equiv_pair[1]}"
+                f.write(f'{selection_string} \n')
