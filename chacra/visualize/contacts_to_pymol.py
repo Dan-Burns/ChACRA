@@ -233,24 +233,7 @@ def write_selections(contact_data, output_file):
             # done with a contact's commands
             f.write('\n')
 
-            
-
-
-# TODO function to make PC selections so you can work with all the residues displaying a specific PC color at one time
-def make_pc_selection(contact_list, contactFrequencies, contactPCA, pc_range=(1,4)):
-    '''
-    Select all the residues exhibiting a the same top PC and label it PC{pc}_selection.
-    Addtional selection that expands this to include contact partners that might have a different PC contact as their top loading score.
-    '''
-    
-def assign_color_by_proximity():
-    '''
-    apply colors to every residue in the protein based on how close it is to the list of 
-    top scoring contacts.
-
-    Can incorporate the contactfrequency records.
-
-    '''
+        
 
 
 def to_pymol(contact_list, contactFrequencies, contactPCA,

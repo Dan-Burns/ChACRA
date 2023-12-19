@@ -778,16 +778,16 @@ class ContactPCA:
         Returns
             np.array of explained variance by PC for each permutation of the dataframe.
         '''    
-        # borrowed code from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
+        # adapted from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
         self._N_permutations = N_permutations
         df = self.freqs
         
        
-        #original_variance = self.pca.explained_variance_ratio_
         pca = PCA()
         variance = np.zeros((N_permutations, len(df.index)))
         print('This can take a moment. Kshama.')
         for i in tqdm.tqdm(range(N_permutations)):
+            # _de_correlate_df is way faster now using array indexing
             X_aux = _de_correlate_df(df)    
             pca.fit(X_aux)
             # record the explained variance of this iteration's PCs
