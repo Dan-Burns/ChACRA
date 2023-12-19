@@ -50,8 +50,11 @@ def edge_to_contact(edge_data,contact_data):
 
         return contact
 
-def make_network(cont, temp, exclude_below=None, exclude_above=None, selection=None):
+def make_network(cont, 
+                 temp, 
+                 ):
     '''
+
     cont : ContactFrequencies
         The ContactFrequencies object containing the contacts 
         to compose the network from.
@@ -60,6 +63,10 @@ def make_network(cont, temp, exclude_below=None, exclude_above=None, selection=N
     
     selection : list
         list of selected contacts to construct the graph from.
+
+    Returns
+    -------
+    nx.Graph
     '''
     # you want the edge weights to be inverse contact frequencies
     # lower edge weight value means "closer"/ higher contact frequency

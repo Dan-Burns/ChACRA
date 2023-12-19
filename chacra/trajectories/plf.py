@@ -155,7 +155,10 @@ def get_prolif_freqs(df):
         name = f'{res_tpr.resname}{res.resid}.{res.segid}'
         mapper[tpr_name]=name
 
-    TODO: provide mapper options
+    TODO: provide mapper options for case where topology doesn't match pdb/
+     or desired resids
+    TODO: option to base frequency for certain residues off of specific
+    contact type - e.g. hydrophobic
     '''
     reslabels = set([a for tup in df.columns for a in tup[:1]])
     data = {}

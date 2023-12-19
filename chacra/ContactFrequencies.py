@@ -56,25 +56,40 @@ class ContactFrequencies:
     
     
     
-    def __init__(self, contact_data, temps=None, temp_progression=None, min_max_temp=None, get_chacras=True, N_permutations=500):
+    def __init__(self, contact_data, 
+                 temps=None, 
+                 temp_progression=None, 
+                 min_max_temp=None, 
+                 structure=None,
+                 get_chacras=True, 
+                 N_permutations=500):
         '''
-        TODO supply endpoints or list of temperatures and replace index
-        TODO supply path to freq files and make everything.
+        The main object for investigating the molecule's contact frequency data.
+
+        Parameters
+        ----------
 
         contact_data : string or pd.DataFrame or dict
-            Path to file ('.csv') or pickle ('.pd') of the prepared contact frequency data or the path to the directory
-            containing the getcontacts '.tsv' frequency files or a dictionary or dataframe containing the contact frequencies.
+            Path to file ('.csv') or pickle ('.pd') of the prepared contact 
+            frequency data or the path to the directory containing the 
+            getcontacts '.tsv' frequency files or a dictionary or dataframe 
+            containing the contact frequencies.
 
         temps : list
-            Option to specify all of the index values as temperature provided in temps.
+            A list specifying all of the dataframe's index values as temperatures.
 
         temp_progression : string
-            'linear' or 'geometric' 
-            If no list of temps is provided, make a list of temperatures between min_max_temp values in either
-            linear or geometric progression.
+            Options are 'linear' or 'geometric'. 
+            If no list of temps is provided, make a list of temperatures between
+            min_max_temp values in either linear or geometric progression.
         
         min_max_temp : tuple of int or float
-            The highest and lowest temperatures to interpolate between with temp_progression.
+            The highest and lowest temperatures to interpolate between with 
+            temp_progression to create the dataframe's index.
+        
+        structure : str
+            Path to the structure file that the contact data is based on.
+            Conventiently makes the structure available to other functions. 
 
         get_chacras : bool
             Make the ContactPCA class an attribute of this object.  
@@ -82,11 +97,13 @@ class ContactFrequencies:
                 cont.cpca.get_chacra_centers(1)...
         
         N_permutations : int
-            If get_chacras == True, the number of times to permutate the data for obtaining chacra (PC) significance values.
+            If get_chacras == True, the number of times to permutate the data to
+            obtain chacra (PC) significance values.
 
         Returns
         -------
-        A ContactFrequencies object that wraps a pd.DataFrame with conventient methods to investigate contact frequencies.
+        A ContactFrequencies object that wraps a pd.DataFrame with conventient 
+        methods to investigate contact frequencies.
     
         '''
         try:
@@ -106,11 +123,13 @@ class ContactFrequencies:
             
             elif os.path.isdir(contact_data):
 
-                contact_files = [f'{contact_data}/{file}' for file in sorted(os.listdir(contact_data)) if file.endswith('.tsv')]
+                contact_files = [f'{contact_data}/{file}' for file in sorted(
+                            os.listdir(contact_data)) if file.endswith('.tsv')]
                 print("Arranging the data in the following order :", flush=True)
                 for file in contact_files:
                     print(file, flush=True)
-                contact_dictionary = make_contact_frequency_dictionary(contact_files)
+                contact_dictionary = make_contact_frequency_dictionary(
+                                                            contact_files)
                 self.freqs = pd.DataFrame(contact_dictionary)
         except:
             try:
@@ -130,38 +149,38 @@ class ContactFrequencies:
             self.freqs = self.freqs.rename(mapper, axis=0)
         elif temp_progression is not None and min_max_temp is not None:
             if temp_progression == 'linear':
-                temps = [int(i) for i in np.linspace(min_max_temp[0], min_max_temp[1], len(self.freqs))]
+                temps = [int(i) for i in np.linspace(min_max_temp[0], 
+                                            min_max_temp[1], len(self.freqs))]
             elif temp_progression == 'geometric':
-                temps = [int(i) for i in np.geomspace(min_max_temp[0], min_max_temp[1], len(self.freqs))]
+                temps = [int(i) for i in np.geomspace(min_max_temp[0], 
+                                            min_max_temp[1], len(self.freqs))]
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
         
+        if structure:
+            self.structure = structure
+
         # give this object access to the ContactPCA 
         if get_chacras == True:
             self.cpca = ContactPCA(self.freqs, N_permutations=N_permutations)
         else:
             self.cpca = None
         
-        
-        
 
-    
-    if __name__ == "__main__":
-       pass
-    
     
     def get_contact_partners(self, resid1, resid2=None, ):
         '''
-        Filter the dataframe to only return contacts involving the provided residue(s).
+        Filter the dataframe to only return contacts involving the 
+        provided residue(s).
 
         Parameters
         ----------
 
         resid1 : int or tuple (chain, resname, resid)
-            If providing a single integer, returns all contacts involving that resid.
-            If tuple, must contain integer resid in third position.  Chain and 
-            resname are optional.
+            If providing a single integer, returns all contacts involving that 
+            resid. If tuple, must contain integer resid in third position.  
+            Chain and resname are optional.
         resid2 : int
             If resid2 is provided, resid1 can only take an integer value
 
@@ -215,20 +234,27 @@ class ContactFrequencies:
         Parameters
         ----------
         weights : bool
-            If True, return the connected nodes as well as the associated edge weight.
+            If True, return the connected nodes as well as the associated edge 
+            weight.
 
         inverse : bool
-            Whether or not to return the inverse edge weight (inverse contact frequency) or original contact
-            frequency as the edge weight.
+            Whether or not to return the inverse edge weight (inverse contact 
+            frequency) or original contact frequency as the edge weight.
 
         temp : int
             The row (.loc) from which to collect the data.
 
         index : None or int
-            The row from which to collect the data. If temp is provided, the index (.iloc) overrides the temp.
+            The row from which to collect the data. If temp is provided, the 
+            index (.iloc) overrides the temp.
 
         as_dict : bool
-            If True, return the data in dictionary formate with tuple node names as keys and edge weight values.
+            If True, return the data in dictionary formate with tuple node names
+            as keys and edge weight values.
+        
+        Returns
+        -------
+        List of tuples or Dict of tuple node names and weight values
         '''
         if as_dict == True:
             weights = True
@@ -262,27 +288,31 @@ class ContactFrequencies:
             return all_contacts
 
     def get_all_residues(self):
-        all_residues = []
-        for contact in self.freqs.columns:
-            partners = split_id(contact)
-            all_residues.append(partners['resa'])
-            all_residues.append(partners['resb'])
-        
-        return all_residues
+        '''
+        Returns a list of all the residues
+        Not used.
+        '''
+        return list(set(
+            [a for cont in self.freqs.columns for a in split_id(cont).values()]))
+   
     
     def exclude_neighbors(self, n_neighbors=1):
         '''
         Reduce the contact dataframe contacts to those separated by at least
         n_neighbors. Returns a list of contact ids.
+
+        n_neighbors : int
+            Number of residues that must separate contacting residues in the
+            sequence.
         
         Returns
         -------
-        list
+        list of contact (column) names.
         '''
         reduced_contacts = []
         for contact in self.freqs.columns:
             id_dict = parse_id(contact)
-            # check this 
+            # resid can be same or within n_neighbors if chain id is different
             if id_dict['chaina'] != id_dict['chainb']:
                 continue
             else:
@@ -292,37 +322,53 @@ class ContactFrequencies:
         return reduced_contacts
 
 
-    def renumber_residues(self, starting_residue_number):   
-        '''
-        NOT IMPLEMENTED
+    # def renumber_residues(self, starting_residue_number):   
+    #     '''
+    #     NOT IMPLEMENTED
+    #     Doesn't account for different chains with different starting ids.
 
-        renumber the residues so the first residue begins with
-        starting_residue_number.  Useful if the contact_files generated with
-        get contacts was made with a incorrectly numbered structure file starting
-        from 1.
-        '''
+    #     renumber the residues so the first residue begins with
+    #     starting_residue_number.  Useful if the contact_files generated with
+    #     get contacts was made with a incorrectly numbered structure file starting
+    #     from 1.
+    #     '''
 
-        # TODO add option to renumber from several starting points/chains
-        mapper = {}
-        for column in self.freqs.columns:
-            split_ids = parse_id(column)
-            mapper[column] = split_ids['chaina']+':'+ split_ids['resna']+':'+\
-                str(int(split_ids['resida'])+starting_residue_number-1)+'-'+\
-                            split_ids['chainb']+':'+ split_ids['resnb']+':'+ \
-                        str(int(split_ids['residb'])+starting_residue_number-1)
-        # TODO actually return the renumbered dataframe
+    #     # TODO add option to renumber from several starting points/chains
+    #     mapper = {}
+    #     for column in self.freqs.columns:
+    #         split_ids = parse_id(column)
+    #         mapper[column] = split_ids['chaina']+':'+ split_ids['resna']+':'+\
+    #             str(int(split_ids['resida'])+starting_residue_number-1)+'-'+\
+    #                         split_ids['chainb']+':'+ split_ids['resnb']+':'+ \
+    #                     str(int(split_ids['residb'])+starting_residue_number-1)
+    #     # TODO return the renumbered dataframe in place.
                 
 
 
-    def exclude_below(self,min_frequency=0.05,temp_range=None):
+    def exclude_below(self,min_frequency=0.05,row_range=None):
         '''
         If the maximum frequency for a contact is below min_frequency,
         remove it from the dataset.
+
+        Parameters
+        ----------
+        min_frequency : float
+            Cutoff contact probability.  If a contact does not exceed this value
+            at any temperature (row) then it is excluded from the returned 
+            dataframe.
+        
+        row_range : tuple
+            A 2 integer tuple corresponding to the first a last+1 rows to 
+            consider when excluding contacts that do not exceed the cutoff.
+
+        Returns
+        -------
+        pd.DataFrame of contacts meeting the cutoff criteria
         '''
-        if temp_range:
-            return self.freqs[(self.freqs.iloc[temp_range[0]:temp_range[1]].max() 
+        if row_range:
+            return self.freqs[(self.freqs.iloc[row_range[0]:row_range[1]].max() 
                               > min_frequency).index[self.freqs.iloc[
-                              temp_range[0]:temp_range[1]].max() > 
+                              row_range[0]:row_range[1]].max() > 
                                min_frequency]]
         else:
             return self.freqs[(self.freqs.max() > min_frequency).index[
@@ -337,24 +383,31 @@ class ContactFrequencies:
                 self.freqs.min() < max_frequency]]
 
 
-    def to_heatmap(self,format='mean', range=None, contact_pca=None, pc=None):
+    def to_heatmap(self,format='mean', pc=None):
 
         '''
-        Convert the deata into a symmetric matrix with residues mirrored on x and y axis.
-        The residues will be named as "chainResid" e.g. A100.  You can easily plot the 
-        heatmap with seaborn.heatmap().  
-        If you want a heatmap of a subset of residues, filter the contact dataframe to your contacts of interest
-        and generate a new ContactFrequencies object with the filtered dataframe before calling to_heatmap().
+        Convert the data into a symmetric matrix with residues mirrored on x 
+        and y axis. The residues will be named as "chainResid" e.g. A100.  
+        You can plot the returned array with seaborn.heatmap().  
+
+        If you want a heatmap of a subset of residues, filter the contact 
+        dataframe to your contacts of interest and generate a new 
+        ContactFrequencies object with the filtered dataframe before calling 
+        to_heatmap().
 
         Parameters
         ----------
          
         format : str
-            format options are 'mean', 'stdev', 'difference', 'loading_score'
-            if 'difference', specify tuple of rows your interested in taking the difference from
-            if 'loading_score' then specify contact_pca data and pc from which you want the loading score
+            format options are 'mean', 'stdev', 'difference', 'loading_score'.
+            If 'difference', specify tuple of rows your interested in taking the 
+            difference from.
+            If 'loading_score', then specify contact pc/chacra from which you 
+            want the loading score. cpca attribute must be available.
 
-        
+        Returns
+        -------
+        pd.DataFrame
         '''
         
         #hold reslists with chain keys and list of resid values
@@ -375,7 +428,8 @@ class ContactFrequencies:
         # sort the dictionary by the chain id keys
         reslists = {key: reslists[key] for key in sorted(reslists.keys())}
         
-        # eliminate duplicates, sort the reslists in ascending order, and make a single list of all resis
+        # eliminate duplicates, sort the reslists in ascending order, and make a
+        # single list of all resis
         all_resis = []
         for chain in reslists:
             reslists[chain] = list(set(reslists[chain]))
@@ -395,10 +449,14 @@ class ContactFrequencies:
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
 
             values = {}
-            values['mean'], values['stdev'], values['difference'] = self.freqs[contact].mean(), self.freqs[contact].std(), np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
-            if contact_pca:
+            values['mean']  = self.freqs[contact].mean()  
+            values['stdev'] = self.freqs[contact].std()
+            values['difference'] = np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
+            if hasattr(self, "cpca") and pc is not None:
                 #TODO offer sorted loadings to catch sign
-                values['loading_score'] = contact_pca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
+                values['loading_score'] = self.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
+            elif pc is not None and hasattr(self, "cpca") == False:
+                print("Instantiate the cpca attribute with ContactPCA.")
 
             data[index1][index2] = values[format]
             data[index2][index1] = values[format]
@@ -412,7 +470,7 @@ def _de_correlate_df(df):
     # improved version!
     a = df.values
     idx = np.random.rand(*a.shape).argsort(0) # argsort(0) returns row indices
-    out = a[idx, np.arange(a.shape[1])] # index a by independently randomized rows and original column order
+    out = a[idx, np.arange(a.shape[1])] # index by independently randomized rows
     return pd.DataFrame(out, columns=df.columns)                  
 
 def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
@@ -426,9 +484,23 @@ def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
     
 class ContactPCA:
     '''
-    Performs PCA on the contact frequency data and provides methods to investigate the chacras.
+    Performs PCA on the contact frequency data and provides methods to 
+    investigate the chacras.
+
+    Parameters
+    ----------
+    contact_df : pd.DataFrame
+        The contact frequency dataframe.
+
+    significance_test : bool
+        Perform the difference of roots test to identify the significant
+        principal components / chacras.
+
+    N_permutations : int
+        The number of times to randomize the data and perform PCA for the 
+        signficance test.
     '''
-    #TODO anything with a pc range argument should be None and use self.top_chacras or if None, pcs 1-4
+    
     
     def __init__(self, contact_df, significance_test=True, N_permutations=500):
         #TODO allow for ContactFrequencies input
@@ -457,18 +529,64 @@ class ContactPCA:
             self.top_chacras = None
 
     def sorted_loadings(self, pc=1):
+        '''
+        Sort the original loadings in descending absolute value.
+
+        Parameters
+        ----------
+        pc : int
+            The pc/ chacra to sort the loading score data by.
+
+        Returns
+        -------
+        pd.DataFrame
+        '''
        
         return self.loadings.iloc[(-self.loadings['PC'+str(pc)].abs())
                                   .argsort()]
         
     def sorted_norm_loadings(self, pc=1):    
+        '''
+        Sort the normalized (positive 0 to 1) loading scores in descending
+        order.
+
+        Parameters
+        ----------
+        pc : int
+            The pc/ chacra to sort the loading score data by.
+
+        Returns
+        -------
+        pd.DataFrame
+        '''
         return self.norm_loadings.iloc[(-self.norm_loadings['PC'+str(pc)]
                                                             .abs()).argsort()]
     
-    def get_edges(self, pcs=None, weights=True, inverse=True, as_dict=False):
+    def get_edges(self, pcs=None, inverse=True, as_dict=False):
         '''
-        Generate networkx input for a network based on contact sensitivities
-        Vinyasa
+        Generate networkx input for a network based on contact sensitivities.
+        Network weights are top loading scores from pcs.
+
+        TODO - original loading score sign is not considered which is probably
+        imporant if networks based on contact sensitivies (rather than 
+        probabilities) is going to be informative.
+        
+        Parameters
+        ----------
+        pcs : list
+            List of integers.  If pcs = [1,2,3] then the edge weights will be 
+            the loading score (normalized) from whichever pc the contact has 
+            its highest score on.  
+        
+        inverse : bool
+            Whether or not to return weights as the inverse of the loading score.
+        
+        as_dict : bool
+            Return network input in dictionary form or list of tuples.
+
+        Returns
+        -------
+        list or dict
 
         '''
         if pcs == None and self.top_chacras == None:
@@ -500,68 +618,67 @@ class ContactPCA:
                 edge_dict[(contact[0],contact[1])] = contact[2]
             return edge_dict
         else:
-            return edges
-    
-    def all_edges(self, weights=True, pc=1):
-        '''
-        edit for PCA df format
-        '''
-        all_contacts = []
-        for contact in self.loadings.index:
-            partners = split_id(contact)
-            if weights == True:
-                weight = float(self.loadings['PC'+str(pc)].loc[contact])
-                all_contacts.append((partners['resa'],
-                                     partners['resb'], weight))
-            else:
-                all_contacts.append((partners['resa'], partners['resb']))
-        
-        return all_contacts   
+            return edges  
 
                 
-    def get_top_contact(self, resnum, pc_range=None):
-        '''
-        Return the contact name, normalized loading score, pc on which it has 
-        its highest score, and the overall rank the score represents on the pc.
-        pc_range is the range of PCs to include in the search for the
-        highest score
+    # def get_top_contact(self, resnum, pc_range=None):
+    #     '''
+    #     Return the contact name, normalized loading score, pc on which it has 
+    #     its highest score, and the overall rank the score represents on the pc.
+    #     pc_range is the range of PCs to include in the search for the
+    #     highest score
         
-        pc_range is inclusive
-        #TODO this needs to be specific with chainid
-        ## TODO Remove after confirming - just need get_top_score
-        Get everything at once
-        norm_loadings[['PC1','PC2','PC3']].max(axis=1)
-        test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
-        '''
-        if pc_range == None and self.top_chacras == None:
-            pcs = ['PC'+str(i) for i in range(1,5)]
+    #     pc_range is inclusive
+    #     #TODO this needs to be specific with chainid
+    #     ## TODO Remove after confirming - just need get_top_score
+    #     Get everything at once
+    #     norm_loadings[['PC1','PC2','PC3']].max(axis=1)
+    #     test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
+    #     '''
+    #     if pc_range == None and self.top_chacras == None:
+    #         pcs = ['PC'+str(i) for i in range(1,5)]
         
-        elif pc_range is not None:
-            pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
+    #     elif pc_range is not None:
+    #         pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
 
-        else:
-            pcs = ['PC'+str(i) for i in self.top_chacras]
-
-
-        contacts = []
-        for contact in self.norm_loadings.index:
-            #TODO add resname and/or chain 
-            if str(resnum) in parse_id(contact).values():
-                contacts.append(contact)
+    #     else:
+    #         pcs = ['PC'+str(i) for i in self.top_chacras]
 
 
-        highest_scores = self.norm_loadings[pcs].loc[contacts].max()
-        top_score = highest_scores.sort_values()[-1]
-        top_pc = highest_scores.sort_values().index[-1]
-        contact = self.norm_loadings.loc[contacts][self.norm_loadings[pcs].loc[contacts][top_pc] == top_score].index[0]
-        return {'contact':contact, 'PC':top_pc, 'loading_score':top_score}
+    #     contacts = []
+    #     for contact in self.norm_loadings.index:
+    #         #TODO add resname and/or chain 
+    #         if str(resnum) in parse_id(contact).values():
+    #             contacts.append(contact)
+
+
+    #     highest_scores = self.norm_loadings[pcs].loc[contacts].max()
+    #     top_score = highest_scores.sort_values()[-1]
+    #     top_pc = highest_scores.sort_values().index[-1]
+    #     contact = self.norm_loadings.loc[contacts][self.norm_loadings[pcs].loc[contacts][top_pc] == top_score].index[0]
+    #     return {'contact':contact, 'PC':top_pc, 'loading_score':top_score}
     
     
-    ## Adjust the dependent functions to use this:
     def get_top_score(self, contact, pc_range=None):
 
         '''
-        Get everything at once
+        Retrieve the contact's highest loading scores among the pcs in pc_range 
+        (inclusive).
+
+        contact : str
+            The contact name.
+
+        pc_range : list 
+            List of integers corresponding to the PCs/ chacras that you 
+            want the highest score from. If None and top_chacras attribute is
+            available, the highest score among them will be returned. If neither
+            is available, data for PCs 1-4 will be returned.
+
+        Returns
+        -------
+        Dictionary with PC key and score value.
+
+        If you want everything at once
         norm_loadings[['PC1','PC2','PC3']].max(axis=1)
         test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
         '''
@@ -583,18 +700,26 @@ class ContactPCA:
  
     def get_chacra_center(self, pc, cutoff=0.6, absolute=True):
         '''
-        Return the loading score dataframe containing only the contacts with loading scores above the cutoff
+        Return the loading score dataframe containing only the contacts with 
+        loading scores above the cutoff on specified pc.
 
         Parameters
         ----------
         pc : int
-            The principal component from which to retrieve the most responsive contacts.
+            The principal component from which to retrieve the most responsive 
+            contacts.
 
         cutoff : float
-            The minimum absolute value of loading score to include in the top sensitive contacts
+            The minimum absolute value of loading score to include in the top 
+            sensitive contacts.
 
         absolute : bool
-            Whether to return the dataframe with normalized absolute values or original loading scores 
+            Whether to return the dataframe with normalized absolute values or 
+            original loading scores. 
+        
+        Returns
+        -------
+        pd.DataFrame
         '''
 
     
@@ -604,10 +729,11 @@ class ContactPCA:
         else:
             return self.loadings.loc[chacra_centers]
         
-    def dynamic_energy_warping(self):
-        '''
-        Use dynamic time warping to find the contacts that fit their chacra projections with minimal warping
-        '''
+    # def dynamic_energy_warping(self):
+    #     '''
+    #     Use dynamic time warping to find the explore contact frequency
+    #     and pc projections
+    #     '''
         
    
 
