@@ -78,7 +78,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         data[contact]['loading_score'] = top_score
 
-        data[contact]['color'] = chacra_colors[top_pc-1]
+        data[contact]['color'] = f'0x{chacra_colors[top_pc-1][1:-2]}'
 
         # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
         data[contact]['slope'] = get_slope(cdf,
@@ -166,7 +166,7 @@ def write_group_selections(contact_data, output_file, ca_only=True):
         for group in chacra_selections:
             f.write(f'group chacra_{group}, {chacra_selections[group]} \n')
             # add spheres
-            f.write(f'show spheres, chacra_{group} and name CA \n')
+            f.write(f'show spheres, chacra_{group} \n')
             # color
             f.write(f'color 0x{chacra_colors[group-1][1:-2]}, chacra_{group} \n')
             
@@ -266,11 +266,8 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
         List of the contacts in format chain1:resname1:resnum1-chain1:resname1:resnum1
     
     contactFrequencies : ContactFrequencies object
-        From TSenCA.ContactAnalyis.ContactFrequencies
-        object's methods provide easy access to relevant data
 
     contactPCA : contactPCA object
-        From TSenCA.ContactAnalyis.ContactFrequencies
 
     slope_range : tuple of int
         The lowest and highest (row) indices (inclusive) from the contact data to calculate
@@ -300,7 +297,7 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
                     )
     # write it to pymol file
     if output_file.split('.')[-1] != 'pml':
-        print("You're output file must have '.pml' appended for pymol to run it.")
+        print("Your output file must have '.pml' appended for pymol to run it.")
     if group == True:
         write_group_selections(contact_data, output_file)
     else:

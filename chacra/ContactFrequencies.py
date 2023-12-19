@@ -12,6 +12,10 @@ from .utils import *
 from .utils import *
 import tqdm
 from scipy.stats import linregress 
+from ChACRA.chacra.average import everything_from_averaged
+from ChACRA.chacra.visualize.contacts_to_pymol import \
+    pymol_averaged_chacras_to_all_subunits, get_contact_data, to_pymol
+import MDAnalysis as mda
 
 
 
@@ -139,7 +143,8 @@ class ContactFrequencies:
                 elif type(contact_data) == dict:
                     self.freqs = pd.DataFrame(contact_data)
             except:
-                ("Provide one of file (.pd or .csv extension), pd.DataFrame, dict, or path to original getcontacts .tsv frequency files.")
+                ("Provide one of file (.pd or .csv extension), pd.DataFrame, "\
+                 "dict, or path to original getcontacts .tsv frequency files.\n")
             
         
             
@@ -163,7 +168,9 @@ class ContactFrequencies:
 
         # give this object access to the ContactPCA 
         if get_chacras == True:
-            self.cpca = ContactPCA(self.freqs, N_permutations=N_permutations)
+            self.cpca = ContactPCA(self.freqs, 
+                                   N_permutations=N_permutations,
+                                   structure=structure)
         else:
             self.cpca = None
         
@@ -383,7 +390,7 @@ class ContactFrequencies:
                 self.freqs.min() < max_frequency]]
 
 
-    def to_heatmap(self,format='mean', pc=None):
+    def to_heatmap(self,output_format='mean', pc=None):
 
         '''
         Convert the data into a symmetric matrix with residues mirrored on x 
@@ -438,28 +445,39 @@ class ContactFrequencies:
             # this will be the indices and columns for the heatmap
             # lambda function for mapping chain id back onto residue
             all_resis.extend(list(map(res_append,reslists[chain])))
-
+        
         # create an empty heatmap
         data = np.zeros((len(all_resis), len(all_resis)))
+       
+        # vectorize the data
+        df_array = self.freqs.values
+        loading_array = self.cpca.loadings.values
+        # get the indices for the residues in each contact to fill in the 
+        # 'data' np.array
+        # enumerate so you can reference the np.array form of the original data
+        # faster.
+        for i,contact in enumerate(self.freqs.columns):
 
-        # get the index for the corresponding residue
-        for contact in self.freqs.columns:
-            resinfo = parse_id(contact)
+            
+            resinfo = parse_id(contact) 
             index1 = all_resis.index(f"{resinfo['chaina']}{resinfo['resida']}")
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
+            
 
-            values = {}
-            values['mean']  = self.freqs[contact].mean()  
-            values['stdev'] = self.freqs[contact].std()
-            values['difference'] = np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
+            values = {}                                  # previous means of accessing values
+            values['mean']  = df_array[:,i].mean(axis=0) #self.freqs[contact].mean()  
+            values['stdev'] = df_array[:,i].mean(axis=0) #self.freqs[contact].std()
+            values['difference'] = np.abs(df_array[-1,i] - df_array[0,i]) #np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
+            
             if hasattr(self, "cpca") and pc is not None:
                 #TODO offer sorted loadings to catch sign
-                values['loading_score'] = self.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
+                values['loading_score'] = loading_array[i,pc-1] #self.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
             elif pc is not None and hasattr(self, "cpca") == False:
                 print("Instantiate the cpca attribute with ContactPCA.")
+                break
 
-            data[index1][index2] = values[format]
-            data[index2][index1] = values[format]
+            data[index1][index2] = values[output_format]
+            data[index2][index1] = values[output_format]
         
         return pd.DataFrame(data, columns=all_resis, index=all_resis)           
 
@@ -502,7 +520,11 @@ class ContactPCA:
     '''
     
     
-    def __init__(self, contact_df, significance_test=True, N_permutations=500):
+    def __init__(self, 
+                 contact_df, 
+                 significance_test=True, 
+                 N_permutations=500,
+                 structure=None):
         #TODO allow for ContactFrequencies input
         pca = PCA()
         print("Opening the chacras.")
@@ -514,8 +536,10 @@ class ContactPCA:
                         index=list(contact_df.columns))
         self.norm_loadings = _normalize(self.loadings)
 
-        # ensure that PC1 projection has a negative slope to reflect expected melting trend
-        if linregress(range(self.loadings.shape[1]), self._transform[:,0]).slope > 0:
+        # ensure that PC1 projection has a negative slope to reflect its  
+        # expected melting trend
+        if linregress(range(self.loadings.shape[1]), 
+                      self._transform[:,0]).slope > 0:
             self._transform = self._transform*-1
             self.loadings = self.loadings*-1
             self.pca.components_ = self.pca.components_*-1
@@ -527,6 +551,9 @@ class ContactPCA:
             self.permutated_component_pvals = None
             self.chacra_pvals = None
             self.top_chacras = None
+        if structure is not None:
+            self.structure = structure
+        self.freqs = contact_df
 
     def sorted_loadings(self, pc=1):
         '''
@@ -786,5 +813,109 @@ class ContactPCA:
         deepest_chacra = np.where((self.chacra_pvals  > 0.05)==False)[0][-1] + 1
         self.top_chacras = list(range(1,deepest_chacra+1))
 
+    def to_pymol(self, pcs=None, cutoff=0.6, 
+                 output='chacra_selections.pml',
+                 group_pcs=True,
+                 reconstruct_from_averaged=False,
+                 original_contacts=None,
+                 representative_chains=None):
+        '''
+        Write a .pml file to visualize chacras on the structure.
 
+        Parameters
+        ----------
+        pcs : list
+            List of integer values corresponding to the PCs/ chacras you want
+            to visualize.
+
+        cutoff : float
+            The minimum normalized loading score of the contacts to include
+            from pcs.
+
+        output : str
+            The filepath/name of output file.
+
+        #####################################################################
+        Remaining arguments are only necessary if you are using averaged data
+        AND want to depict the averaged chacras on all the subunits.
+                            #########################
         
+        reconstruct_from_averaged : bool
+            If the data is averaged from a multimer, display the chacra contacts
+            on all subunits. Must provide the original (before averaging) contact
+            dataframe to 'original_contacts'.
+
+        original_contacts : pd.DataFrame
+            The unaveraged, original contact data.  Only required if 
+            reconstruct_from_averaged=True.
+
+        representative_chains : list
+            The chain IDs that were used as the representative chains for the
+            averaged data. 
+
+        TODO: Need a function to reconstruct data from averaged with fewer
+        required arguments.
+        '''
+        if pcs is not None:
+            pass
+        elif pcs is None and self.top_chacras is not None:
+            pcs = self.top_chacras
+        else:
+            print("Provide a list of chacras to visualize with the 'pcs' arg.")
+        
+        if reconstruct_from_averaged is True and self.structure is None:
+            print("You must assign a structure file to cpca.structure before "\
+                  "the contacts can be reconstructed on all subunits.")
+        
+        elif reconstruct_from_averaged is True and original_contacts is None:
+            print("Provide the original (all contacts before averaging) "\
+                  "contacts data if you want to reconstruct the full structure."\
+                  )
+        elif reconstruct_from_averaged is True and representative_chains is None:
+            print("Provide a list of the representative chain ids use for "\
+                  "averaging.")
+
+        top_contacts = []
+        for i in pcs:
+            top_contacts.extend(list(self.get_chacra_center(i,cutoff).index))
+            # top_contacts.extend(self.sorted_norm_loadings(i).loc[
+            #                     self.sorted_norm_loadings(i)[f'PC{i}'] > cutoff
+            #                                                     ].index)
+        top_contacts = list(set(top_contacts))
+
+        if reconstruct_from_averaged is True:
+            u = mda.Universe(self.structure)
+            mapped_contacts = everything_from_averaged(self.freqs[top_contacts], 
+                                                   original_contacts, 
+                                                   u, 
+                                                   representative_chains,
+                                                   as_map=True)
+            pymol_data = get_contact_data(
+                mapped_contacts.keys(),
+                self.freqs,
+                self, 
+                pc_range=(pcs[0],pcs[-11])) # pc_range should be changed to list
+            pymol_averaged_chacras_to_all_subunits(mapped_contacts,
+                                                    pymol_data, 
+                                                    output)
+
+        else:
+            cont = ContactFrequencies(self.freqs,
+                                        get_chacras=False)
+            to_pymol(top_contacts, 
+                     cont,
+                     self, 
+                     output, 
+                     pc_range=(pcs[0],pcs[-1]), 
+                     group=group_pcs)
+
+
+
+def contact_differences(data):
+    '''
+    Investigate the differences between two contact ensembles.  For example, in 
+    the presence and absence of an allosteric activator. Identifies the shared 
+    contacts and returns the contact frequency or loading score differences.
+    
+    '''
+    return None

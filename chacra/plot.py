@@ -203,3 +203,15 @@ def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, ou
     #fig.tight_layout()
     if output_file is not None:
         fig.savefig(output_file)
+
+def plot_loadings():
+    '''
+    Plot the loading score values on a pc in descending order
+    '''
+    pass
+
+def plot_loading_distributions():
+    '''
+    Violin plots of loading scores.
+    '''
+    pass
