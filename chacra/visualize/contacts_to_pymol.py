@@ -328,36 +328,6 @@ def get_slope(df,contact,temp_range=(0,7)):
                    df[contact].iloc[temp_range[0]:temp_range[1]]).slope
 
 
-# def pc_color(pc):
-#     '''
-#     DEPRECATED
-#     '''
-   
-    
-#     if int(pc) == 1:
-#         color = 'red'
-#     elif int(pc) == 2:
-#         color = '0x02a8f8'
-#     elif int(pc) == 3:
-#         color = 'ytterbium'
-#     elif int(pc) == 4:
-#         color = 'purpleblue'
-#     elif int(pc) == 5:
-#         color = 'gray30'
-#     elif int(pc) == 6:
-#         color = 'magenta'
-#     elif int(pc) == 7:
-#         color = '0xfad300'
-#     elif int(pc) == 8:
-#         color = 'greencyan'
-#     elif int(pc) == 9:
-#         color = 'gray50'
-   
-#     else:
-#         color = 'yellow'
-
-#     return color
-
 
 def get_variance_to_sphere_scale_interpolator(eigenvalues,
                                  min_sphere_scale=0.6,
@@ -924,7 +894,3 @@ def circular_color_gradient(output='./colors.pml',structure=None,
                         )
                     
                     '''
-
-## nglview visualizations
-
-## blender visualizations

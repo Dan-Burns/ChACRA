@@ -13,7 +13,7 @@ def average_multimer(structure, df, representative_chains, denominator=None,
     '''
     
     Takes a contact df, pdb structure, and a selection of chains to use for 
-    representing the average contacts and finds all of the equivalent interactions
+    representing the averaged contacts and finds all of the equivalent interactions
     and returns a dataframe of the averaged values.  These values are more robust
     and easier to visualize. Currently, this should only be used in cases where
     the subunits in the structure are all identical or there are equal numbers of 
@@ -29,22 +29,25 @@ def average_multimer(structure, df, representative_chains, denominator=None,
     
     representative_chains : list
         List of pdb chain ids to use for depicting the averaged contacts on.
-        e.g. if you have a tetramer of 'A', 'B', 'C', 'D' subunits, representative_chains=['A'].
-        If you have a heteromultimer, select one of each chain type that are in contact with one another
-        and will give you the appropriate visualization. e.g. representative_chains=['A','G'].
+        e.g. if you have a tetramer of 'A', 'B', 'C', 'D' subunits, 
+        representative_chains=['A']. If you have a heteromultimer, select one of
+        each chain type that are in contact with one another and will give you 
+        the appropriate visualization. e.g. representative_chains=['A','G'].
 
     denominator : int
-        The number of subunits to devide the contact frequency sums by.  If None,
-        this value is determined automatically assuming there are only identical
-        subunits in the structure or equal numbers of the unique subunit types.
+        The number of subunits to devide the contact frequency sums by.  If None
+        (recommended), this value is determined automatically assuming there are
+        only identical subunits in the structure or equal numbers of the unique
+        subunit types. This implementation will likely change in a future version.
     
-    return_stedev : bool
+    return_stdev : bool
         If True, returns averaged_contacts and standard_deviation dataframes.
-    
+        Usage : avg_df, stdev = average_multimer(args)
+
     check_folder : str
-        Name of folder to write pymol selections to. These should be used to 
-        confirm that the averaging is being done between the correct pairs of 
-        subunits.
+        Name of folder to write verification files to. These should be used with
+        pymol to confirm that the averaging is being done between the correct 
+        pairs of subunits.
    
     Returns
     -------
@@ -65,11 +68,12 @@ def average_multimer(structure, df, representative_chains, denominator=None,
 
     u = mda.Universe(structure)
     protein = u.select_atoms('protein')
+    ###### Only calculating contacts within the protein
     u = mda.Merge(protein)
-    # For now can leave it equal to the minimum number of identical subunits involved in the contact 
-    #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
+
     identical_subunits = find_identical_subunits(u)
-    # determine averaging denominator.  
+
+    ##################### determine averaging denominator.  ##########
     if denominator is None:
         n_subunits_each = np.asarray([len(list(i)) for i in identical_subunits.values()])
         # If the subunits are not all identical and there are more of one type
@@ -83,11 +87,17 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                 " 'denominator' argument. \n")
     print(f'Sums of identical contacts will be divided by {denominator} '\
           'for averaging.')
+    ############################################################################
+
+    # removing the columns in placed, so using a copy of the original data
     df_copy = df.copy()
     # hold the averaged data
     averaged_data = {}
-    standard_deviation = {} # can collect this for error bars
-    # determine what the equivalent chain interactions relative to representative chains are for all the subunits
+     # collect this for error bars on averaged contact vs temp plots
+    standard_deviation = {}
+
+    ########## determine what the equivalent chain interactions relative to 
+    ############ representative chains are for all the subunits
     print("Finding interactions equivalent to those involving representative_chains. One moment. \n")
     equivalent_interactions = get_equivalent_interactions(representative_chains,u)
     if check_folder is not None:
@@ -98,17 +108,22 @@ def average_multimer(structure, df, representative_chains, denominator=None,
               "are equivalent to those in the filename. \n"\
               "If there are issues, please post them to https://github.com/Dan-Burns/ChACRA/issues"
               )
-
+    ########################################################################
     
+    ############## Main Loop Begins here ###################
     print('Collecting equivalent contacts and averaging.\n')
     total_count = len(df.columns)
     with tqdm.tqdm(total=total_count) as progress:
-
+        # as equivalent contacts are averaged, the original columns are removed
         while len(df_copy.columns) > 0:
+            # take the first of the remaining column names as the template
             resids = parse_id(df_copy.columns[0])
 
-            # find all of the other contacts that involve these residue names and numbers
+            # create the regular expression that will be used to match
+            # equivalent contacts in the rest of the dataframe
             regex = make_equivalent_contact_regex(resids)
+            # find all of the other (equivalent) contacts that involve these 
+            # residue names and numbers
             to_average = list(df_copy.filter(regex=regex, axis=1).columns)
             # chaina and chainb are picked up from this iterations initial contact 
             chaina, chainb = resids['chaina'], resids['chainb']
@@ -116,15 +131,26 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                 identical_pair = True
             else:
                 identical_pair = False
-            # get the chain id pair that the averaged name will be based on
-            # can't determine the averaged name yet because inter-subunit contacts can have flipped resids (A-> B can be equivalent to C->A but this is recorded as A->C 
-            # but the resids are swapped)
-            representative_pair = get_representative_pair_name(chaina, chainb, identical_subunits, representative_chains, equivalent_interactions)
 
-            ######################################### Determine Average Contact Name and Filter out things that shouldn't be in to_average ###########
-            ####################################### Happening in same subunit ##############################################################
+            # then this chain pair is mapped back to the chains involving
+            # the representative chains
+            representative_pair = get_representative_pair_name(chaina, chainb, 
+                                                               identical_subunits, 
+                                                               representative_chains, 
+                                                               equivalent_interactions)
+
+            ################ Determine Average Contact Name and
+            ################## Filter out things that shouldn't be in to_average 
+                # The point of all this is that the contact that
+                # involves the representative chain might not have occurred
+                # during the simulations on that subunit, but did on others.
+                # If this is the case, you have to identify which residue goes
+                # on which chain of the contact involving the representative pair
+                # there is probably a more efficient way....
+                
+            ############### Happening in same subunit ##########################
             if identical_pair:
-                # The easiest (and most common) case
+                # This is the easiest (and most common) case
                 averaged_name =  f"{representative_pair[0]}:{resids['resna']}:{resids['resida']}-{representative_pair[1]}:{resids['resnb']}:{resids['residb']}"
                 to_drop = []
                 for contact_name in to_average:
@@ -135,10 +161,11 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                             to_drop.append(contact_name)
                 for contact_name in to_drop:
                         to_average.remove(contact_name)
-            ##################################### Happening Inter-Subunit ########################################################
+            ################## Happening Inter-Subunit ######################
             else:
                 # filter and catch the averaged_name if it's in to_average
                 to_drop = []
+       
                 matched_name = None
                 
                 for contact_name in to_average:
@@ -155,7 +182,7 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                         to_average.remove(contact_name)
 
 
-                # if inter-hetero subunit     
+                ########################## if inter-hetero subunit ##########    
                 if get_chain_group(representative_pair[0], identical_subunits) != get_chain_group(representative_pair[1], identical_subunits):
                         # and the order that the hetero subunit appears in representative_pairs matches, you can name it without further consideration 
                         if get_chain_group(representative_pair[0], identical_subunits) ==  get_chain_group(resids['chaina'], identical_subunits):
@@ -168,8 +195,8 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                         else:
                             # have to determine if the original contact for this iteration happens to have the flipped inter-subunit naming
                             # and to_average didn't include the contact with the representative naming scheme (should not happen often)
-                            # TODO can't flip names for inter-hetero subunit....
-                            # so we measure the distance between the contacting residues for each contact and determine the distance that these residues should be apart
+                            # If it hasn't been figured out at this point,
+                            # we measure the distance between the contacting residues for each contact and determine the distance that these residues should be apart
                             # and then test the representative_pair residue distances with the default name and with the flipped resid info
                             ################# measure each distance in to_average's contacts ##################################
                             contact_distances = []
@@ -197,7 +224,9 @@ def average_multimer(structure, df, representative_chains, denominator=None,
                                 averaged_name =  f"{representative_pair[0]}:{resids['resnb']}:{resids['residb']}-{representative_pair[1]}:{resids['resna']}:{resids['resida']}"
                             ##################################### End flipped contact name adjustment ##########################################################################
             ################################ End inter-subunit #####################################################################################
-            # TODO record stdev of every averaged contact 
+            ### At this point, contacts incorrectly captured by regex filter
+            ### should be dropped, and the correct averaged name determined.
+            
             averaged_data[averaged_name] = df_copy[to_average].sum(axis=1)/denominator
             standard_deviation[averaged_name] = df_copy[to_average].std(axis=1)
             # get rid of the contacts that were just averaged and reduce the number of remaining contacts to check in the dataframe
@@ -211,12 +240,13 @@ def average_multimer(structure, df, representative_chains, denominator=None,
         return pd.DataFrame(averaged_data)
 
 
-def everything_from_averaged(averaged_contacts, original_contacts, u, representative_chains,
+def everything_from_averaged(averaged_contacts, original_contacts, u, 
+                             representative_chains,
                              as_map=False):
     '''
-    Take the averaged contacts and regenerate the entire protein's contacts using this data.
-    Useful for visualizing the flow of chacras across the whole protein and doing network analysis
-    on more statistically robust data.
+    Take the averaged contacts and regenerate the entire protein's contacts 
+    using this data. Useful for visualizing the flow of chacras across the whole 
+    protein and doing network analysis on more statistically robust data.
 
     averaged_contacts : pd.DataFrame
         The averaged contact data
@@ -228,11 +258,9 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
         The list of chain ids used when generating the averaged contact names.
 
     as_map : bool
-        Returns a dictionary mapping each averaged contact name to a list of the corresponding
-        replicated contact names
+        Returns a dictionary mapping each averaged contact name to a list of the
+        corresponding replicated contact names
 
-    TODO Reduce the size of this function - one call to append to replicated contacts per iteration
-    TODO function to generate alternate names and measure distances - can be used in average_hetermultimer too
 
     Returns
     -------
@@ -241,12 +269,10 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
     print("Collecting some information. One moment.")
     protein = u.select_atoms('protein')
     u = mda.Merge(protein)
-    # For now can leave it equal to the minimum number of identical subunits involved in the contact 
-    #(if it's between non-identical subunits, choose the subunit that has fewer identical ones)
+   
     equivalent_interactions = get_equivalent_interactions(representative_chains,u)
     replicated_contacts = {}
     mapped_contacts = {contact:[] for contact in averaged_contacts.columns}
-    #unreplicated_contacts = []
     identical_subunits = find_identical_subunits(u)
     for contact in tqdm.tqdm(averaged_contacts.columns):
         resids = parse_id(contact)
@@ -266,7 +292,7 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
                     mapped_contacts[contact].append(contact)
                     continue
                 # now have to check every time to determine if the averaged_contact happens to have
-                # a flipped name relative to the other chain pairs
+                # a flipped name relative to the other chain pairs (alphabetical order swapping)
                 testa = f"{equivalent_pair[0]}:{resids['resna']}:{resids['resida']}-{equivalent_pair[1]}:{resids['resnb']}:{resids['residb']}"
                 testb = f"{equivalent_pair[0]}:{resids['resnb']}:{resids['residb']}-{equivalent_pair[1]}:{resids['resna']}:{resids['resida']}"
                 testa_in = testa in original_contacts.columns
@@ -318,19 +344,17 @@ def everything_from_averaged(averaged_contacts, original_contacts, u, representa
                     replicated_contacts[equivalent_contact] = averaged_contacts[contact]
             
                 mapped_contacts[contact].append(equivalent_contact)
-                #unreplicated_contacts.append(equivalent_contact)
+ 
                     
     if as_map:
          return mapped_contacts
     else:
-        return replicated_contacts #, unreplicated_contacts
+        return replicated_contacts
 
-#### For depicting selections of high loading score contacts with pymol functions
-## need to provide the averaged dataframe with just the high loading score contacts
-## Then retrieve the data for writing the pymol selection for that contact
-## then find the equivalent contacts to that one and write the same pymol selection
-## with just the new resid info replacing the averaged name data
-# use get_contact_data on the averaged data, then duplicate the entries for all of the replicated contacts
+#### For depicting the high loading score contacts on all subunits,
+## return as_map, and provide the original averaged high loading score contacts
+# and the map to pymol_averaged_chacras_to_all_subunits
+#
 
 
 ############## Averaging Utilities #################################
@@ -419,15 +443,18 @@ def get_all_chain_dists(u):
 def make_equivalent_contact_regex(resids):
      '''
      resids : the parse_id dictionary containing the contact data
-     #TODO can remove any potential ambiguity by adding the list of correct chain group chains 
+     #TODO can remove any potential ambiguity by adding the list of correct chain 
+     group chains 
      '''
      regex1 = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
      regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
      return f"{regex1}|{regex2}"
 
-def get_representative_pair_name(chaina, chainb, identical_subunits, representative_chains, equivalent_interactions):
+def get_representative_pair_name(chaina, chainb, identical_subunits, 
+                                 representative_chains, equivalent_interactions):
      '''
-     provide the chains from the contact and get the chain names to use for making a generalized/averaged contact name
+     provide the chains from the contact and get the chain names to use for 
+     making a generalized/averaged contact name
      '''
      if chaina == chainb:
           for key, identical_subunit_list in identical_subunits.items():
@@ -459,10 +486,11 @@ def get_pair_distance(sel1, sel2, u):
 
 def find_best_asymmetric_point(u, chain, all_chain_dists):
     '''
-    Find the residue that creates the greates difference in distances between other chains
-    by finding a point in the chain that's near some other neighboring chain
+    Find the residue that creates the greates difference in distances between 
+    other chains by finding a point in the chain that's near some other 
+    neighboring chain.
 
-    #TODO can also just sample random points on the chain taken and take the one
+    #TODO can also sample random points on the chain and take the one
      with the best differences
     '''
     A = np.where(u.atoms.segids == f'{chain}')[0]
