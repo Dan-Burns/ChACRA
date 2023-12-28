@@ -144,6 +144,71 @@ def res_contacts_xl(input_lines, itypes=None):
 
 
     return ret, total_frames
+
+def gen_counts(residue_contacts, min_frame=0, max_frame=None):
+    """
+    Computer interaction-counts for each residue pair.
+
+    max_frame and min_frame allows for calculating contact frequencies on less 
+    than the entire trajectory.
+
+    For example:
+        gen_counts([(0, 'Ligand', 'R110'), (0, 'Ligand', 'N108'), (1, 'Ligand', 'R110')])
+        #  => { ("Ligand", "R110"): 2, ("Ligand", "N108"): 1 }
+
+
+    Parameters
+    ----------
+    residue_contacts: list[tuple[int, str, str]]
+        Residue interactions specified by tuple of frame and two residue ids
+
+    min_frame: int
+        Frame to begin countain contacts at
+
+    max_frame: int
+        Frame to stop counting contacts at.
+
+    Returns
+    -------
+    dict of (str, str): int
+        Mapping of residue-residue interactions to frame-count
+    """
+    from collections import defaultdict
+    rescontact_frames = defaultdict(set)
+    if max_frame == None:
+        max_frame = residue_contacts[-1][0]
+    for frame, res1, res2 in residue_contacts:
+        if int(frame) < min_frame:
+            continue
+        if int(frame) >= int(max_frame):
+            break
+        else:
+            rescontact_frames[(res1, res2)].add(frame)
+
+    rescontact_counts = {(res1, res2): len(frames) for (res1, res2), frames in rescontact_frames.items()}
+    return rescontact_counts
+
+def counts_to_freqs(counts, total_frames):
+    freqs = {}
+    for contact, count in counts.items():
+        freqs[f'{contact[0]}-{contact[1]}'] = int(count)/total_frames
+    return freqs
+
+#################
+## Example of generating contact frequncy convergence checks for each rep
+# for rep in range(0,24):
+#     contact_file = f'../contacts/rep_{rep:02}.tsv'
+#     f = open(contact_file, 'r')
+#     contacts, total_frames = res_contacts_xl(f)
+
+#     dataframes = {}
+#     for n_frames in [int(i*total_frames) for i in [.5,.6,.7,.8,.9,1]]:
+        
+#         counts = gen_counts(contacts, max_frame=n_frames)
+#         freqs = counts_to_freqs(counts, n_frames)
+#         dataframes[np.round(n_frames/total_frames, 2)] = pd.DataFrame(freqs, index=[np.round(n_frames/total_frames, 2)])
+#         cat = pd.concat(dataframes.values())
+#         cat.to_pickle(f'output/convergence/rep_{rep}.pd')
 ######################################################################################
 
 ## IN PROGRESS ##

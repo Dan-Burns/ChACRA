@@ -174,6 +174,11 @@ def get_prolif_freqs(df):
             resnb, residb = resb[:3], resb[3:]
             if f'{chaina}:{resna}:{resida}' == f'{chainb}:{resnb}:{residb}':
                 continue
+            # this only needs a single test
+            # if f'{chaina}:{resna}:{resida}' < f'{chainb}:{resnb}:{residb}':
+            #   contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'
+            # else:
+            #   contact = f'{chainb}:{resnb}:{residb}-{chaina}:{resna}:{resida}'
             elif chaina < chainb:
                 contact = f'{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}'
             elif chaina > chainb:
