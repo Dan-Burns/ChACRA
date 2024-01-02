@@ -390,7 +390,7 @@ class ContactFrequencies:
                 self.freqs.min() < max_frequency]]
 
 
-    def to_heatmap(self,output_format='mean', pc=None):
+    def to_heatmap(self,output_format='mean', pc=None, row=None):
 
         '''
         Convert the data into a symmetric matrix with residues mirrored on x 
@@ -405,12 +405,19 @@ class ContactFrequencies:
         Parameters
         ----------
          
-        format : str
-            format options are 'mean', 'stdev', 'difference', 'loading_score'.
+        output_format : str
+            format options are 'mean', 'stdev', 'difference', 'loading_score',
+            of 'frequency'.
             If 'difference', specify tuple of rows your interested in taking the 
             difference from.
             If 'loading_score', then specify contact pc/chacra from which you 
             want the loading score. cpca attribute must be available.
+        pc : int
+            If output_format == loading_score, provide the principal component
+            number for which loading scores should be heatmapped.
+        row : int or float
+            If output_format == frequency, provide the temperature or row
+            corresponding to the frequency data to heatmap.
 
         Returns
         -------
@@ -452,10 +459,22 @@ class ContactFrequencies:
         # vectorize the data
         df_array = self.freqs.values
         loading_array = self.cpca.loadings.values
+        # get the row index if format is 'frequency' 
+        if row is not None:
+            if row in self.freqs.index:
+                # if it's provided as a temp, convert to row index
+                row = np.where(self.freqs.index == row)[0][0]
+            elif row in range(self.freqs.shape[0]):
+                row = row
+            else:
+                print(f"Row {row} is not in the frequency data index. "\
+                      f"Specify an integer row index instead if "\
+                      f"{row} was a temperature value.")
         # get the indices for the residues in each contact to fill in the 
         # 'data' np.array
         # enumerate so you can reference the np.array form of the original data
         # faster.
+
         for i,contact in enumerate(self.freqs.columns):
 
             
@@ -475,6 +494,8 @@ class ContactFrequencies:
             elif pc is not None and hasattr(self, "cpca") == False:
                 print("Instantiate the cpca attribute with ContactPCA.")
                 break
+            if row is not None:
+                values['frequency'] = df_array[row,i]
 
             data[index1][index2] = values[output_format]
             data[index2][index1] = values[output_format]
@@ -517,6 +538,9 @@ class ContactPCA:
     N_permutations : int
         The number of times to randomize the data and perform PCA for the 
         signficance test.
+
+    #TODO exclude contact (or regions) that have slopes that exceed the PC1
+    slope at high temperature (indicating major melting)
     '''
     
     
@@ -695,7 +719,10 @@ class ContactPCA:
         contact : str
             The contact name.
 
-        pc_range : list 
+        pc_range : tuple of int 
+            #TODO this breaks easy.  Has to be 1 and max pc you want results from
+            # Or else argmax() will return the wrong PC
+            
             List of integers corresponding to the PCs/ chacras that you 
             want the highest score from. If None and top_chacras attribute is
             available, the highest score among them will be returned. If neither

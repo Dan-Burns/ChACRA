@@ -79,8 +79,14 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_
         if filename is not None:
             fig.savefig(filename)
     
-def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors, filename=None):
+def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
+                 spacing='geometric',
+                  filename=None):
     '''
+    spacing : string
+        'geometric' or 'linear'.
+        Specifies how the temperature points are distributed. 
+
     Plot the projections of n principal components
     smoothing is applied
     #TODO offer plasma glow 
@@ -110,7 +116,10 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
 
         # Returns evenly spaced numbers
         # over a specified interval.
-        X_ = np.linspace(x.min(), x.max(), 300)
+        if spacing == 'linear':
+            X_ = np.linspace(x.min(), x.max(), 300)
+        elif spacing == 'geometric':
+            X_ = np.geomspace(x.min(), x.max(), 300)
         Y_ = X_Y_Spline(X_)
         
         # Plotting the Graph

@@ -38,7 +38,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         the lowest and highest (row) indices (inclusive) from the contact data to calculate
         the slope of the contact frequencies within
 
-    pc_range : tuple of in
+    pc_range : tuple of int
         the lowest and highest PCs (inclusive and 1 indexed) to consider when
         identifying the highest loading scores, coloring, etc.
     
