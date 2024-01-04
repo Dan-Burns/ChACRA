@@ -13,7 +13,9 @@ Tools for identifying energy-sensitive interactions in proteins using contact da
 
 To start, first generate a set of md trajectories across a temperature range.  This is most efficiently done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
 
-Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). Many of the functions in ChACRA use pandas dataframes and the naming scheme for the columns is based off of getcontacts' format so it is essentially a requirement to generate your contact data with this package. It has the benefit of being very a very rigorous method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
+Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). It has the benefit of being very a very rigorous method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
+
+Both the HREMD simulation setup and contact calculations are being added to ChACRA via [femto](https://github.com/Psivant/femto) and [ProLif](https://prolif.readthedocs.io/en/stable/) as alternatives.
 
 Assuming you have a 32 replica ensemble.
 
@@ -62,7 +64,7 @@ avg = average_multimer('structure.pdb',denominator=6,df=cont.freqs,representativ
 
 ```
 
-Then perform principal component analysis (PCA) to obtain the protein's "chacras"
+Then perform principal component analysis (PCA) to obtain the protein's "chacras". 
 
 ```
 
@@ -82,6 +84,8 @@ plot_difference_of_roots(cpca)
 
 ```
 
+Both the ContactPCA and the difference of roots test are performed automatically by default when creating the ContactFrequencies object and available as attributes of that class.
+
 Project the data onto the principal components to visualize the energy-dependent trend of each of the chacras.
 The lower eigenvalue modes (e.g. PCs 4 and above) can exhibit a decaying oscillatory pattern.  This is an artifact of the PCA; however, these modes' lowest temperature peak should coincide with the peaks seen in their highest loading score contacts. 
 
@@ -89,7 +93,7 @@ The lower eigenvalue modes (e.g. PCs 4 and above) can exhibit a decaying oscilla
 
 from ChACRA.ContactAnalysis.plot import plot_chacras
 # 32 temperatures between 290 and 440 k
-plot_chacras(cpca, temps=[i for i in np.linspace(290,440,32)])
+plot_chacras(cpca, temps=[i for i in np.geomspace(290,440,32)])
 
 ```
 
