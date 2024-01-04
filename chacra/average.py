@@ -664,3 +664,4 @@ def equivalent_interactions_check(equivalent_interactions,
                 selection_string = f"select {equiv_pair[0]}-{equiv_pair[1]}, "\
                         f"chain {equiv_pair[0]} or chain {equiv_pair[1]}"
                 f.write(f'{selection_string} \n')
+

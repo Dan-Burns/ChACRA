@@ -145,7 +145,7 @@ def res_contacts_xl(input_lines, itypes=None):
 
     return ret, total_frames
 
-def gen_counts(residue_contacts, min_frame=0, max_frame=None):
+def gen_counts(residue_contacts, min_frame=0, max_frame=None, return_frames=False):
     """
     Computer interaction-counts for each residue pair.
 
@@ -163,10 +163,14 @@ def gen_counts(residue_contacts, min_frame=0, max_frame=None):
         Residue interactions specified by tuple of frame and two residue ids
 
     min_frame: int
-        Frame to begin countain contacts at
+        Frame to begin countain contacts at.
 
     max_frame: int
         Frame to stop counting contacts at.
+
+    return_frames: bool
+        If true, returns the dictionary of contact ids and values of lists of frames where
+        contacts occur.
 
     Returns
     -------
@@ -184,15 +188,44 @@ def gen_counts(residue_contacts, min_frame=0, max_frame=None):
             break
         else:
             rescontact_frames[(res1, res2)].add(frame)
-
-    rescontact_counts = {(res1, res2): len(frames) for (res1, res2), frames in rescontact_frames.items()}
-    return rescontact_counts
+    if return_frames == True:
+        return rescontact_frames
+    else:
+        rescontact_counts = {(res1, res2): len(frames) for (res1, res2), frames in rescontact_frames.items()}
+        return rescontact_counts
 
 def counts_to_freqs(counts, total_frames):
     freqs = {}
     for contact, count in counts.items():
         freqs[f'{contact[0]}-{contact[1]}'] = int(count)/total_frames
     return freqs
+
+######################### Use avereaged data and retrieve frames where 
+######################### identical contacts are happening
+
+def make_frame_lists(avg_contact, mapping, contact_frame_dictionary):
+    '''
+    take an averaged contact id and the dictionary 
+    mapping it back to the original contact names
+    and make a list of lists of the contact frames for them (made from 
+    gen_counts(return_frames=True))
+
+    Parameters
+    ----------
+    avg_contact : str
+        Name of the averaged contact.
+
+    mapping : dict
+        Dictionary mapping the contact name to 
+        all the identical contacts in the original data.
+
+    contact_frame_dictionary : dict
+        Contact name keys and dictionry of frame numbers where 
+        contact is occurring.
+    '''
+
+    return [contact_frame_dictionary[contact] for contact in mapping[avg_contact]]
+
 
 #################
 ## Example of generating contact frequncy convergence checks for each rep

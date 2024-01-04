@@ -41,3 +41,43 @@ def normit(data, center=True):
         return (data - data.mean())/np.abs((data - data.mean())).max()
     else:
         return data/np.abs(data).max()
+    
+def multi_intersection(lists, cutoff=None, verbose=False):
+    '''
+    Return the intersection of the values in lists.  
+    Parameters
+    ----------
+    lists : list of lists
+        The lists of values to identify the shared elements from.
+
+    cutoff : float or int
+        If not None, return the intersection of a subset of lists that meet the criteria.
+        float < 1 will only include lists that have a length of cutoff percent of
+        the longest list.
+        int > 1 will only include lists that are longer than cutoff.
+
+    verbose : bool
+        If True, print the number of lists that were provided as input and the number
+        of lists that were used in constructing the intersection.
+
+    Returns
+    -------
+    list
+    intersection of values in lists.
+        
+    '''
+
+    initial = len(lists)
+    if cutoff is not None and cutoff < 1:
+        longest_len = max([len(data) for data in lists])
+        lists = [data for data in lists if len(data) > longest_len*cutoff]
+    elif cutoff is not None and cutoff > 1:
+        lists = [data for data in lists if len(data) > cutoff]
+
+    final = len(lists)
+    set1 = set(lists[0])
+    setlist = [set(data) for data in lists[1:]]
+    if verbose == True:
+        print(f'n lists initial: {initial} \nn lists final: {final}')
+    return sorted(list(set1.intersection(*setlist)))
+
