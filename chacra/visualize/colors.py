@@ -2,6 +2,7 @@ import numpy as np
 #TODO add option to globally define chacra color scheme
 # and import into the plot and pymol modules
 chacra_colors = ['#ff0000ff','#00bfffff','#00b730ff','#7400ffff','#ff831dff','#ff00ffff','#fad300ff','#434343ff','#b2a8b1c0','#b3ad45c0']
+#TODO offer dark/light variants to color different signs of loading scores
 cherenkov_blue = '#00bfff'
 legacy_blue = '#02a8f8ff'
 orange = '#ff831dff'

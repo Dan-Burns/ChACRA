@@ -80,7 +80,7 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_
             fig.savefig(filename)
     
 def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
-                 spacing='geometric',
+                 spacing='geometric', temp_scale=None,
                   filename=None):
     '''
     spacing : string
@@ -127,7 +127,10 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
         ax.plot(X_, 1*Y_,color=colors[pc-1])
                 
     ax.set_title(f'ChACRA Modes')
-    ax.set_xlabel("Temperature ", fontsize=12)
+    if temp_scale is not None:
+        ax.set_xlabel(f"Temperature ({temp_scale})", fontsize=12)
+    else:
+        ax.set_xlabel(f"Temperature ({temp_scale})", fontsize=12)
     ax.set_ylabel("Projection", fontsize=12)
     #ax.vlines(x=373,ymin=0,ymax=.84,linestyles='dotted')
     ax.legend([f'PC{i}' for i in range(1,n_pcs+1)], fontsize=12, loc='lower center', ncol=2)
@@ -224,3 +227,14 @@ def plot_loading_distributions():
     Violin plots of loading scores.
     '''
     pass
+
+'''
+# plot the CombinedChacra standouts
+fig, axs = plt.subplots(5,6, figsize=(14,8),sharey=True)
+for i, contact in enumerate(different_stable):
+    axs.flatten()[i].plot(temps, ensemblea.freqs[contact].values)
+    axs.flatten()[i].plot(temps, ensembleb.freqs[contact].values)
+    axs.flatten()[i].set_title(contact)
+fig.tight_layout()
+
+'''

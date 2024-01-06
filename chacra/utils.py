@@ -14,6 +14,19 @@ def parse_id(contact):
     the residue A descriptors and residue B descriptors
     '''
     chaina, resna, resida, chainb, resnb, residb = re.split(":|-", contact)
+    ### for combined contact data, the prepended name needs to be removed from 
+    ### chain a
+    ##### This might break something if multiple contacts
+    #### are going into the keys of another dictionary because
+    #### duplicate names will be overwritten.
+    ## shouldn't be a problem for averaging functions because combined data
+    ## will be produced from pre-averaged data
+    ## to_heatmap() will not give correct results as is - need to prepare
+    ## the data with original names for that....
+    
+    if "_" in chaina:
+        chaina = chaina.split("_")[1]
+
     return {'chaina':chaina, 'resna':resna, 'resida':resida,
              'chainb':chainb, 'resnb':resnb, 'residb':residb}
 

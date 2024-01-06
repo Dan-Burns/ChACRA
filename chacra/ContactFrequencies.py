@@ -15,6 +15,7 @@ from scipy.stats import linregress
 from ChACRA.chacra.average import everything_from_averaged
 from ChACRA.chacra.visualize.contacts_to_pymol import \
     pymol_averaged_chacras_to_all_subunits, get_contact_data, to_pymol
+from ChACRA.chacra.utils import multi_intersection
 import MDAnalysis as mda
 
 
@@ -137,7 +138,6 @@ class ContactFrequencies:
                 self.freqs = pd.DataFrame(contact_dictionary)
         except:
             try:
-                # assuming that you're handing it a dataframe or dictionary
                 if type(contact_data) == pd.DataFrame:
                     self.freqs = contact_data
                 elif type(contact_data) == dict:
@@ -148,7 +148,7 @@ class ContactFrequencies:
             
         
             
-        if temps:
+        if temps is not None:
             mapper = {key:temp for key,temp in zip(self.freqs.index, temps)}
             
             self.freqs = self.freqs.rename(mapper, axis=0)
@@ -163,10 +163,12 @@ class ContactFrequencies:
             
             self.freqs = self.freqs.rename(mapper, axis=0)
         
+
+        
         if structure:
             self.structure = structure
 
-        # give this object access to the ContactPCA 
+        # give access to the ContactPCA 
         if get_chacras == True:
             self.cpca = ContactPCA(self.freqs, 
                                    N_permutations=N_permutations,
@@ -722,6 +724,7 @@ class ContactPCA:
         pc_range : tuple of int 
             #TODO this breaks easy.  Has to be 1 and max pc you want results from
             # Or else argmax() will return the wrong PC
+            #TODO return as tuple instead of dictionary
             
             List of integers corresponding to the PCs/ chacras that you 
             want the highest score from. If None and top_chacras attribute is
@@ -937,12 +940,237 @@ class ContactPCA:
                      group=group_pcs)
 
 
+#TODO class for combined chacra 
+# hold all the original data ContactFrequencies and ContactPCA
+# hold a combined contact pca with appened system names to all contacts
+# hold a difference ContactFrequencies with the original names
+    
 
-def contact_differences(data):
+
+
+
+
+
+
+class CombinedChacra():
     '''
-    Investigate the differences between two contact ensembles.  For example, in 
-    the presence and absence of an allosteric activator. Identifies the shared 
-    contacts and returns the contact frequency or loading score differences.
+    Combine multiple contact frequency data sets and perform PCA on them.
+    This places the contacts from multiple ensembles on the same axis system for
+    comparitive analysis.
+
+    Most of the functionality here is only applicable to pairs of ensembles
+    so restrict CombinedChacra data_dict input to length 2. In the future 
+    
+    Parameters
+    ----------
+    data_dict : dict
+        Dictionary with keys (strings) defining the name of the corresponding
+        pd.DataFrame values.  The dataframes must all contain the same number of rows (temperatures).
+        Example
+        -------
+        {'apo':pd.DataFrame(apo_contact_frequencies),
+        'holo': pd.DataFrame(holo_contact_frequencies)}
+        
     
     '''
-    return None
+    def __init__(self, data_dict):
+
+        self.original_data = data_dict
+        self.names = list(data_dict.keys())
+        # prepend each datasets key (name) to each contact id
+        # eg. {'apo', contact_df} will create contacts from contact_df with names
+        # in the form of 'apo_A:LYS:100-A:ASP:110'
+        self.mappers = {key:{col:f'{key}_{col}' for col in data_dict[key].columns} 
+                for key in data_dict.keys()}
+        
+        self.shapes = {key:df.shape for key, df in data_dict.items()}
+
+        self.shared_contacts = list(multi_intersection([(list(data.keys())) for data 
+                                                   in self.mappers.values()]))
+        self.not_shared_contacts = {
+                    key:[contact for contact in self.mappers[key].keys() 
+                         if contact not in self.shared_contacts] 
+                         for key in self.mappers.keys()
+                           }
+        
+        
+        self.combined_freqs = pd.concat(
+                            [data_dict[key].copy().rename(self.mappers[key], axis=1) 
+                            for key in data_dict],
+                                        axis=1)
+        
+        print("Getting chacras of the combined data.")
+        self.combined = ContactFrequencies(self.combined_freqs)
+        
+     
+        # create difference data
+        difference_data = {}
+       
+        # Right now this is only going to handle data involving 2 ensembles
+        # will have to use something like the combined_freqs prepend scheme
+        # for differences between more than 2 ensembles
+        for contact in self.shared_contacts:
+            diff = np.abs(self.original_data[self.names[0]][contact].values - 
+                    self.original_data[self.names[1]][contact].values)
+            difference_data[contact] = diff
+        for name in self.not_shared_contacts:
+            for contact in self.not_shared_contacts[name]:
+                difference_data[contact] = self.original_data[name][contact].values
+        print('Getting the chacras of the contact frequency differences.')
+        self.differences = ContactFrequencies(pd.DataFrame(difference_data))
+        
+    def get_top_changes(self, cutoff, pc_range=None):
+        '''
+        Get the contacts from the combined chacras that are present above the loading
+        score cutoff in one ensemble but not the other
+
+        Parameters
+        ----------
+
+        cutoff: float
+            Minimum normalized (absolute) loading score to consider.
+            If a contact is above this in one ensemble and below in another on the same pc
+            this contact will be reported.
+
+        pc_range: tuple of int
+            The range of pcs to consider (inclusive).
+
+        Returns
+        -------
+        Dictionary
+        The pcs (keys) and lists tuples of contacts with prepended names that are 
+        in the top contacts on the given pc when the other ensemble's identical
+        contact is not.
+        The first tuple item is in the top, the second isn't.
+        '''
+        
+        if pc_range is None and self.combined.cpca.top_chacras is not None:
+            pcs = self.combined.cpca.top_chacras
+        elif pc_range is not None:
+            pcs = list(range(pc_range[0],pc_range[1]+1))
+        
+        different = {pc:[] for pc in pcs}
+
+        for pc in pcs:
+            above_cutoff = self.combined.cpca.norm_loadings.loc[
+                        self.combined.cpca.norm_loadings[f'PC{pc}'] > cutoff
+                ].index
+            
+            for contact in self.shared_contacts:
+                if f'{self.names[0]}_{contact}' in above_cutoff and \
+                f'{self.names[1]}_{contact}' not in above_cutoff:
+                    different[pc].append((f'{self.names[0]}_{contact}', 
+                                         f'{self.names[1]}_{contact}'))
+                elif f'{self.names[1]}_{contact}' in above_cutoff and \
+                f'{self.names[0]}_{contact}' not in above_cutoff:
+                    different[pc].append((f'{self.names[1]}_{contact}',
+                                            f'{self.names[0]}_{contact}'))
+
+        return different
+
+
+
+    def get_flipped_contacts(self, cutoff, pc_range=None,
+                             plot=False):
+        '''
+        Get contacts that have flipped loading scores on the same combined PC.
+
+        TODO - this is slow
+
+        Parameters
+        ----------
+        cutoff : float
+            Only look for pairs of contacts where at least one of the contacts
+            has a loading score above cutoff. This means you're just looking
+            for flipped signs among the energy-sensitive contacts.
+
+        pc_range : tuple of int
+            The range of pcs to restrict the search to (inclusive).
+            If None, combined.top_chacras will be used.
+
+        Returns
+        -------
+        List of contacts that have flipped loading scores on the shared principal
+        components.
+        '''
+        print("This one takes a moment...")
+        if pc_range is None:
+            pcs = self.combined.cpca.top_chacras
+        else:
+            pcs = list(range(pc_range[0], pc_range[1]+1))
+
+        different_signs = set()
+        for pc in pcs:
+            for contact in self.shared_contacts:
+                # if they're opposite signs
+                contacta = f'{self.names[0]}_{contact}'
+                contactb = f'{self.names[1]}_{contact}'
+                if (self.combined.cpca.loadings[f'PC{pc}'][contacta] > 0 and                                                     
+                    self.combined.cpca.loadings[f'PC{pc}'][contactb] < 0) or\
+                    (self.combined.cpca.loadings[f'PC{pc}'][contacta] < 0 and                                                       
+                    self.combined.cpca.loadings[f'PC{pc}'][contactb] > 0):                                                          
+                    # and at least one is above the cutoff
+                    if (self.combined.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contacta]
+                                                                < cutoff) and \
+                        (self.combined.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contactb]
+                                                                < cutoff):
+                        pass
+                    # and at least one has its highest score on the current pc
+                    elif (list(self.combined.cpca.get_top_score(contacta).keys())[0] == pc) or \
+                        (list(self.combined.cpca.get_top_score(contactb).keys())[0] == pc):
+                        different_signs.add(contact)
+        
+        return list(different_signs)
+                
+    def get_changes(self, stdev_min=0.0, stdev_max=0.02, mean_dif=0.2):
+        '''
+        Identify contacts with significantly different frequencies between the 
+        two ensembles based on each contact's standard deviation and mean.
+
+        # TODO as is, this is useful for finding two flatline contacts
+        # That have noticeable differences
+        # Could offer cutoff criteria for each member to identify when 
+        # on is sensitive and the other isn't (slopes, stdevs, etc.)
+
+        Parameters
+        ----------
+        stdev_min: float
+            The minimum standard deviation for the contact.
+        stdev_max: float
+            The maximum standard deviation for the contact. Low max standard
+            deviation limits the search to stable contacts.
+        mean_dif: float
+            The minimum difference between the means of the two contact pairs 
+            that will be reported on.
+
+        Returns
+        -------
+        List of contacts (which occur in both ensembles)with changes in contact
+        frequency behavior between two ensembles that meet the input criteria.
+        '''
+        different= []
+
+        for contact in self.shared_contacts:
+            if (((stdev_min < self.original_data[self.names[0]][contact].std() < stdev_max) 
+                 and (stdev_min < self.original_data[self.names[1]][contact].std() < stdev_max)) and 
+                (np.abs(self.original_data[self.names[0]][contact].mean() - \
+                self.original_data[self.names[1]][contact].mean()) > mean_dif)):
+                different.append(contact)
+
+        return different
+    
+    def get_real_unique_contacts(self, cutoff=0.05):
+        '''
+        Contacts that only occur in one ensemble or the other and have
+        a mean value above the cutoff will be returned. 
+        This is useful because contacts that only occur in one ensemble at very
+        low frequency might be considered noise, while ones that have more 
+        significant values might be the result of a bound effector.
+        '''
+        real_contacts = {name: [] for name in self.names}
+        for name in self.not_shared_contacts:
+            for contact in self.not_shared_contacts[name]:
+                if self.original_data[name][contact].mean() > cutoff:
+                    real_contacts[name].append(contact)
+
+        return real_contacts
