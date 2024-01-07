@@ -983,6 +983,11 @@ class CombinedChacra():
         self.mappers = {key:{col:f'{key}_{col}' for col in data_dict[key].columns} 
                 for key in data_dict.keys()}
         
+        self.reverse_mappers = {
+                                name:{val:key for key, val in self.mappers[name].items()}
+                                for name in self.mappers
+        }
+        
         self.shapes = {key:df.shape for key, df in data_dict.items()}
 
         self.shared_contacts = list(multi_intersection([(list(data.keys())) for data 
@@ -998,10 +1003,10 @@ class CombinedChacra():
                             [data_dict[key].copy().rename(self.mappers[key], axis=1) 
                             for key in data_dict],
                                         axis=1)
-        
+    
         print("Getting chacras of the combined data.")
         self.combined = ContactFrequencies(self.combined_freqs)
-        
+        self.separate_ensemble_loadings()
      
         # create difference data
         difference_data = {}
@@ -1019,7 +1024,7 @@ class CombinedChacra():
         print('Getting the chacras of the contact frequency differences.')
         self.differences = ContactFrequencies(pd.DataFrame(difference_data))
         
-    def get_top_changes(self, cutoff, pc_range=None):
+    def get_top_changes(self, cutoff, min_loading_dif=.2, pc_range=None):
         '''
         Get the contacts from the combined chacras that are present above the loading
         score cutoff in one ensemble but not the other
@@ -1057,14 +1062,23 @@ class CombinedChacra():
                 ].index
             
             for contact in self.shared_contacts:
-                if f'{self.names[0]}_{contact}' in above_cutoff and \
-                f'{self.names[1]}_{contact}' not in above_cutoff:
-                    different[pc].append((f'{self.names[0]}_{contact}', 
-                                         f'{self.names[1]}_{contact}'))
-                elif f'{self.names[1]}_{contact}' in above_cutoff and \
-                f'{self.names[0]}_{contact}' not in above_cutoff:
-                    different[pc].append((f'{self.names[1]}_{contact}',
-                                            f'{self.names[0]}_{contact}'))
+                contacta = f'{self.names[0]}_{contact}'
+                contactb = f'{self.names[1]}_{contact}'
+                if (contacta in above_cutoff and 
+                contactb not in above_cutoff) \
+                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contacta]
+                    - self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contactb])
+                        > min_loading_dif):
+                    different[pc].append((contacta, 
+                                         contactb))
+                    
+                elif (contactb in above_cutoff and 
+                contacta not in above_cutoff) \
+                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contactb]
+                    - self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contacta])
+                        > min_loading_dif):
+                    different[pc].append((contactb, 
+                                         contacta))
 
         return different
 
@@ -1159,18 +1173,81 @@ class CombinedChacra():
 
         return different
     
-    def get_real_unique_contacts(self, cutoff=0.05):
+    def get_real_unique_contacts(self, cutoff=0.05, criteria='mean'):
         '''
         Contacts that only occur in one ensemble or the other and have
         a mean value above the cutoff will be returned. 
         This is useful because contacts that only occur in one ensemble at very
         low frequency might be considered noise, while ones that have more 
         significant values might be the result of a bound effector.
+
+        cutoff: float
+            The minimum frequency that a contact must exceed to be returned.
+
+        criteria : str
+            'mean' or 'max'
+
+        Returns
+        -------
+        Dictionary of lists of contacts that exceed the cutoff.
         '''
-        real_contacts = {name: [] for name in self.names}
+        real_contacts = {name: None for name in self.names}
+        
         for name in self.not_shared_contacts:
-            for contact in self.not_shared_contacts[name]:
-                if self.original_data[name][contact].mean() > cutoff:
-                    real_contacts[name].append(contact)
+            if criteria == 'mean':
+                mask = self.original_data[name][self.not_shared_contacts[name]].mean()\
+                  > cutoff
+            elif criteria == 'max':
+                mask = self.original_data[name][self.not_shared_contacts[name]].max()\
+                  > cutoff
+            real_contacts[name] = list(mask.index[mask])
+            
 
         return real_contacts
+    
+    def separate_ensemble_loadings(self):
+        '''
+        Take a combined chacra dataframes and separate them into ContactPCA objects.
+        Provides access to the sorting methods and can be used in the pymol
+        visualization functions.
+        
+        Paramters
+        ---------
+        names: list
+            The list of names that have been prepended in to the combined contact frequency names.
+        
+        df: pd.DataFrame
+            The combined loading score or contact frequency df
+            
+        Returns
+        -------
+        Dictionary
+        Names are keys and dataframe values with prepended names removed from the contact ids
+        '''
+        # only really need this for loading score df
+        if self.combined.cpca.loadings.columns[0] == "PC1": # loading score df
+            id_axis = 0 
+        else:
+            id_axis = 1
+
+
+        self.separated_cpca = {name:ContactPCA(self.original_data[name], 
+                                          significance_test=False) for name in 
+                                          self.names
+                                          }
+        for name in self.names:
+            # The transform and pca object won't correspond to the 
+            # separated loadings.  
+            # TODO fix this so you can project each ensemble onto the shared
+            # principal components
+            self.separated_cpca[name].pca = None
+            self.separated_cpca[name]._transform = None
+            self.separated_cpca[name].loadings = \
+                self.combined.cpca.loadings.filter(like=name, axis=id_axis).rename(
+                                        self.reverse_mappers[name], axis=0
+                                                 )
+            self.separated_cpca[name].norm_loadings = _normalize(
+                                    self.separated_cpca[name].loadings
+                                                                ) 
+
+    
