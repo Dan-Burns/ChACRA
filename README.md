@@ -11,9 +11,9 @@ https://github.com/Dan-Burns/ChACRA
 
 Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD).  The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature.  The chacras can reveal functionally critical residue interactions.
 
-To start, first generate a set of md trajectories across a temperature range.  This is most efficiently done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
+To start, first generate a set of md trajectories across a temperature range.  This is should done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
 
-Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). It has the benefit of being very a very rigorous method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
+Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). It has the benefit of being a very accurate method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
 
 Both the HREMD simulation setup and contact calculations are being added to ChACRA via [femto](https://github.com/Psivant/femto) and [ProLif](https://prolif.readthedocs.io/en/stable/) as alternatives.
 
@@ -86,7 +86,7 @@ plot_difference_of_roots(cpca)
 
 Both the ContactPCA and the difference of roots test are performed automatically by default when creating the ContactFrequencies object and available as attributes of that class.
 
-Project the data onto the principal components to visualize the energy-dependent trend of each of the chacras.
+Project the data onto the principal components to visualize the energy-dependent trends of the chacras.
 The lower eigenvalue modes (e.g. PCs 4 and above) can exhibit a decaying oscillatory pattern.  This is an artifact of the PCA; however, these modes' lowest temperature peak should coincide with the peaks seen in their highest loading score contacts. 
 
 ```
