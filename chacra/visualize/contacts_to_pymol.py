@@ -145,6 +145,7 @@ def write_group_selections(contact_data, output_file, ca_only=True):
             
             chacra_selections[data['top_pc']] += f'{contact} '
 
+            f.write(f"color {data['color']}, {contact}\n")
             # draw the line
             f.write(f"distance {contact}-line, (chain {data['chaina']} and resi {data['resia']} and name CA), "
                    f"(chain {data['chainb']} and resi {data['resib']} and name CA)\n")
@@ -161,13 +162,15 @@ def write_group_selections(contact_data, output_file, ca_only=True):
 
             # done with a contact's commands
             f.write('\n')
-            f.write('#### Grouping commands ##### \n')
+        f.write('#### Grouping commands ##### \n')
         for group in chacra_selections:
             f.write(f'group chacra_{group}, {chacra_selections[group]} \n')
             # add spheres
             f.write(f'show spheres, chacra_{group} \n')
             # color
-            f.write(f'color 0x{chacra_colors[group-1][1:-2]}, chacra_{group} \n')
+            # TODO - coloring by groups means that the lowest pc colors overide 
+            # everything else so it's no longer always highest loading score color
+            #f.write(f'color 0x{chacra_colors[group-1][1:-2]}, chacra_{group} \n')
             
         for group in lines:
             f.write(f'group {group}_line, {lines[group]}\n')

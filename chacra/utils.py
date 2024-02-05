@@ -94,3 +94,5 @@ def multi_intersection(lists, cutoff=None, verbose=False):
         print(f'n lists initial: {initial} \nn lists final: {final}')
     return sorted(list(set1.intersection(*setlist)))
 
+def get_subplot_rows(n_items, n_columns):
+    return (n_items + n_columns - 1) // n_columns

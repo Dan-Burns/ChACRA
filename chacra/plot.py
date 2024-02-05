@@ -58,7 +58,14 @@ def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_
     ----------
     cpca : ChACRA.ContactAnalysis.ContactFrequencies.ContactPCA object
             with permutated_explained_variance method previously called
-    n_pcs : 
+    n_pcs : int 
+        The number of pcs to include in the plots
+    dot_color : str
+        Specify the color of dots in the plot.
+    cutoff_color : str  
+        Specify the color of the horizontal bar in the plot.
+    filename : str
+        If saving the file, provide the filename.
     '''
     #TODO automatically run _permutated_ since it's way faster now.
     if cpca._permutated_explained_variance is None:
@@ -83,6 +90,17 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
                  spacing='geometric', temp_scale=None,
                   filename=None):
     '''
+    cpca : ContactPCA
+        The ContactPCA object.
+    n_pcs : int
+        The number of PCs to include in the plot.
+    contacts : ContactFrequencies (remove)
+        provide the contact frequencies object to get the temps from the index.
+    temps : list
+        List of temperatures.
+    colors : list
+        List of hex colors for the lines.
+    
     spacing : string
         'geometric' or 'linear'.
         Specifies how the temperature points are distributed. 
@@ -137,8 +155,10 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
     if filename:
         fig.savefig(filename)
 
-def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, output_file=None):
+def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, filename=None):
     '''
+    NOT IMPLEMENTED 
+    
     option to label outliers/ corners/ top loading scores and color on a mixing gradient
     so something that's in a corner of a pc1-pc2 biplot appears purple
 
@@ -172,6 +192,7 @@ def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, ou
         pc_a = combo[0]
         pc_b = combo[1]
         # get the color gradient from transparent white to the pc's hex code
+        # TODO Everything goes totally transparent and colors are all red now.....
         a_grad = get_color_gradient('#ffffff00',colors[pc_a-1],100, return_rgb=True,alpha=True)
         b_grad = get_color_gradient('#ffffff00',colors[pc_b-1],100, return_rgb=True, alpha=True)
 
@@ -213,8 +234,8 @@ def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, ou
         for r in range(1,n_axes_to_remove+1):
             axs.flatten()[-r].remove()
     #fig.tight_layout()
-    if output_file is not None:
-        fig.savefig(output_file)
+    if filename is not None:
+        fig.savefig(filename)
 
 def plot_loadings():
     '''
