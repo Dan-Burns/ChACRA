@@ -155,6 +155,33 @@ def plot_chacras(cpca, n_pcs=4, contacts=None, temps=None, colors=chacra_colors,
     if filename:
         fig.savefig(filename)
 
+def plot_split_sums(cpca, pc, label_top=10, filename=None):
+    '''
+    Scatter plot of the sums of the loading score splits (see ContactFrequencies.get_split_sums)
+
+    Parameters
+    ----------
+
+    cpca : ChACRA.ContactAnalysis.ContactPCA
+
+    pc : The pc for the data you want to plot
+
+    label_top : int
+
+    filename : path to output file
+    '''
+    vals = cpca.score_sums.loc[pc].values
+    top_labels = cpca.score_sums.loc[pc][cpca.score_sums.loc[pc] > cpca.score_sums.loc[pc].sort_values()[-label_top]].index
+    label_indices = np.argwhere(np.isin(cpca.score_sums.loc[pc].index, top_labels)==True).flatten()
+
+    fig, ax = plt.subplots()
+    ax.scatter(range(vals.shape[0]),vals)
+    [ax.text(h, j, top_labels[-label_top:][k], **{'fontsize':'x-small'}) 
+                        for k,(h,j) in enumerate(zip(label_indices,vals[label_indices]))]
+    if filename is not None:
+        fig.savefig(filename)
+
+
 def biplots(cpca, pcs=list(range(1,5)), label_top=None, colors=chacra_colors, filename=None):
     '''
     NOT IMPLEMENTED 

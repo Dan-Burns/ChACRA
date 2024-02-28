@@ -502,7 +502,8 @@ class ContactFrequencies:
             data[index1][index2] = values[output_format]
             data[index2][index1] = values[output_format]
         
-        return pd.DataFrame(data, columns=all_resis, index=all_resis)           
+        return pd.DataFrame(data, columns=all_resis, index=all_resis)       
+
 
 def _de_correlate_df(df):
     '''
@@ -572,11 +573,13 @@ class ContactPCA:
         self.freqs = contact_df
         if significance_test == True:
             self.permutated_pca(N_permutations=N_permutations)
+            self.score_sums = self.get_score_sums()
         else:
             self._permutated_explained_variance = None
             self.permutated_component_pvals = None
             self.chacra_pvals = None
             self.top_chacras = None
+            self.score_sums = None
         if structure is not None:
             self.structure = structure
         self.freqs = contact_df
@@ -842,6 +845,38 @@ class ContactPCA:
 
         deepest_chacra = np.where((self.chacra_pvals  > 0.05)==False)[0][-1] + 1
         self.top_chacras = list(range(1,deepest_chacra+1))
+
+    def get_score_sums(self):
+        '''
+        For each residue, assign half the value of every loading score associated
+        with it and sum (absolute values) them all.  This gives an idea of how
+        much of the overall variance of a PC a residue is responsible for.
+
+        Returns
+        -------
+        pd.DataFrame
+
+        Columns are residue IDs and rows are principal component IDs.
+
+        '''
+        results = {pc:{} for pc in self.top_chacras}
+        for col in self.norm_loadings.index:
+            a, b = col.split("-")
+            if a not in results[1].keys():
+                for pc in self.top_chacras:
+                    results[pc][a] = self.norm_loadings[f'PC{pc}'].loc[col]/2
+            else:
+                for pc in self.top_chacras:
+                    results[pc][a] += self.norm_loadings[f'PC{pc}'].loc[col]/2
+                
+            if b not in results[1].keys():
+                for pc in self.top_chacras:
+                    results[pc][b] = self.norm_loadings[f'PC{pc}'].loc[col]/2
+            else:
+                for pc in self.top_chacras:
+                    results[pc][b] += self.norm_loadings[f'PC{pc}'].loc[col]/2
+        
+        return pd.DataFrame([result.values() for result in results.values()], index=results.keys(), columns=results[1].keys())
 
     def to_pymol(self, pcs=None, cutoff=0.6, 
                  output='chacra_selections.pml',
