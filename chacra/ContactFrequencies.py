@@ -876,6 +876,8 @@ class ContactPCA:
                 for pc in self.top_chacras:
                     results[pc][b] += self.norm_loadings[f'PC{pc}'].loc[col]/2
         
+        results = sort_nested_dict(results)
+        
         return pd.DataFrame([result.values() for result in results.values()], index=results.keys(), columns=results[1].keys())
 
     def to_pymol(self, pcs=None, cutoff=0.6, 

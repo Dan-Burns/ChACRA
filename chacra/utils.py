@@ -96,3 +96,15 @@ def multi_intersection(lists, cutoff=None, verbose=False):
 
 def get_subplot_rows(n_items, n_columns):
     return (n_items + n_columns - 1) // n_columns
+
+def sort_nested_dict(d):
+    '''
+    Sort the split sum dictionary. This is expecting the keys of the nested dictionary to be
+    in the form of "A:ALA:5". 
+    '''
+    sorted_dict = {}
+    for outer_key, nested_dict in d.items():
+        sorted_keys = sorted(nested_dict.keys(), key=lambda x: (x.split(":")[0], int(x.split(":")[-1])))
+        sorted_nested_dict = {key: nested_dict[key] for key in sorted_keys}
+        sorted_dict[outer_key] = sorted_nested_dict
+    return sorted_dict
