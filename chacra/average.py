@@ -631,15 +631,20 @@ def get_equivalent_interactions(representative_chains, u):
     segids = u.segments.segids
     all_chain_dists = get_all_chain_dists(u)
     identical_subunits = find_identical_subunits(u)
-
-    equivalent_interactions = {}
-    for chain in [chain for chain in representative_chains]:
-        for segid in segids:
-            if segid != chain:
-                equivalent_interactions[tuple(sorted((chain,segid)))
-                                        ] = asymmetric_measurements(
-                                        (chain,segid),identical_subunits,
-                                        u, all_chain_dists)
+    # deals with homodimer
+    if len(identical_subunits) == 1 and len(segids) == 2:
+        equivalent_interactions = {tuple(sorted((segids[0],segids[1])))
+                                 : [tuple(sorted((segids[0],segids[1])))]
+                                    }
+    else:
+        equivalent_interactions = {}
+        for chain in [chain for chain in representative_chains]:
+            for segid in segids:
+                if segid != chain:
+                    equivalent_interactions[tuple(sorted((chain,segid)))
+                                            ] = asymmetric_measurements(
+                                            (chain,segid),identical_subunits,
+                                            u, all_chain_dists)
 
     return equivalent_interactions
 
