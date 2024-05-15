@@ -96,7 +96,7 @@ from ChACRA.ContactAnalysis.plot import plot_chacras
 plot_chacras(cpca, temps=[i for i in np.geomspace(290,440,32)])
 
 ```
-![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/cefed842-b26e-4276-9d5c-15886482c2be)
+![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/bfb0e0d1-6303-4683-a9a8-eb9daafac58f)
 
 
 Now you can explore these PCs/chacras.
@@ -117,7 +117,7 @@ The resulting dataframe will have the indices (contacts) sorted in descending or
 
 Chacras can be visualized in pymol using .pml files generated with contacts_to_pymol.to_pymol.
 
-![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/143d7662-cc9a-4bd5-89d0-8bcde2826042)
+![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/058f21d6-70a3-4360-b779-f5fff0066f18)
 
 
 1. Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)
