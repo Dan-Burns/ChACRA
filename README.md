@@ -96,7 +96,7 @@ from ChACRA.ContactAnalysis.plot import plot_chacras
 plot_chacras(cpca, temps=[i for i in np.geomspace(290,440,32)])
 
 ```
-![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/d8ca0189-48b1-4eb2-97b6-71a7ec473705)
+![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/cefed842-b26e-4276-9d5c-15886482c2be)
 
 
 Now you can explore these PCs/chacras.
