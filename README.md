@@ -96,8 +96,7 @@ from ChACRA.ContactAnalysis.plot import plot_chacras
 plot_chacras(cpca, temps=[i for i in np.geomspace(290,440,32)])
 
 ```
-![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/d8ca0189-48b1-4eb2-97b6-71a7ec473705)
-
+![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/00a98056-bd79-4a3f-95ec-656688838301)
 
 Now you can explore these PCs/chacras.
 
@@ -117,14 +116,12 @@ The resulting dataframe will have the indices (contacts) sorted in descending or
 
 Chacras can be visualized in pymol using .pml files generated with contacts_to_pymol.to_pymol.
 
-![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/143d7662-cc9a-4bd5-89d0-8bcde2826042)
+![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/a8eb2448-26e5-48e6-a421-6b4cc798ac33)
 
 
 1. Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)
 
 2. Burns, D., Venditti, V. & Potoyan, D. A. Temperature sensitive contact modes allosterically gate TRPV3. PLoS Comput. Biol. 19, e1011545 (2023)
 
-3. Wang, L., Friesner, R. A. & Berne, B. J. Replica Exchange with Solute Scaling: A More Efficient Version of Replica Exchange with Solute Tempering (REST2). The Journal of Physical Chemistry B vol. 115 9431–9438 Preprint at https://doi.org/10.1021/jp204407d (2011)
-
-4. Vieira, V. M. N. C. Permutation tests to estimate significances on Principal Components Analysis. Computational Ecology and Software 2, 103–123 (2012)
+3. Burns, D., Venditti, V. &#38; Potoyan, D. A. Illuminating protein allostery by chemically accurate contact response analysis (ChACRA). <i>J. Chem. Theory Comput.</i> (2024)
 
