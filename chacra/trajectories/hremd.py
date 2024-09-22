@@ -30,16 +30,18 @@ import MDAnalysis as mda
 #import femto.md.utils.mpi
 #femto.md.utils.mpi.divide_gpus()
 
-def run_hremd(structure_file, system_file, temp_min, temp_max, n_systems,
+def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
               warmup_steps, steps_per_cycle, cycles, save_interval):
     u = mda.Universe(structure_file)
     structure = pmd.load_file(structure_file)
 
-    with open(system_file, 'r') as file:
-        xml = file.read()
+    if type(system) == str:
+        with open(system, 'r') as file:
+            xml = file.read()
 
-    # Deserialize the XML and create a System object
-    system = XmlSerializer.deserialize(xml)
+        # Deserialize the XML and create a System object
+        system = XmlSerializer.deserialize(xml)
+    
 
     rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
 
