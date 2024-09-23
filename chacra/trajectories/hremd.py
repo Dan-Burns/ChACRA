@@ -1,6 +1,6 @@
 '''
-This very accessible implementation of HREMD is thanks to Simon Boothroyd's 
-femto package.
+This very accessible implementation of HREMD is thanks to the psivant/femto
+package.
 
 https://github.com/Psivant/femto
 https://psivant.github.io/femto/latest/guide-md/
@@ -31,7 +31,22 @@ import MDAnalysis as mda
 #femto.md.utils.mpi.divide_gpus()
 
 def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
-              warmup_steps, steps_per_cycle, cycles, save_interval):
+              warmup_steps, steps_per_cycle, cycles, save_interval,
+              state=None):
+    
+    '''
+    femto.md.utils.openmm.create_simulation must be passed coords from an
+    equilibrated simulation with all the state data.
+
+    state = simulation.context.getState(
+            getPositions=True,
+            getVelocities=True,
+            getForces=True,
+            getEnergy=True,
+            enforcePeriodicBox=True,
+        )
+    
+    '''
     u = mda.Universe(structure_file)
     structure = pmd.load_file(structure_file)
 
@@ -45,7 +60,7 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
 
     rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
 
-    indices = u.select_atoms('protein').atoms.ix
+    indices = u.select_atoms('protein').atoms.ix # change to omm function
     solute_idxs = set(indices)
 
     femto.md.rest.apply_rest(system, solute_idxs, rest_config)
@@ -83,7 +98,7 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
     simulation = femto.md.utils.openmm.create_simulation(
         system,
         structure,
-        coords=None,  # or None to use the coordinates / box in structure
+        coords=state,  # or None to use the coordinates / box in structure
         integrator=integrator,
         state=states[0],
         platform=femto.md.constants.OpenMMPlatform.CUDA,

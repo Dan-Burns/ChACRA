@@ -4,6 +4,7 @@ import parmed as pmd
 import subprocess
 import os
 import glob
+import copy
 
 #TODO - test
 # Function to concatenate and process trajectories
@@ -146,7 +147,7 @@ def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
     underscores from the beginning of the file [atomtypes]
     or else plumed will look for atoms with 2 underscores to apply lambda to.
     '''
-    top = GromacsTopologyFile(gromacs_processed_top)
+    top = pmd.gromacs.GromacsTopologyFile(gromacs_processed_top)
 
     for atom in top.view[atom_indices].atoms:
         atom.type = f"{atom.type}_"
