@@ -94,7 +94,7 @@ class ContactFrequencies:
         
         structure : str
             Path to the structure file that the contact data is based on.
-            Conventiently makes the structure available to other functions. 
+            Conveniently makes the structure available to other functions. 
 
         get_chacras : bool
             Make the ContactPCA class an attribute of this object.  

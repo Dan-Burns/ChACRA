@@ -31,7 +31,8 @@ import MDAnalysis as mda
 #femto.md.utils.mpi.divide_gpus()
 
 def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
-              warmup_steps, steps_per_cycle, cycles, save_interval,
+              warmup_steps, steps_per_cycle, cycles, save_interval, 
+              checkpoint_interval,
               state=None):
     
     '''
@@ -57,6 +58,7 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
         # Deserialize the XML and create a System object
         system = XmlSerializer.deserialize(xml)
     
+        
 
     rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
 
@@ -116,12 +118,15 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
         n_cycles=cycles,
         # the frequency with which to store trajectories of each replica.
         # set to None to not store trajectories
-        trajectory_interval=save_interval  # store every n_cycles * n_steps_per_cycle.
+        trajectory_interval=save_interval,  # store every n_cycles * n_steps_per_cycle.
+        checkpoint_interval=checkpoint_interval
     )
-    femto.md.hremd.run_hremd(
+    u_kn, n_k, final_coords = femto.md.hremd.run_hremd(
         simulation,
         states,
         hremd_config,
         # the directory to store sampled reduced potentials and trajectories to
         output_dir=output_dir
     )
+
+    return u_kn, n_k, final_coords
