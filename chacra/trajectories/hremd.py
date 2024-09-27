@@ -25,6 +25,8 @@ import femto.md.solvate
 import openmm.app
 from openmm import XmlSerializer
 import MDAnalysis as mda
+import pyarrow
+from MDAnalysis.analysis.base import AnalysisFromFunction
 
 # if parallel
 #import femto.md.utils.mpi
@@ -130,3 +132,37 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
     )
 
     return u_kn, n_k, final_coords
+
+def sort_replica_trajectories(structure, hremd_data, trajectory_dir,
+                              save_interval,
+                              output_dir, selection='protein'):
+    
+    with pyarrow.OSFile(hremd_data, "rb") as file:
+        with pyarrow.RecordBatchStreamReader(file) as reader:
+            output_table = reader.read_all()
+    df = output_table.to_pandas()
+
+    state_indices = np.vstack(df['replica_to_state_idx'].to_numpy())
+    num_states = state_indices.shape[1]
+    indices = state_indices[:,:][::save_interval]
+
+    ref = mda.Universe(structure)
+    ref_sel = ref.select_atoms(selection)
+    n_atoms = len(ref_sel.atoms)
+    traj_len = indices.shape[0]
+
+    for n in range(num_states): # going to get all the frames for state n from each replica
+        state_traj = np.zeros((traj_len,n_atoms,3)) 
+        for replica in range(num_states): # go through all replicas
+            frames = np.where(np.where(indices==replica)[1]==state)[0].tolist()
+            if len(frames)>0: 
+                traj = f"{trajectory_dir}/r{replica}.dcd"
+                u = mda.Universe(structure,
+                                    traj)
+                protein = u.select_atoms(selection)
+                coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(),
+                                        protein).run().results['timeseries']
+                state_traj = np.vstack((state_traj,coordinates))
+        u = mda.Merge(ref_sel)
+        u.load_new(coordinates)
+        u.atoms.write(f"{output_dir}/state_{n}.xtc",frames='all')
