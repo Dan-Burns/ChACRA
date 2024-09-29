@@ -166,3 +166,25 @@ def sort_replica_trajectories(structure, hremd_data, trajectory_dir,
         u = mda.Merge(ref_sel)
         u.load_new(coordinates)
         u.atoms.write(f"{output_dir}/state_{n}.xtc",frames='all')
+
+def get_state_energies(energy_data, replica_state_ixs):
+    '''
+    energy_data : pd.Series
+        The u_kn frames x replica x states 
+        with femto arrow output to dataframe 
+        >> energy_data = df['u_kn']
+
+    replica_state_ixs : np.ndarray
+        The frames x replicas array where replica_state_ixs[i][k]
+        returns the thermodynamic state index for replica k at frame i
+        df['replica_to_state_idx'].to_numpy()
+    
+    '''
+
+    traj_len, num_states = len(energy_data), replica_state_ixs[0].shape
+    energies = np.zeros((traj_len,num_states)) # each state will be a column 
+    for frame in range(traj_len):  
+        for state in range(num_states): # go through all replicas
+            replica = replica_state_ixs[frame][state]
+            energies[frame][state] = energy_data.iloc[frame][replica][state]
+    return energies
