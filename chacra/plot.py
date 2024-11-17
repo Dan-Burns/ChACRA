@@ -286,3 +286,18 @@ for i, contact in enumerate(different_stable):
 fig.tight_layout()
 
 '''
+
+def plot_energies(energies, filename=None, n_bins=20):
+    ''''
+    energies : np.array
+        The n_cycles x n_states array of energies from the replica exchange simulations.
+    
+    Returns
+    -------
+    matplotlib.pyplot.plt
+    '''
+    for i, rep in enumerate(range(energies.shape[1])):
+        plt.hist(energies[:,rep],label=i, bins=n_bins)
+        #plt.legend(loc='upper left')
+    if filename is not None:
+        plt.savefig(filename)

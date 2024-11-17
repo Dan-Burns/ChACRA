@@ -38,6 +38,7 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
               state=None):
     
     '''
+    TODO : MOVE TO SCRIPT
     femto.md.utils.openmm.create_simulation must be passed coords from an
     equilibrated simulation with all the state data.
 
@@ -133,58 +134,111 @@ def run_hremd(structure_file, system, temp_min, temp_max, n_systems,
 
     return u_kn, n_k, final_coords
 
-def sort_replica_trajectories(structure, hremd_data, trajectory_dir,
-                              save_interval,
-                              output_dir, selection='protein'):
-    
+def load_femto_data(hremd_data):
+    '''
+    hremd_data : str
+        Path to the femto state data output (i.e. samples.arrow file).
+    '''
     with pyarrow.OSFile(hremd_data, "rb") as file:
         with pyarrow.RecordBatchStreamReader(file) as reader:
             output_table = reader.read_all()
-    df = output_table.to_pandas()
+    return output_table.to_pandas()
 
-    state_indices = np.vstack(df['replica_to_state_idx'].to_numpy())
-    num_states = state_indices.shape[1]
-    indices = state_indices[:,:][::save_interval]
-
-    ref = mda.Universe(structure)
-    ref_sel = ref.select_atoms(selection)
-    n_atoms = len(ref_sel.atoms)
-    traj_len = indices.shape[0]
-
-    for n in range(num_states): # going to get all the frames for state n from each replica
-        state_traj = np.zeros((traj_len,n_atoms,3)) 
-        for replica in range(num_states): # go through all replicas
-            frames = np.where(np.where(indices==replica)[1]==state)[0].tolist()
-            if len(frames)>0: 
-                traj = f"{trajectory_dir}/r{replica}.dcd"
-                u = mda.Universe(structure,
-                                    traj)
-                protein = u.select_atoms(selection)
-                coordinates = AnalysisFromFunction(lambda ag: ag.positions.copy(),
-                                        protein).run().results['timeseries']
-                state_traj = np.vstack((state_traj,coordinates))
-        u = mda.Merge(ref_sel)
-        u.load_new(coordinates)
-        u.atoms.write(f"{output_dir}/state_{n}.xtc",frames='all')
-
-def get_state_energies(energy_data, replica_state_ixs):
+def get_num_states(df):
     '''
-    energy_data : pd.Series
-        The u_kn frames x replica x states 
-        with femto arrow output to dataframe 
-        >> energy_data = df['u_kn']
+    Get the number of thermodynamic states (same as number of replicas)
+    from the femto data.
+    '''
+    return df['u_kn'][0].shape[0]
 
-    replica_state_ixs : np.ndarray
-        The frames x replicas array where replica_state_ixs[i][k]
-        returns the thermodynamic state index for replica k at frame i
-        df['replica_to_state_idx'].to_numpy()
+def make_combined_traj(structure, traj_dir, n_states):
+    '''
+    Create an MDAnalysis universe containing all of the replica exchange trajectories.
+    Assumes trajectories are named in femto default pattern (r0.dcd, r1.dcd, ...)
+
+    structure : str
+        Path to simulation structure file or topology.
+
+    traj_dir : str
+        Path to directory containing all of the replica trajectories.
+
+    n_states : int
+        The number of replicas in the replica exchange ensemble.
+
+    Returns
+    -------
+    mda.Universe
+
+    TODO : allow for only specifying structure and traj dir and alternate naming scheme for dcd files.
+    '''
+    u = mda.Universe(structure, [f"{traj_dir}/r{replica_id}.dcd" for replica_id in range(n_states)])
+    return u
+
+def sort_replica_trajectories(df, save_interval, traj_len):
+    '''
+    Creates a dictionary with state id keys and list of lists values containing each replicas frames 
+    that correspond to the state. 
+
+    df : pd.DataFrame
+        State data output from femto
+
+    save_interval : int
+        The number of cycles that elapse between writing coordinates.
+        femto.md.config.HREMD(trajectory_interval=save_interval)
+
+    Returns
+    -------
+    Dictionary
+    keys corresponding to states i to n_states
+    values are lists of lists where list index j holds the frames from replica j
+    corresponding to state i.
+    '''
+    
+    n_states = df['u_kn'][0].shape[0]
+    state_replica_frames = {i:[] for i in range(n_states)}
+    # have to know traj_len because there will probably be additional rows in the state_data between the 
+    # final saved frame and the next frame that would have been saved.
+    replica_to_state_idx = np.vstack((df['replica_to_state_idx'][::save_interval][:traj_len]).values)
+    
+    for replica in range(n_states):
+        frames, states = np.where(replica_to_state_idx == replica)
+        for state in range(n_states):
+            state_replica_frames[state].append(np.where(states==state)[0])
+    
+    return state_replica_frames
+
+def write_state_trajectories(structure, traj_dir, state_replica_frames, output_dir, output_selection='protein'):
+    '''
+    Write separate trajectories for each thermodynamic state. 
+    
+    Parameters
+    ----------
     
     '''
+    n_states = len(state_replica_frames)
+    u = make_combined_traj(structure, traj_dir, n_states)
+    sel = u.select_atoms(output_selection)
+    for state in range(n_states):
+        state_frames = []
+        for replica_id in range(n_states):
+            start_frame = replica_id*traj_len
+            state_frames.extend(start_frame + state_replica_frames[state][replica_id])
+        sel.write(f"{output_dir}/state_{state}.xtc", frames=state_frames)
 
-    traj_len, num_states = len(energy_data), replica_state_ixs[0].shape
-    energies = np.zeros((traj_len,num_states)) # each state will be a column 
-    for frame in range(traj_len):  
-        for state in range(num_states): # go through all replicas
-            replica = replica_state_ixs[frame][state]
-            energies[frame][state] = energy_data.iloc[frame][replica][state]
-    return energies
+
+def get_state_energies(df):
+    '''
+    df : pd.DataFrame
+        State data output from femto.
+
+    Returns
+    -------
+    np.array of shape n_cycles x n_states
+    column i corresponds to the energies sampled at state i
+    
+    '''
+    n_states = df['u_kn'][0].shape[0]
+    energies = []
+    for row, index in zip(df['u_kn'],df['replica_to_state_idx']):
+        energies.append(np.vstack(row)[np.arange(n_states),index])
+    return np.vstack(energies)
