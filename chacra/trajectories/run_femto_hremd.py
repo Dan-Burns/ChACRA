@@ -19,6 +19,9 @@ import femto.md.rest
 '''
 Run a Hamiltonian Replica Exchange Molecular Dynamics (HREMD) simulation using femto / openmm.
 If continuing from a checkpoint, the checkpoint file must be in output_path (default is 'hremd-outputs').
+
+n_cycles is additive so if you have already run 100 cycles and you want to run another 100 from a checkpoint,
+n_cycles must = 200.
 https://github.com/Psivant/femto
 https://psivant.github.io/femto/latest/guide-md/
 

@@ -1,7 +1,7 @@
 import numpy as np
 import MDAnalysis as mda
 import pyarrow
-
+import os
 
 
 
@@ -95,7 +95,8 @@ def sort_replica_trajectories(df, save_interval, traj_len):
     
     return state_replica_frames
 
-def write_state_trajectories(structure, traj_dir, state_replica_frames, traj_len, output_dir, output_selection='protein'):
+
+def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, output_dir, output_selection='protein'):
     '''
     Write separate trajectories for each thermodynamic state from a femto HREMD simulation. 
     
@@ -107,13 +108,12 @@ def write_state_trajectories(structure, traj_dir, state_replica_frames, traj_len
     traj_dir : str
         Path to directory with the femto hremd trajectories.
 
-    state_replica_frames : dict
-        The dictionary produced by sort_replica_trajectories(). Contains keys of state ids
-        and lists of lists that hold the frames of each replica (replica i = list index i) corresponding to that state.
-
-    traj_len : int
-        The number of frames contained in a single replica trajectory.
-        Load any of the trajectories and get len(u.trajectory).
+     hremd_data : str
+        Path to the femto state data output (i.e. samples.arrow file).
+    
+    save_interval : int
+        The number of cycles that elapse between writing coordinates.
+        femto.md.config.HREMD(trajectory_interval=save_interval)
 
     output_dir : str
         Path to the directory where the individual state trajectories will be written.
@@ -125,9 +125,15 @@ def write_state_trajectories(structure, traj_dir, state_replica_frames, traj_len
     -------
     None. Writes trajectories to output_dir.
     
-    
+    # TODO subprocess to write sets of trajectories in parallel
     '''
+    
+    traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]
+    traj_len = len(mda.Universe(structure, f"{traj_dir}/{traj}").trajectory)
+    df = load_femto_data(hremd_data)
+    state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
     n_states = len(state_replica_frames)
+   
     # all the replicas in one trajectory
     u = make_combined_traj(structure, traj_dir, n_states)
     sel = u.select_atoms(output_selection)
