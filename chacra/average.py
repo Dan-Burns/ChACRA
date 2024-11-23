@@ -446,9 +446,9 @@ def make_equivalent_contact_regex(resids):
      #TODO can remove any potential ambiguity by adding the list of correct chain 
      group chains 
      '''
-     regex1 = f"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
-     regex2 = f"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
-     return f"{regex1}|{regex2}"
+     regex1 = rf"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
+     regex2 = rf"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
+     return rf"{regex1}|{regex2}"
 
 def get_representative_pair_name(chaina, chainb, identical_subunits, 
                                  representative_chains, equivalent_interactions):

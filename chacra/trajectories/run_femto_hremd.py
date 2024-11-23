@@ -82,18 +82,34 @@ checkpoint_interval = args.checkpoint_interval
 output_path = args.output_path
 
 
-pdb = PDBFile(structure_file)
-structure = pmd.load_file(structure_file)
-integrator = LangevinMiddleIntegrator(temp_min,1/unit.picosecond, 2*unit.femtosecond)
-simulation = Simulation(pdb.topology, system, integrator)
-simulation.context.setPositions(pdb.positions)
+# pdb = PDBFile(structure_file)
+# structure = pmd.load_file(structure_file)
+# integrator = LangevinMiddleIntegrator(temp_min,1/unit.picosecond, 2*unit.femtosecond)
+# simulation = Simulation(pdb.topology, system, integrator)
+# simulation.context.setPositions(pdb.positions)
 
 u = mda.Universe(structure_file)
 indices = u.select_atoms(lambda_selection).atoms.ix 
 solute_idxs = set(indices)
 
 
-state = simulation.context.getState(
+# coords = simulation.context.getState(
+#             getPositions=True,
+#             getVelocities=True,
+#             getForces=True,
+#             getEnergy=True,
+#             enforcePeriodicBox=True,
+#         )
+
+# modify the system before creating the simulation object
+rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
+femto.md.rest.apply_rest(system, solute_idxs, rest_config)
+pdb = PDBFile(structure_file)
+structure = pmd.load_file(structure_file)
+integrator = LangevinMiddleIntegrator(temp_min,1/unit.picosecond, 2*unit.femtosecond)
+simulation = Simulation(pdb.topology, system, integrator)
+simulation.context.setPositions(pdb.positions)
+coords = simulation.context.getState(
             getPositions=True,
             getVelocities=True,
             getForces=True,
@@ -101,8 +117,8 @@ state = simulation.context.getState(
             enforcePeriodicBox=True,
         )
 
-rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
-femto.md.rest.apply_rest(system, solute_idxs, rest_config)
+
+
 output_dir = pathlib.Path(output_path)
 
 # define the REST2 temperatures to sample at
@@ -136,7 +152,7 @@ integrator = femto.md.utils.openmm.create_integrator(
 simulation = femto.md.utils.openmm.create_simulation(
     system,
     structure,
-    coords=state,  # or None to use the coordinates / box in structure
+    coords=coords,  # or None to use the coordinates / box in structure
     integrator=integrator,
     state=states[0],
     platform=femto.md.constants.OpenMMPlatform.CUDA,
@@ -154,6 +170,7 @@ hremd_config = femto.md.config.HREMD(
     # the frequency with which to store trajectories of each replica.
     # set to None to not store trajectories
     trajectory_interval=save_interval,  
+    trajectory_enforce_pbc=True,
     checkpoint_interval=checkpoint_interval
 )
 print(datetime.now().strftime("%H:%M"))

@@ -129,7 +129,8 @@ class ContactFrequencies:
             elif os.path.isdir(contact_data):
 
                 contact_files = [f'{contact_data}/{file}' for file in sorted(
-                            os.listdir(contact_data)) if file.endswith('.tsv')]
+                            os.listdir(contact_data),key=lambda x: int(re.split(r'_|\.',x)[-2]))
+                              if file.endswith('.tsv')]
                 print("Arranging the data in the following order :", flush=True)
                 for file in contact_files:
                     print(file, flush=True)
@@ -216,9 +217,9 @@ class ContactFrequencies:
             else:
                 chain = '[A-Z1-9]+'
                 resn = '[A-Z]+'
-            regex1 = f"{chain}:{resn}:{resid1}(?!\d)-{chain2}:{resn2}:{resid2}(?!\d)"
-            regex2 = f"{chain2}:{resn2}:{resid2}(?!\d)-{chain}:{resn}:{resid1}(?!\d)"
-            regex = f"{regex1}|{regex2}"
+            regex1 = rf"{chain}:{resn}:{resid1}(?!\d)-{chain2}:{resn2}:{resid2}(?!\d)"
+            regex2 = rf"{chain2}:{resn2}:{resid2}(?!\d)-{chain}:{resn}:{resid1}(?!\d)"
+            regex = rf"{regex1}|{regex2}"
         else:
             if type(resid1) == tuple:
                 chain = resid1[0]
@@ -227,9 +228,9 @@ class ContactFrequencies:
             else:
                 chain = '[A-Z1-9]+'
                 resn = '[A-Z]+'
-            regex1 = f"{chain}:{resn}:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:\d+"
-            regex2 = f"[A-Z1-9]+:[A-Z]+:\d+-{chain}:{resn}:{resid1}(?!\d)"
-            regex = f"{regex1}|{regex2}"
+            regex1 = rf"{chain}:{resn}:{resid1}(?!\d)-[A-Z1-9]+:[A-Z]+:\d+"
+            regex2 = rf"[A-Z1-9]+:[A-Z]+:\d+-{chain}:{resn}:{resid1}(?!\d)"
+            regex = rf"{regex1}|{regex2}"
         return self.freqs.filter(regex=regex, axis=1)
     
       

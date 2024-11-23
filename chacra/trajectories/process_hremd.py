@@ -4,23 +4,6 @@ import pyarrow
 import os
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Functions to process the HREMD Output
 def load_femto_data(hremd_data):
     '''
@@ -74,6 +57,9 @@ def sort_replica_trajectories(df, save_interval, traj_len):
         The number of cycles that elapse between writing coordinates.
         femto.md.config.HREMD(trajectory_interval=save_interval)
 
+    traj_len : int
+        The length of an individual replica trajectory.
+
     Returns
     -------
     Dictionary
@@ -84,15 +70,16 @@ def sort_replica_trajectories(df, save_interval, traj_len):
     
     n_states = df['u_kn'][0].shape[0]
     state_replica_frames = {i:[] for i in range(n_states)}
-    # have to know traj_len because there will probably be additional rows in the state_data between the 
+    # have to know traj_len because there could be additional rows in the state_data between the 
     # final saved frame and the next frame that would have been saved.
-    replica_to_state_idx = np.vstack((df['replica_to_state_idx'][::save_interval][:traj_len]).values)
+    replica_to_state_idx = np.vstack((df['replica_to_state_idx'][::save_interval]).values[:traj_len])
     
+   
     for replica in range(n_states):
-        frames, states = np.where(replica_to_state_idx == replica)
         for state in range(n_states):
-            state_replica_frames[state].append(np.where(states==state)[0])
-    
+            frames = np.where(replica_to_state_idx[:, state] == replica)[0]
+            state_replica_frames[state].append(frames)
+
     return state_replica_frames
 
 
@@ -123,12 +110,12 @@ def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, out
 
     Returns
     -------
-    None. Writes trajectories to output_dir.
+    Writes trajectories to output_dir.
     
-    # TODO subprocess to write sets of trajectories in parallel
+   
     '''
     
-    traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]
+    traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]# taking the first trajectory in the list to get the individual traj_len
     traj_len = len(mda.Universe(structure, f"{traj_dir}/{traj}").trajectory)
     df = load_femto_data(hremd_data)
     state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
@@ -144,9 +131,10 @@ def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, out
         state_frames = []
 
         for replica_id in range(n_states):
-            start_frame = replica_id*traj_len
+            start_frame = replica_id*traj_len # move to the first frame of replica replica_id in the combined trajectory
             state_frames.extend(start_frame + state_replica_frames[state][replica_id])
-        sel.write(f"{output_dir}/state_{state}.xtc", frames=state_frames)
+        sel.write(f"{output_dir}/state_{state}.xtc", frames=u.trajectory[state_frames])
+        
 
 
 def get_state_energies(df):
@@ -163,10 +151,16 @@ def get_state_energies(df):
     n_states = df['u_kn'][0].shape[0]
     energies = []
     for row, index in zip(df['u_kn'],df['replica_to_state_idx']):
-        # each row contains n_states arrays of arrays of size n_states
+        # each row contains n_states arrays of size n_states
         # the index contains the replica id in the element corresponding to the state it's being simulated at
         # at that frame.
         # by indexing the vstacked row with [np.arange(n_states), index], you retrieve the energy of the 
         # replica being simulated at that state
         energies.append(np.vstack(row)[np.arange(n_states),index])
     return np.vstack(energies)
+
+def concatenate_runs(state_trajectory_dir):
+    '''
+    Concatentate the trajectories from multiple runs for each state.
+    '''
+    return
