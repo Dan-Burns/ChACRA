@@ -137,6 +137,7 @@ def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, out
     # all the replicas in one trajectory
     u = make_combined_traj(structure, traj_dir, n_states)
     sel = u.select_atoms(output_selection)
+    os.makedirs(output_dir, exist_ok=True)
 
     for state in range(n_states):
         # the frame indices from all the replicas corresponding to one state 
