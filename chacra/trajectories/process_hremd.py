@@ -193,6 +193,44 @@ def get_state_energies(df):
         energies.append(np.vstack(row)[np.arange(n_states),index])
     return np.vstack(energies)
 
+def get_exchange_probability(df, state_i, state_j):
+    '''
+    df : pd.DataFrame
+        State data output from femto
+
+    Returns
+    -------
+    float
+    The probability of exchange between states i and j
+    '''
+    array = np.vstack(df['n_accepted_swaps'].values)
+    final_swap = array[-1]
+
+    return final_swap[state_i][state_j]/len(df)
+
+def get_exchange_probabilities(df):
+    '''
+    Get all the pairwise (nearest neighbors only) exchange
+    probabilities
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        State data output from femto.
+
+    Returns
+    -------
+    np.ndarray where element i is the exchange probability
+    between state i and state i+1.
+    '''
+    array = np.vstack(df['n_accepted_swaps'].values)
+    n_states = array.shape[1]
+    swaps = np.vstack(array[-1])
+    states_i = np.array(range(n_states-1))
+    states_j = np.array(range(1,n_states))
+    indices = [i for i in zip(states_i, states_j)] # can return indices if it's necessary
+    return swaps[states_i,states_j]
+
 def concatenate_runs(state_trajectory_dir):
     '''
     Concatentate the trajectories from multiple runs for each state.
