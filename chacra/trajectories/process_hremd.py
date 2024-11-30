@@ -1,5 +1,6 @@
 import numpy as np
 import MDAnalysis as mda
+from MDAnalysis.analysis import align
 import pyarrow
 import os
 import re
@@ -145,7 +146,19 @@ def sort_replica_trajectories(df, save_interval, traj_len):
 
 # alternative - memory intensive and slow but works
 
-def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, output_dir, selection='protein'):
+def write_state_trajectories(structure, 
+                             traj_dir, 
+                             hremd_data, 
+                             save_interval, 
+                             output_dir, 
+                             selection='protein',
+                             ref=None):
+    
+    '''
+    ref : str
+        Path to reference structure. If ref is provided, coordinates are aligned to 
+        C-alphas of selection.
+    '''
 
     traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]# taking the first trajectory in the list to get the individual traj_len
     u = mda.Universe(structure, f"{traj_dir}/{traj}")
@@ -155,6 +168,8 @@ def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, out
     df = load_femto_data(hremd_data)
     state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
     n_states = len(state_replica_frames)
+    if ref is not None:
+        ref = mda.Universe(ref)
     
     for state in range(n_states):
         coordinates = np.zeros((traj_len,n_atoms,3))
@@ -170,6 +185,7 @@ def write_state_trajectories(structure, traj_dir, hremd_data, save_interval, out
         with mda.Writer(f"{output_dir}/state_{state}.xtc", n_atoms=sel.n_atoms) as writer:
             for i in range(coordinates.shape[0]):
                 sel.positions = coordinates[i]  # Set the positions to the NumPy array
+                align.alignto(sel, ref, select=f"({selection}) and name CA")
                 writer.write(sel.atoms) 
 
 def get_state_energies(df):
