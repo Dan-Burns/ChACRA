@@ -1,6 +1,9 @@
 import subprocess
 import os
+import re
 
+## REMOVE
+# Run as script instead 
 def get_replica_contacts(topology, traj_dir, contacts_out='contacts', freqs_out='freqs', 
                          sele1='protein', sele2='protein', itypes='all', jobs=-1):
     '''
@@ -27,7 +30,7 @@ def get_replica_contacts(topology, traj_dir, contacts_out='contacts', freqs_out=
             "--topology", topology,
             "--trajectory", f"{traj_dir}/{traj}",
             "--output", f"{contacts_out}/cont_state_{i}.tsv",
-            "--cores", jobs,
+            "--cores", str(jobs),
             "--itypes", itypes,
             "--distout",
             "--sele", sele1,

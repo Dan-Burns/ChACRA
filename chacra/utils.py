@@ -2,6 +2,7 @@ from itertools import combinations
 import pandas as pd
 import numpy as np
 import re
+import os
 from MDAnalysis.analysis.distances import distance_array
 
 
@@ -108,3 +109,24 @@ def sort_nested_dict(d):
         sorted_nested_dict = {key: nested_dict[key] for key in sorted_keys}
         sorted_dict[outer_key] = sorted_nested_dict
     return sorted_dict
+
+
+def distribute_files(num_processes, files):
+    """
+    Distributes files from the given directory among the specified number of processes.
+    """
+    
+    total_files = len(files)
+    
+    # Calculate the number of files each process should handle
+    files_per_process = math.ceil(total_files / num_processes)
+    
+    # Create tasks as lists of files
+    tasks = []
+    for process_id in range(num_processes):
+        start_idx = process_id * files_per_process
+        end_idx = min(start_idx + files_per_process, total_files)
+        tasks.append(files[start_idx:end_idx])
+    
+    return tasks
+

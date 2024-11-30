@@ -2,6 +2,7 @@ import numpy as np
 import MDAnalysis as mda
 import pyarrow
 import os
+import re
 
 
 # Functions to process the HREMD Output
@@ -208,31 +209,53 @@ def get_exchange_probability(df, state_i, state_j):
 
     return final_swap[state_i][state_j]/len(df)
 
-def get_exchange_probabilities(df):
+def get_exchange_probabilities(data):
     '''
     Get all the pairwise (nearest neighbors only) exchange
     probabilities
 
     Parameters
     ----------
-    df : pd.DataFrame
-        State data output from femto.
+    df : pd.DataFrame | str
+        State data output from femto loaded in dataframe
+        or path to the samples.arrow file.
 
     Returns
     -------
-    np.ndarray where element i is the exchange probability
-    between state i and state i+1.
+    np.ndarray 
     '''
+    if type(data) == str:
+        df = load_femto_data(data)
+    else:
+        df = data
     array = np.vstack(df['n_accepted_swaps'].values)
     n_states = array.shape[1]
     swaps = np.vstack(array[-1])
     states_i = np.array(range(n_states-1))
     states_j = np.array(range(1,n_states))
     indices = [i for i in zip(states_i, states_j)] # can return indices if it's necessary
-    return swaps[states_i,states_j]
+    return swaps[states_i,states_j]/len(df)
 
 def concatenate_runs(state_trajectory_dir):
     '''
     Concatentate the trajectories from multiple runs for each state.
     '''
     return
+
+def freq_frames(freq_file):
+    '''
+    Return the number of frames that a contact frequency file 
+    was calculated for.
+
+    freq_file : str
+        Path to getcontact contact frequency file.
+
+    Returns
+    -------
+    int
+    The number of frames the contact frequencies were calculated for.
+    '''
+    with open(freq_file, 'r') as f:
+        line = f.readlines()[0]
+    frames = re.split(r":|\s+",line)[2]
+    return int(frames)
