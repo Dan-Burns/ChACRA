@@ -221,9 +221,13 @@ def get_exchange_probability(df, state_i, state_j):
     The probability of exchange between states i and j
     '''
     array = np.vstack(df['n_accepted_swaps'].values)
+    attempt_array = np.vstack(df['n_proposed_swaps'].values)
     final_swap = array[-1]
+    final_attempts = attempt_array[-1]
+    
 
-    return final_swap[state_i][state_j]/len(df)
+
+    return final_swap[state_i][state_j]/final_attempts[state_i][state_j]
 
 def get_exchange_probabilities(data):
     '''
@@ -245,12 +249,14 @@ def get_exchange_probabilities(data):
     else:
         df = data
     array = np.vstack(df['n_accepted_swaps'].values)
+    attempt_array = np.vstack(df['n_proposed_swaps'].values)
     n_states = array.shape[1]
     swaps = np.vstack(array[-1])
+    attempts = np.vstack(attempt_array[-1])
     states_i = np.array(range(n_states-1))
     states_j = np.array(range(1,n_states))
     indices = [i for i in zip(states_i, states_j)] # can return indices if it's necessary
-    return swaps[states_i,states_j]/len(df)
+    return swaps[states_i,states_j]/attempts[states_i, states_j]
 
 def concatenate_runs(state_trajectory_dir):
     '''

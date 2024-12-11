@@ -32,6 +32,7 @@ trajectories.sort(key=lambda x: int(re.split(r'\.|_', x)[1]))
 
 
 # Loop through replicas and execute commands
+# not working....
 for i, traj in enumerate(trajectories):  # Includes 0 to n_reps
     # Run get_dynamic_contacts.py
     
