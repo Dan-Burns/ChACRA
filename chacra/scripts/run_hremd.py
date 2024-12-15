@@ -27,7 +27,7 @@ parser.add_argument('--n_systems', type=int, default=None,
                     help='The number of replicas.')
 parser.add_argument('--save_interval', type=int, default=10,
                     help='Save trajectory data at this cycle interval.')
-parser.add_argument('--checkpoint_interval', type=int, default=100,
+parser.add_argument('--checkpoint_interval', type=int, default=500,
                     help='Save checkpoints at this cycle interval.')
 parser.add_argument('--warmup_steps', type=int, default=0,
                     help='The number of warmup steps to run before starting replica exchange attempts.\
