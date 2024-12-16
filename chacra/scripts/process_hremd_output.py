@@ -95,10 +95,10 @@ if run > 1:
 
     total_frames = sum(frame_counts.values())
     adjusted_cdfs = {}
-    for i, df in cdfs:
+    for i, df in cdfs.items():
         adjusted_cdfs[i] = cdfs[i]*(frame_counts[i]/total_frames)
 
-    combined = pd.concat([cdf for cdf in adjusted_cdfs], axis=0).fillna(0)
+    combined = pd.concat([cdf for cdf in adjusted_cdfs.values()], axis=0).fillna(0)
 
     # Sum the DataFrames row-wise, for shared columns only
     result = combined.groupby(combined.index).sum().reset_index(drop=True)
