@@ -278,6 +278,6 @@ def freq_frames(freq_file):
     The number of frames the contact frequencies were calculated for.
     '''
     with open(freq_file, 'r') as f:
-        line = f.readlines()[0]
-    frames = re.split(r":|\s+",line)[2]
-    return int(frames)
+        frames = f.readline().strip().split()[1]
+    frames = int(frames.split(":")[-1])
+    return frames

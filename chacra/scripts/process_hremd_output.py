@@ -1,17 +1,15 @@
 import os
 from ChACRA.chacra.trajectories.process_hremd import *
-from ChACRA.chacra.trajectories import get_replica_contacts
 from ChACRA.chacra.ContactFrequencies import make_contact_frequency_dictionary
 import argparse
 import os
-import matplotlib.pyplot as plt
 import pandas as pd
 import re
 import subprocess
 
 
 
-parser = argparse.ArgumentParser(description='Run HREMD simulation.')
+parser = argparse.ArgumentParser(description='Process the HREMD output.')
 parser.add_argument('--run', type=int, required=True,
                     help='The run ID to process.')
 parser.add_argument('--n_jobs', type=int, default=-1,
@@ -68,16 +66,17 @@ with open(f"./analysis_output/run_{run}/exchange_probabilities.txt", 'w') as f:
     for i, prob in enumerate(exchange_probs):
         f.write(f"{i}\n\t{prob}\n")
 
-# Construct the command
-command = [
-    "conda", "run", "-n", "getcontacts",
-    "python", f"get_state_contacts.py", 
-    "--run", str(run), 
-    "--n_jobs", str(args.n_jobs), 
-    "--structure_file", selection_file
-]
-
-subprocess.run(command)
+# run getcontacts
+for i in range(n_states):
+    command = [
+    "get_state_contacts.sh",
+    selection_file,
+    f'./state_trajectories/run_{run}/state_{i}.xtc',
+    f'./contact_output/run_{run}',
+    str(i),
+    str(args.n_jobs), 
+        ]
+    subprocess.run(command)
 
 # Go through previous runs' contact frequency files and generate a 
 # dataframe of the current frequencies for all the combined runs.
