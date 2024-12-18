@@ -69,7 +69,7 @@ with open(f"./analysis_output/run_{run}/exchange_probabilities.txt", 'w') as f:
 # run getcontacts
 for i in range(n_states):
     command = [
-    "get_state_contacts.sh",
+    "bash", "get_state_contacts.sh",
     selection_file,
     f'./state_trajectories/run_{run}/state_{i}.xtc',
     f'./contact_output/run_{run}',
