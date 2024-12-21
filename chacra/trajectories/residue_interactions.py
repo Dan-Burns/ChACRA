@@ -10,10 +10,9 @@ import argparse
 '''
 Experimental. Alternative to binary contact definition. This will give you continuous
 values for all pairwise interactions based on nonbonded energy. Assuming only the protein
-is used in the calculation - it's meant to provide a continuous set of values for ChACRA
-and not as an accurate representation of the energy in the system. 
-
-
+is used in the calculation - it's meant to provide a continuous set of values for ChACRA that 
+reflects the chemistry specific to the interactions and not as an accurate representation 
+of the system energy. 
 '''
 
 enaught = (8.8541878128e-12)*((coulomb**2)/(joule*meter))
