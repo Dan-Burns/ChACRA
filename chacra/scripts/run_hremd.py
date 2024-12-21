@@ -65,8 +65,12 @@ else:  # current_run == 1
         n_systems = args.n_systems
     
 # Get the number of cycles run thus far
-cycles_completed = int((df['step'].values/args.steps_per_cycle)[-1])+1
-total_cycles = cycles_completed + args.n_cycles
+# Get the number of cycles run thus far
+if current_run == 1:
+    total_cycles = args.n_cycles
+else:
+    cycles_completed = int((df['step'].values/args.steps_per_cycle)[-1])+1
+    total_cycles = cycles_completed + args.n_cycles
 
 # Define the MPI command
 mpi_command = [
