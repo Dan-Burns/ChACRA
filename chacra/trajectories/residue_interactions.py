@@ -9,8 +9,8 @@ import argparse
 
 '''
 Experimental. Alternative to binary contact definition. This will give you continuous
-values for all pairwise interactions based on nonbonded energy. Assuming only the protein
-is used in the calculation - it's meant to provide a continuous set of values for ChACRA that 
+values for all pairwise interactions based on coulomb and LJ energy. Assuming only the protein
+is used in the calculation, it's meant to provide a continuous set of values for ChACRA that 
 reflects the chemistry specific to the interactions and not as an accurate representation 
 of the system energy. 
 '''
@@ -232,17 +232,25 @@ def condensed_coulomb_force(q, r):
     '''
     return q/(4*np.pi**((r*1e-10)**2))
 
-def get_trajectory_interaction_energies(u, qs, sigs, eps, selection):
+def get_trajectory_interaction_energies(u, qs, sigs, eps, selection, backend='serial'):
+    '''
+    backend : str
+        Set to "OpenMP" to parallelize
+    '''
+    # this quickly gets way too big to hold in memory if you hold each frame
 
     sel = u.select_atoms(selection)
     all_dists = self_distance_array(sel)
-    energies = np.zeros((len(u.trajectory), all_dists.shape[0]))
+    n_frames = len(u.trajectory)
+    #energies = np.zeros((len(u.trajectory), all_dists.shape[0]))
+    energies = np.zeros(all_dists.shape[0])
     for i, frame in enumerate(u.trajectory):
         sel = u.select_atoms(selection)
-        dists = self_distance_array(sel)
-        coulomb_energies = condensed_coulomb_potential(qs, dists)
-        lj_energies = condensed_lj_potential(sigs, eps, dists)
-        energies[i] = coulomb_energies + lj_energies
+        all_dists = self_distance_array(sel, backend=backend)
+        coulomb_energies = condensed_coulomb_potential(qs, all_dists)
+        lj_energies = condensed_lj_potential(sigs, eps, all_dists)
+        #energies[i] = coulomb_energies + lj_energies
+        energies += (coulomb_energies + lj_energies)/n_frames
     return energies
 
 def get_res_rows(res, resis):
@@ -258,7 +266,7 @@ def get_other_res_cols(res, resis):
     '''
     return np.where(resis!=res)[0]
 
-def make_residue_atoms_index_dictionary(resis, atoms):
+def make_residue_atoms_index_dictionary(resis):
 
     res_dict = {}
     for res in set(resis):
@@ -270,7 +278,8 @@ def get_pairwise_residue_energies(energies, mask, resis, atoms):
     Returns symmetric matrix of pairwise residue interaction energies
     '''
     # pairwise residue energies
-    mean_energies = energies.mean(axis=0)
+    # mean_energies = energies.mean(axis=0) # will already be mean_energies
+    mean_energies = energies
     mean_energies[mask] = 0
     mean_energies_array = squareform(mean_energies)
     
@@ -342,15 +351,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate interaction energies from an MD trajectory.")
     parser.add_argument('--topology', type=str, help="The pdb or topology file.")
     parser.add_argument('--trajectory', type=str, default=None, required=False, help="The MD trajectory.")
-    parser.add_argument('--system', type=str, help="The OpenMM system.")
+    parser.add_argument('--system', type=str, help="The path to the OpenMM system.")
     parser.add_argument('--selection', type=str, help="The MDAnalysis atoms selection string.")
 
     # Parse the arguments
     args = parser.parse_args()
-    system = args.system
+    system = open_system(args.system)
     nonbonded_force = get_nonbonded_force(system)
     u = mda.Universe(args.topology, args.trajectory)
-    sel = u.select_atoms(args.selection)
+    sel_string = "protein"
+    sel = u.select_atoms(sel_string)
 
     atoms = sel.atoms.ix
     resis = sel.atoms.resindices
@@ -381,9 +391,9 @@ if __name__ == "__main__":
 
     intra_res_indices = get_intra_res_indices(resis, atoms)
 
-    mask_indices = np.array(list(set(intra_res_indices + exclusions)))
+    mask_indices = np.array(list(set(intra_res_indices + exclusion_indices)))
 
-    energies = get_trajectory_interaction_energies(u, qs, sigs, eps, sel)
+    energies = get_trajectory_interaction_energies(u, qs, sigs, eps, sel_string)
     res_energies = get_pairwise_residue_energies(energies, mask_indices, resis, atoms)
 
     # save the atom, mask, and energy arrays
