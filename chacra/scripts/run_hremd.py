@@ -112,16 +112,8 @@ try:
     shutil.move('./hremd-outputs/samples.arrow', f'./replica_trajectories/run_{current_run}/samples.arrow')
     shutil.copy('./hremd-outputs/checkpoint.pkl', f'./replica_trajectories/run_{current_run}/checkpoint.pkl')
    
-    # write out run info
+    
     times['end'] = datetime.now().strftime("%H:%M")
-    with open(f'analysis_output/run_{current_run}/stats.txt','w') as f:
-        f.write(f'{times}\n')
-        f.write(f"{times['end']-times['start']}\n")
-        f.write(f'n_systems : {n_systems}\n')
-        f.write(f'n_steps : {args.steps_per_cycle*args.n_cycles}\n')
-        f.write(f'save_interval : {args.save_interval}\n')
-        f.write(f'checkpoint_interval : {args.checkpoint_interval}\n')
-
    
     # Call Processing/ Analysis script here
     analysis_command = [
@@ -132,6 +124,16 @@ try:
                         "--save_interval", str(args.save_interval)
     ]
     subprocess.run(analysis_command)
+
+    # write out run info
+    
+    with open(f'analysis_output/run_{current_run}/stats.txt','w') as f:
+        f.write(f'{times}\n')
+        f.write(f"{times['end']-times['start']}\n")
+        f.write(f'n_systems : {n_systems}\n')
+        f.write(f'n_steps : {args.steps_per_cycle*args.n_cycles}\n')
+        f.write(f'save_interval : {args.save_interval}\n')
+        f.write(f'checkpoint_interval : {args.checkpoint_interval}\n')
 
 except subprocess.CalledProcessError as e:
     print("Error: The subprocess call failed.")
