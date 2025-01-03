@@ -129,7 +129,7 @@ try:
     
     with open(f'analysis_output/run_{current_run}/stats.txt','w') as f:
         f.write(f'{times}\n')
-        f.write(f"{times['end']-times['start']}\n")
+        f.write(f"{times['start']} to {times['end']}\n")
         f.write(f'n_systems : {n_systems}\n')
         f.write(f'n_steps : {args.steps_per_cycle*args.n_cycles}\n')
         f.write(f'save_interval : {args.save_interval}\n')
