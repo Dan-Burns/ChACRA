@@ -1284,8 +1284,10 @@ class CombinedChacra():
                 self.combined.cpca.loadings.filter(like=name, axis=id_axis).rename(
                                         self.reverse_mappers[name], axis=0
                                                  )
-            self.separated_cpca[name].norm_loadings = _normalize(
+            # normalized values are distributed between the ensembles
+            # so only one ensemble will have a maximum of 1 on a given pc
+            self.separated_cpca[name].norm_loadings = \
                                     self.separated_cpca[name].loadings
-                                                                ) 
+                                                                
 
     

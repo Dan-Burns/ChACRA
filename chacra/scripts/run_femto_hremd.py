@@ -6,6 +6,7 @@ from openmm.app import *
 import MDAnalysis as mda
 import numpy as np
 import parmed as pmd
+import mdtop 
 femto.md.utils.mpi.divide_gpus()
 import pathlib
 from datetime import datetime
@@ -69,7 +70,8 @@ checkpoint_interval = args.checkpoint_interval
 rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
 femto.md.rest.apply_rest(system, solute_idxs, rest_config)
 pdb = PDBFile(structure_file)
-structure = pmd.load_file(structure_file)
+#structure = pmd.load_file(structure_file)
+structure = mdtop.Topology.from_file(structure_file)
 integrator = LangevinMiddleIntegrator(290,1/unit.picosecond, 2*unit.femtosecond)
 simulation = Simulation(pdb.topology, system, integrator)
 simulation.context.setPositions(pdb.positions)
