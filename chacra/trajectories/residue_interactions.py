@@ -8,6 +8,8 @@ from itertools import combinations
 import argparse
 
 '''
+Not Implemented
+
 Experimental. Alternative to binary contact definition. This will give you continuous
 values for all pairwise interactions based on coulomb and LJ energy. Assuming only the protein
 is used in the calculation, it's meant to provide a continuous set of values for ChACRA that 

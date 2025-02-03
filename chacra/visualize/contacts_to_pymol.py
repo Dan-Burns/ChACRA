@@ -15,6 +15,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),
                     variable_sphere_transparency=False,
+                    variable_sphere_scale=False,
                     max_transparency=.9,
                     ):
     '''
@@ -105,6 +106,13 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
             rank = data[contact]['loading_score']
             sphere_transparency = (m * rank) + b
             data[contact]['sphere_transparency'] = sphere_transparency
+
+    if variable_sphere_scale:
+
+        for contact in data.keys():
+            data[contact]['loading_score']
+            sphere_scale =  data[contact]['loading_score']
+            data[contact]['sphere_scale'] = sphere_scale
 
         # sort the dictionary in ascending order of loading score so that
         # the highest scores get colored last (and take visual precedence)
@@ -232,6 +240,8 @@ def write_selections(contact_data, output_file):
             if 'sphere_transparency' in data.keys():
                 f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
 
+            if 'sphere_scale' in data.keys():
+                f.write(f"set sphere_scale, {data['sphere_scale']}, {contact} \n")
             # done with a contact's commands
             f.write('\n')
 
@@ -243,6 +253,7 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),
                     variable_sphere_transparency=False,
+                    variable_sphere_scale=False,
                     group=True):
     '''
      Parameters
@@ -278,7 +289,8 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     contact_data = get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=slope_range,
                     pc_range=pc_range,
-                    variable_sphere_transparency=variable_sphere_transparency
+                    variable_sphere_transparency=variable_sphere_transparency,
+                    variable_sphere_scale=variable_sphere_scale
                     )
     # write it to pymol file
     if output_file.split('.')[-1] != 'pml':

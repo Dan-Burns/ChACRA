@@ -172,3 +172,86 @@ def make_minimum_graph(contact_data, return_contacts=True):
         return edge_to_contact(list(min_graph.edges), contact_data)
     else:
         return min_graph
+    
+def pc_network(start_contact, contact_data, n_contacts=100, end_contact=None,
+               max_pc=None):
+    '''
+    Given a starting contact, find the next contact that involves either residue that has the highest
+    loading score on any of the top principal components and continue until you reach n_contacts or a specified contact.
+
+    Parameters
+    ----------
+    start_contact : str
+        The contact to start from.
+
+    contact_data : ContactPCA
+        The ContactPCA object containing the PCA data.
+
+    n_contacts : int
+        The number of contacts to return.
+        
+    end_contact : str
+        The contact to end at.
+        If None, the function will continue until n_contacts is reached.
+        If a contact is specified, the function will stop when that contact is reached.
+    
+    max_pc : int
+        The maximum principal component to consider.
+        If None, top_chacras will be considered.
+
+    Returns
+    -------
+    list
+    The list of connected contacts.
+    '''
+    # start with contact and working above the loading score cutoff
+    # find the next contact that involves either residue that has the highest
+    # loading score on any of the top principal components
+    # and continue until you reach n_contacts or a specified contact
+    # return the network of these contacts
+    path = [start_contact]
+    next_contact = path[-1]
+    while (len(path) < n_contacts) and (end_contact is None or end_contact not in path):
+
+        resa, resb = next_contact.split("-")
+        # all the columns that involve either residue
+        cols = list(contact_data.norm_loadings.filter(regex=f'{resa}|{resb}',axis=0).index)
+        # only want residues to appear two consecutive times.
+        counts = {}
+        for previous in path:
+            # if the contact is already in the path, don't include them in the 
+            # list of contacts to consider
+            if (previous in cols):
+                cols.remove(previous)
+            # if a residue is in the path twice, don't include it in the list of contacts to consider
+            a, b = previous.split("-")
+            if a in counts.keys():
+                counts[a]+=1
+            else:
+                counts[a] = 1
+            if b in counts.keys():
+                counts[b]+=1
+            else:
+                counts[b] = 1
+        # only want residues to appear two consecutive times.
+        counts = {res:count for res, count in counts.items() if count >= 2}
+        # remove those that have here
+        to_remove = []
+        for res in counts:
+            for col in cols:
+                if res in col:
+                    to_remove.append(col)
+        for col in set(to_remove):
+            cols.remove(col)
+            
+        if max_pc is not None:
+            dat = contact_data.norm_loadings.loc[cols][
+            [f"PC{pc}" for pc in range(1, max_pc+1)]]
+        else:
+            dat = contact_data.norm_loadings.loc[cols][
+            [f"PC{pc}" for pc in contact_data.top_chacras]] 
+        if dat.empty:
+            break  
+        next_contact = dat.idxmax().max()
+        path.append(next_contact)
+    return path
