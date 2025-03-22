@@ -52,6 +52,7 @@ def edge_to_contact(edge_data,contact_data):
 
 def make_network(cont, 
                  temp, 
+                 
                  ):
     '''
 
@@ -209,6 +210,8 @@ def pc_network(start_contact, contact_data, n_contacts=100, end_contact=None,
     # loading score on any of the top principal components
     # and continue until you reach n_contacts or a specified contact
     # return the network of these contacts
+    # TODO: incorparate splitting of paths from a contact
+    # this is all probably done best using edge betweeness with loading scores as weights
     path = [start_contact]
     next_contact = path[-1]
     while (len(path) < n_contacts) and (end_contact is None or end_contact not in path):

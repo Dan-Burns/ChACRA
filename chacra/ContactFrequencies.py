@@ -233,7 +233,49 @@ class ContactFrequencies:
             regex = rf"{regex1}|{regex2}"
         return self.freqs.filter(regex=regex, axis=1)
     
-      
+    
+    #TODO function to identify the most inversely correlated contact involving each 
+    # partner in a given contact
+
+    def find_correlated_contacts(self, contact, inverse=True):
+        '''
+        Returns a list of n_contacts involving one member of the input contact
+        with the highest (inverse) correlation values.
+        This helps identify a contact that is made as a function of another one
+        breaking.
+
+        Parameters
+        ----------
+        contact : str
+            The contact name to find correlated contacts for.
+
+        inverse : bool  
+            If True, return contacts with the highest inverse correlation values.
+
+        Returns
+        -------
+        list
+        List of contacts sorted in descending order of correlation values.
+        '''
+        # TODO a lower temperature range might correlate with one contact
+        # while a higher temperature range might begin correlating with another
+        # this might work best using a linear combination of PCs to identify
+        # patterns of contact making and breaking that depend on more than one contact
+
+        # can also return based on the whole matrix from 
+        # self.freqs.corr().filter(regex=rf'{a}|{b}',axis=0).filter(regex=rf'{a}|{b}',axis=1).min()...
+        
+
+        a,b = contact.split('-')
+        cor = self.freqs.corr()[[contact]]
+        if inverse == True:
+            out = cor.filter(regex=rf'{a}|{b}',axis=0).sort_values(by=contact,ascending=True)
+        else:
+            out = cor.filter(regex=rf'{a}|{b}',axis=0).sort_values(by=contact,ascending=False)
+        return out.index.tolist()
+        
+
+
     def get_edges(self, weights=True, inverse=True, temp=0, index=None, as_dict=False):
         '''
         returns list of contact id tuples for network analysis input
