@@ -6,7 +6,11 @@ import os
 import glob
 import copy
 
-#TODO - test
+# It is recommended to use femto for generating trajectories. All the processing is done
+# automatically for femto output with the scripts available in chacra.scripts.
+
+# The functions below aren't being updated and are here for reference only.
+
 # Function to concatenate and process trajectories
 def process_trajectories(folder, 
                          selection='not (resname HOH or resname CL or resname NA)',

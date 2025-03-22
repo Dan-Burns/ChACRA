@@ -15,6 +15,10 @@ values for all pairwise interactions based on coulomb and LJ energy. Assuming on
 is used in the calculation, it's meant to provide a continuous set of values for ChACRA that 
 reflects the chemistry specific to the interactions and not as an accurate representation 
 of the system energy. 
+
+Current form is very slow, particularly for large systems.
+
+TODO: only consider interactions up to a cutoff
 '''
 
 enaught = (8.8541878128e-12)*((coulomb**2)/(joule*meter))

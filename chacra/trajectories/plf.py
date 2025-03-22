@@ -47,7 +47,7 @@ class HydrophobicVdW(Hydrophobic, VdWContact):
 
     Usage
     -----
-    from ChACRA.chacra.(appropriate_module) import HydrophobicVdW
+    import HydrophobicVdW
 
     fp = plf.Fingerprinte(parameters=getcontacts_params, interactions=["HydrophobicVdW"])
     fp.run(u.trajectory, ligand_sel, protein_sel)

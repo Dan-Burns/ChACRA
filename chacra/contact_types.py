@@ -2,8 +2,11 @@ import json
 import re
 import pandas as pd
 from statistics import mode
+from itertools import islice
+from itertools import chain
 
-# Not Used - intended to analyze frame by frame interactions 
+# Not Used - intended to analyze frame by frame interactions from GetContacts output
+# Prolif would need separate functions
 #TODO return directionality of contact i.e. when one is contributing the sidechain then the direction goes from that one 
 
 # loop to tabulate per frame contacts is in old/older/sandbox_trp 
@@ -145,9 +148,87 @@ def res_contacts_xl(input_lines, itypes=None):
 
     return ret, total_frames
 
+def read_groups_by_frame(filepath,beg=0,end=None, start_line=0):
+    '''
+    filepath : str
+        path to contact tsv file
+    beg : int
+        frame to start reading from
+    end : int
+        frame to stop reading at
+    start_line : int
+        line to start reading from
+        Speeds up the process for subsequent reads
+    Returns
+    -------
+    generator
+        Yields frame number and list of contacts for each frame and final line
+        number.
+        last completed frame, list of lists of contacts for each frame, last line number
+    
+    # Better to use res_contacts_xl
+    Usage
+    -----
+    all_frames = []
+    for frame_number, group in read_groups_by_frame(frames):
+        all_frames.append(res_contacts(group))
+    
+    Reads all frames from beg to end inclusive so if running in sequence
+    beg should be the previous end+1
+    '''
+    with open(filepath, 'r') as f:
+
+        current_frame = None
+        current_group = []
+        if start_line == 0:
+            start_line = 2 # first two lines are metadata
+
+        # just need to use a separate function to read the metadata
+        # and start with line 2 if start_line is 0
+        # if start_line == 0:
+        #     # Skip metadata line
+        #     info = next(f)
+        #     total_frames = int(re.split(r":|\s+",info)[2])
+        #     col_info = next(f)
+            
+           
+                
+        # TODO: use islice to skip to beg line
+        # enumerate f and return the final line number so islice can be used on
+        # next iteration
+        for line_num, line in enumerate(islice(f, start_line, None)):
+            
+            line = line.strip()
+            if not line:
+                continue  # skip empty lines
+
+            parts = line.split()
+            frame_number = int(parts[0])
+
+            if frame_number < beg:
+                continue
+            if end is not None and frame_number > end:
+                break
+
+            if current_frame is None:
+                current_frame = frame_number
+
+            if frame_number != current_frame:
+                # Yield the completed group
+                yield current_frame, current_group, line_num+start_line
+                # Start a new group
+                current_frame = frame_number
+                current_group = [parts]
+            else:
+                current_group.append(parts)
+
+        # Yield the final group
+        if current_group:
+            yield current_frame, current_group, line_num+start_line
+
 def gen_counts(residue_contacts, min_frame=0, max_frame=None, return_frames=False):
     """
-    Computer interaction-counts for each residue pair.
+    Compute interaction-counts for each residue pair.
 
     max_frame and min_frame allows for calculating contact frequencies on less 
     than the entire trajectory.
@@ -184,8 +265,8 @@ def gen_counts(residue_contacts, min_frame=0, max_frame=None, return_frames=Fals
     for frame, res1, res2 in residue_contacts:
         if int(frame) < min_frame:
             continue
-        if int(frame) >= int(max_frame):
-            break
+        # if int(frame) >= int(max_frame): # this is undercounting because it's stopping before counting the last frame
+        #     break                        # if it's needed for some reason, max_frame can be +1
         else:
             rescontact_frames[(res1, res2)].add(frame)
     if return_frames == True:
@@ -194,13 +275,42 @@ def gen_counts(residue_contacts, min_frame=0, max_frame=None, return_frames=Fals
         rescontact_counts = {(res1, res2): len(frames) for (res1, res2), frames in rescontact_frames.items()}
         return rescontact_counts
 
+def flatten_lol(lol):
+    '''
+    unpack a list of lists
+    Returns
+    -------
+    list
+    '''
+    return list(chain.from_iterable(lol))
+
+
+
+
 def counts_to_freqs(counts, total_frames):
     freqs = {}
     for contact, count in counts.items():
         freqs[f'{contact[0]}-{contact[1]}'] = int(count)/total_frames
     return freqs
 
-######################### Use avereaged data and retrieve frames where 
+
+def get_contact_frequency_chunk(tsv_file, start_frame, total_frames, start_line=0):
+    '''
+    Get the contact frequencies for a chunk of frames
+    '''
+    contacts = []
+    for frame_number, group, line_num in read_groups_by_frame(tsv_file, beg=start_frame, 
+                                                              end=start_frame+total_frames-1,
+                                                          start_line=start_line):
+        contacts.append(res_contacts(group))
+
+    flat_contacts = flatten_lol(contacts)
+    counts = gen_counts(flat_contacts)
+    freqs = counts_to_freqs(counts, total_frames)
+    return freqs, frame_number, line_num
+
+
+######################### Use averaged data and retrieve frames where 
 ######################### identical contacts are happening
 
 def make_frame_lists(avg_contact, mapping, contact_frame_dictionary):
@@ -415,7 +525,7 @@ def parse_contact(line):
     split the contact line into parts
     should probably use getcontacts line parsing scheme
     '''
-    frame, contact_type, ch1, resn1, resid1, atom1, ch2, resn2, resid2, atom2, distance, _ = re.split("\s+|:", line)
+    frame, contact_type, ch1, resn1, resid1, atom1, ch2, resn2, resid2, atom2, distance, _ = re.split(r"\s+|:", line)
     return frame, contact_type, ch1, resn1, resid1, atom1, ch2, resn2, resid2, atom2, distance
     
 def make_contact_name(ch1,resn1,resid1,ch2,resn2,resid2):
@@ -440,7 +550,7 @@ def parse_contact_2(line):
     is making the contact
     '''
     line = line.rstrip()
-    frame, contact_type, res1, res2, distance = re.split("\s+", line)
+    frame, contact_type, res1, res2, distance = re.split(r"\s+", line)
     return frame, contact_type, res1, res2
     
     
