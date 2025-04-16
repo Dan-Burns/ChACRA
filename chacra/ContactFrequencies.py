@@ -447,7 +447,7 @@ class ContactFrequencies:
         ContactFrequencies object with the filtered dataframe before calling 
         to_heatmap().
 
-        Parameters
+        Parametersfrom ChACRA.chacra.visualize.contacts_to_pymol import to_pymol
         ----------
          
         output_format : str
@@ -503,7 +503,7 @@ class ContactFrequencies:
        
         # vectorize the data
         df_array = self.freqs.values
-        loading_array = self.cpca.loadings.values
+        loading_array = self.cpca.norm_loadings.values
         # get the row index if format is 'frequency' 
         if row is not None:
             if row in self.freqs.index:
