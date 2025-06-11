@@ -49,11 +49,11 @@ selection_file = f"./structures/state_trajectory_selection.pdb"
 
 sel.write(selection_file)
 
-write_state_trajectories(structure_file,
-                        f'./replica_trajectories/run_{run}/trajectories',
-                        hremd_data,
-                        args.save_interval,
-                        f'./state_trajectories/run_{run}',
+write_state_trajectories(structure=structure_file,
+                        traj_dir=f'./replica_trajectories/run_{run}/trajectories',
+                        hremd_data=hremd_data,
+                        save_interval=args.save_interval,
+                        output_dir=f'./state_trajectories/run_{run}',
                         selection=args.output_selection,
                         ref=selection_file
 )
