@@ -11,7 +11,6 @@ import sys
 
 #sys.getsizeof()
 
-# Functions to process the HREMD Output
 def load_femto_data(hremd_data:str|os.PathLike)-> pd.DataFrame:
     '''
     Load femto HREMD state data output (.arrow) file into a pandas DataFrame.
@@ -41,36 +40,6 @@ def get_num_states(df:pd.DataFrame) -> int:
     The number of thermodynamic states in the HREMD simulation.
     '''
     return df['u_kn'][0].shape[0]
-
-def make_combined_traj(structure:str|os.PathLike, 
-                       traj_dir:str|os.PathLike, 
-                       n_states:int) -> mda.Universe:
-    '''
-    Create an MDAnalysis universe containing all of the replica exchange 
-    trajectories. Assumes trajectories are named in femto default pattern 
-    (i.e. r0.dcd, r1.dcd, ...)
-
-    Parameters
-    ----------
-    structure : str
-        Path to simulation structure file or topology.
-
-    traj_dir : str
-        Path to directory containing all of the replica trajectories.
-
-    n_states : int
-        The number of replicas in the replica exchange ensemble.
-
-    Returns
-    -------
-    mda.Universe
-
-    TODO : allow for only specifying structure and traj dir and alternate naming scheme for dcd files.
-    '''
-    u = mda.Universe(str(structure), [str(Path(traj_dir)/f"r{replica_id}.dcd") 
-                                 for replica_id in range(n_states)])
-    return u
-
 
 def sort_replica_trajectories(df:pd.DataFrame, 
                               save_interval:int, 
@@ -114,61 +83,43 @@ def sort_replica_trajectories(df:pd.DataFrame,
 
     return replica_state_frames
 
-# keeping for posterity. Doesn't work but was fast...
-# def write_state_trajectories_test(structure, traj_dir, hremd_data, save_interval, output_dir, output_selection='protein'):
-#     '''
-#     Write separate trajectories for each thermodynamic state from a femto HREMD simulation. 
+
+def get_traj_size(structure:str|os.PathLike,
+                       traj:str|os.PathLike,
+                       selection:str=None)-> int:
     
-#     Parameters
-#     ----------
-#     structure : str
-#         Path to simulation topology / pdb.
-    
-#     traj_dir : str
-#         Path to directory with the femto hremd trajectories.
+    '''
+    Get the size of the trajectory file in bytes.
+    Parameters
+    ----------
+    structure : str|os.PathLike
+        Path to simulation topology / pdb.
+    traj : str|os.PathLike
+        Path to the trajectory file (i.e. r0.dcd).
+    Returns
+    -------
+    int
+        Size of the trajectory file in bytes.
+    '''
+    structure = str(structure)
+    traj = str(traj)
+    u = mda.Universe(structure, traj)   
+    n_frames = len(u.trajectory)
+    if selection is not None:
+        coords = u.select_atoms(selection).positions
+    else:
+        coords = u.atoms.positions
+    size = sys.getsizeof(coords) # size of the coordinates array in bytes
+    return size*n_frames
 
-#      hremd_data : str
-#         Path to the femto state data output (i.e. samples.arrow file).
-    
-#     save_interval : int
-#         The number of cycles that elapse between writing coordinates.
-#         femto.md.config.HREMD(trajectory_interval=save_interval)
+def determine_max_jobs(mem_per_job_gb: float,
+                       available_mem_gb: float, 
+                       reserve_pct: float = 0.2) -> int:
+    usable_mem = available_mem_gb * (1 - reserve_pct)
+    return max(1, int(usable_mem // mem_per_job_gb))
 
-#     output_dir : str
-#         Path to the directory where the individual state trajectories will be written.
+################# Functions called from the ReplicaHandler class ###############
 
-#     output_selection : str
-#         An MDAnalysis selection of the atoms that should be written out for the individual state trajectories.
-
-#     Returns
-#     -------
-#     Writes trajectories to output_dir.
-    
-   
-#     '''
-    
-#     traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]# taking the first trajectory in the list to get the individual traj_len
-#     traj_len = len(mda.Universe(structure, f"{traj_dir}/{traj}").trajectory)
-#     df = load_femto_data(hremd_data)
-#     state_replica_frames = alt_sort_replica_trajectories(df, save_interval, traj_len)
-#     n_states = len(state_replica_frames)
-   
-#     # all the replicas in one trajectory
-#     u = make_combined_traj(structure, traj_dir, n_states)
-#     sel = u.select_atoms(output_selection)
-#     os.makedirs(output_dir, exist_ok=True)
-
-#     for state in range(n_states):
-#         # the frame indices from all the replicas corresponding to one state 
-#         state_frames = []
-
-#         for replica_id in range(n_states):
-#             start_frame = replica_id*traj_len # move to the first frame of replica replica_id in the combined trajectory
-#             state_frames.extend(start_frame + state_replica_frames[replica_id][state])
-#         with mda.Writer(f"{output_dir}/state_{state}.xtc", sel.n_atoms) as w:
-#             for ts in u.trajectory[state_frames]:
-#                 w.write(sel)
-#         ##sel.write(f"{output_dir}/state_{state}.xtc", frames=u.trajectory[state_frames])
 
 def get_state_coordinates_from_replica(structure:str|os.PathLike, 
                              traj_dir:str|os.PathLike, 
@@ -196,7 +147,8 @@ def get_state_coordinates_from_replica(structure:str|os.PathLike,
         The number of cycles that elapse between writing coordinates.
 
     selection : str, optional
-        An MDAnalysis selection of the atoms that should be used. Default is 'protein'.
+        An MDAnalysis selection of the atoms that should be used. Default is 
+        'protein'.
 
     replica_index : int
         Index of the replica to get frames from.
@@ -207,7 +159,8 @@ def get_state_coordinates_from_replica(structure:str|os.PathLike,
     Returns
     -------
     np.ndarray
-        Stacked array of frames from all replicas that correspond to the specified state.
+        Stacked array of frames from all replicas that correspond to the 
+        specified state.
     '''
     structure = str(structure)
     rep = replica_index
@@ -217,7 +170,8 @@ def get_state_coordinates_from_replica(structure:str|os.PathLike,
     n_atoms = sel.n_atoms
     if isinstance(hremd_data, (str, os.PathLike)):
         df = load_femto_data(hremd_data)
-        state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
+        state_replica_frames = sort_replica_trajectories(df, 
+                                                        save_interval, traj_len)
     else:
         state_replica_frames = hremd_data
 
@@ -234,6 +188,8 @@ def get_state_coordinates_from_replica(structure:str|os.PathLike,
             coordinates[i] = sel.positions 
         
         return coordinates
+    
+
 
     
     
@@ -266,14 +222,16 @@ def write_state_trajectory(structure:str|os.PathLike,
         The number of cycles that elapse between writing coordinates.
 
     output_dir : str
-        Path to the directory where the individual state trajectories will be written.
+        Path to the directory where the individual state trajectories will be 
+        written.
 
     selection : str, optional
-        An MDAnalysis selection of the atoms that should be used. Default is 'protein'.
+        An MDAnalysis selection of the atoms that should be used. Default is 
+        'protein'.
 
     ref : str, optional
-        Path to reference structure. If ref is provided, coordinates are aligned to 
-        C-alphas of selection. Default is None.
+        Path to reference structure. If ref is provided, coordinates are aligned
+        to C-alphas of selection. Default is None.
 
     state_index : int
         Index of the state to write. 
@@ -291,7 +249,9 @@ def write_state_trajectory(structure:str|os.PathLike,
 
     if isinstance(hremd_data, (str, os.PathLike)):
         df = load_femto_data(hremd_data)
-        state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
+        state_replica_frames = sort_replica_trajectories(df, 
+                                                         save_interval, 
+                                                         traj_len)
     else:
         state_replica_frames = hremd_data
     n_states = len(state_replica_frames)
@@ -319,12 +279,14 @@ def write_state_trajectory(structure:str|os.PathLike,
     coords = [c for c in coords if c is not None]
     coordinates = np.concatenate(coords, axis=0)
     # These coordinates will not match write_state_trajectories because they are 
-    # added sequentially per replica and not into the array index corresponding to 
-    # the frame they were taken from. If contact frequencies match - it's correct.
+    # added sequentially per replica and not into the array index corresponding 
+    # to the frame they were taken from. 
+    
 
-    with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), n_atoms=sel.n_atoms) as writer:
+    with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), 
+                    n_atoms=sel.n_atoms) as writer:
         for i in range(coordinates.shape[0]):
-            sel.positions = coordinates[i]  # Set the positions to the NumPy array
+            sel.positions = coordinates[i] 
             align.alignto(sel, ref, select=f"({selection}) and name CA")
             writer.write(sel.atoms) 
 
@@ -357,14 +319,16 @@ def write_state_trajectory_parallel(structure:str|os.PathLike,
         The number of cycles that elapse between writing coordinates.
 
     output_dir : str
-        Path to the directory where the individual state trajectories will be written.
+        Path to the directory where the individual state trajectories will be 
+        written.
 
     selection : str, optional
-        An MDAnalysis selection of the atoms that should be used. Default is 'protein'.
+        An MDAnalysis selection of the atoms that should be used. Default is 
+        'protein'.
 
     ref : str, optional
-        Path to reference structure. If ref is provided, coordinates are aligned to 
-        C-alphas of selection. Default is None.
+        Path to reference structure. If ref is provided, coordinates are aligned 
+        to C-alphas of selection. Default is None.
 
     state_index : int
         Index of the state to write. 
@@ -383,7 +347,8 @@ def write_state_trajectory_parallel(structure:str|os.PathLike,
     
     if isinstance(hremd_data, (str, os.PathLike)):
         df = load_femto_data(hremd_data)
-        state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
+        state_replica_frames = sort_replica_trajectories(df, save_interval, 
+                                                         traj_len)
     else:
         state_replica_frames = hremd_data
     n_replicas = len(state_replica_frames)
@@ -419,117 +384,206 @@ def write_state_trajectory_parallel(structure:str|os.PathLike,
     # added sequentially per replica and not into the array index corresponding to 
     # the frame they were taken from. If contact frequencies match - it's correct.
 
-    with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), n_atoms=sel.n_atoms) as writer:
+    with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), 
+                    n_atoms=sel.n_atoms) as writer:
         for i in range(coordinates.shape[0]):
-            sel.positions = coordinates[i]  # Set the positions to the NumPy array
+            sel.positions = coordinates[i]  
             align.alignto(sel, ref, select=f"({selection}) and name CA")
             writer.write(sel.atoms) 
 
 
-def write_state_trajectories_parallel(structure:str|os.PathLike, 
-                             traj_dir:str|os.PathLike, 
-                             hremd_data:str|os.PathLike|dict, 
-                             save_interval:int, 
-                             output_dir:str|os.PathLike, 
-                             selection:str='protein',
-                             ref=None,
-                             n_jobs=None
-                             ):
-    
+
+
+class ReplicaHandler:
     '''
-    Write separate trajectories for each thermodynamic state from a femto HREMD simulation.
-    Does it in the order of the frames of all the combined trajectories ... which doesn't really matter.
+    TODO : Produce a json file with hremd params that can be optionally loaded.
 
-    ref : str
-        Path to reference structure. If ref is provided, coordinates are aligned to 
-        C-alphas of selection.
+    A class to handle the replica exchange trajectories and state data from 
+    femto HREMD simulations.
+    Parameters
+    ----------
+    structure : str|os.PathLike
+        Path to simulation topology / pdb.
+    traj_dir : str|os.PathLike
+        Path to directory with the femto hremd trajectories.
+    hremd_data : str|os.PathLike
+        Path to the femto state data output (i.e. samples.arrow file).
+    save_interval : int
+        The number of cycles that elapse between writing coordinates.
+        femto.md.config.HREMD(trajectory_interval=save_interval)
     '''
-    structure = str(structure)
-    ref = str(ref) if ref is not None else None
-    traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]# taking the first trajectory in the list to get the individual traj_len
-    u = mda.Universe(structure, Path(traj_dir)/traj)
-    traj_len = len(u.trajectory)
-    
-    if isinstance(hremd_data, (str, os.PathLike)):
-        df = load_femto_data(hremd_data)
-        state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
-    else:
-        state_replica_frames = hremd_data
-
-
-    n_states = len(state_replica_frames)
-
-    state_args_list = [(structure, 
-                        traj_dir, 
-                        state_replica_frames,
-                        save_interval, 
-                        output_dir,
-                        selection,
-                        ref,
-                        i) 
-                        for i in range(n_states)] 
-    if n_jobs is None:
-        resources = get_resources()
-        n_jobs = resources['num_cores']                
-    with Pool(n_jobs) as worker_pool:
-        worker_pool.starmap(write_state_trajectory,
-                                     state_args_list)
-    
-
-
-
-
-
-def write_state_trajectories(structure, 
-                             traj_dir, 
-                             hremd_data, 
-                             save_interval, 
-                             output_dir, 
-                             selection='protein',
-                             ref=None,
-                             ):
-    
-    '''
-    Will be deprecated in favor of write_state_trajectories_parallel.
-    Write separate trajectories for each thermodynamic state from a femto HREMD simulation.
-    Does it in the order of the frames of all the combined trajectories ... which doesn't really matter.
-
-    ref : str
-        Path to reference structure. If ref is provided, coordinates are aligned to 
-        C-alphas of selection.
-    '''
-
-    traj = [file for file in os.listdir(traj_dir) if (file.endswith("dcd"))][0]# taking the first trajectory in the list to get the individual traj_len
-    u = mda.Universe(structure, Path(traj_dir)/traj)
-    traj_len = len(u.trajectory)
-    sel = u.select_atoms(selection)
-    n_atoms = sel.n_atoms
-    df = load_femto_data(hremd_data)
-    state_replica_frames = sort_replica_trajectories(df, save_interval, traj_len)
-    n_states = len(state_replica_frames)
-    if ref is not None:
-        ref = mda.Universe(ref)
-    else:
-        ref = mda.Universe(structure)
+    def __init__(self, 
+                 structure:str|os.PathLike, 
+                 traj_dir:str|os.PathLike, 
+                 hremd_data:str|os.PathLike,
+                 save_interval:int,):
+        self.structure = str(structure)
+        self.traj_dir = traj_dir
+        self.rep_u = mda.Universe(self.structure,
+                                  str(Path(self.traj_dir)/"r0.dcd"))
+        self.traj_len = len(self.rep_u.trajectory)
+        self.hremd_data = str(hremd_data)
+        self.df = load_femto_data(hremd_data)
+        self.n_states = get_num_states(self.df)
+        self.save_interval = save_interval
+        self.state_replica_frames = sort_replica_trajectories(self.df, 
+                              self.save_interval, 
+                              self.traj_len) 
+        self.resources = get_resources()
+        # size in bytes of all-atom trajectory
+        self.traj_size = get_traj_size(self.structure,
+                                       str(Path(self.traj_dir)/"r0.dcd"))
 
     
-    for state in range(n_states):
-        coordinates = np.zeros((traj_len,n_atoms,3))
-        for rep in range(n_states):
-            u = mda.Universe(structure, Path(traj_dir)/f"r{rep}.dcd")
-            sel = u.select_atoms(selection)
-            for frame in state_replica_frames[rep][state]:
-                u.trajectory[frame] # Move to the specified frame
 
-                coordinates[frame] = sel.positions # each frame is unique to a given state, so these array indices aren't filled sequentially.
-                # yet they do correspond to the correct relative timepoints once they're all in place.
-        out_u = mda.Universe(structure)
+    def write_state_trajectory(self, 
+                                        output_dir:str|os.PathLike, 
+                                        selection:str='protein',
+                                        ref=None,
+                                        state_index=None,
+                                        n_jobs=None):
+    
+        '''
+        Separate the state trajectory for a thermodynamic state from the femto 
+        HREMD replica trajectories. Each replica is assigned to a single 
+        separate process.
+        
+        Parameters
+        ----------
+
+        output_dir : str
+            Path to the directory where the individual state trajectories will 
+            be written.
+
+        selection : str, optional
+            An MDAnalysis selection of the atoms that should be used. Default is
+              'protein'.
+
+        ref : str, optional
+            Path to reference structure. If ref is provided, coordinates are 
+            aligned to C-alphas of selection. Default is None and coordinates
+            will be aligned to C-alphas of original structure.
+
+        state_index : int
+            Index of the state to write. 
+
+        Returns
+        -------
+        Writes state trajectory for state_index to output_dir.
+        
+        '''
+
+        if ref is not None:
+            ref = mda.Universe(ref)
+        else:
+            ref = mda.Universe(self.structure)
+
+        state = state_index
+
+        out_u = mda.Universe(self.structure)
         sel = out_u.select_atoms(selection)
-        with mda.Writer(Path(output_dir)/f"state_{state}.xtc", n_atoms=sel.n_atoms) as writer:
+
+        coords_args_list = [(self.structure,
+                            self.traj_dir,
+                            self.state_replica_frames,
+                            self.save_interval,
+                            selection,
+                            i, 
+                            state)
+                            for i in range(self.n_states)]
+        
+        if n_jobs is None:
+            n_jobs = self.resources['num_cores']
+        with Pool(n_jobs) as worker_pool:
+            coords = worker_pool.starmap(get_state_coordinates_from_replica,
+                                        coords_args_list)
+
+        coords = [c for c in coords if c is not None]
+        coordinates = np.concatenate(coords, axis=0)
+        # The order of coordinates will not match the order from the original 
+        # write_state_trajectories because they are added sequentially to the 
+        # coordinates array as they're encountered per replica rather than into 
+        # the array index corresponding to the frame they were taken from in the
+        # given replica.
+
+        with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), 
+                        n_atoms=sel.n_atoms) as writer:
             for i in range(coordinates.shape[0]):
-                sel.positions = coordinates[i]  # Set the positions to the NumPy array
+                sel.positions = coordinates[i]  
                 align.alignto(sel, ref, select=f"({selection}) and name CA")
                 writer.write(sel.atoms) 
+
+    def write_state_trajectories(self,
+                                    output_dir:str|os.PathLike, 
+                                    selection:str='protein',
+                                    ref=None,
+                                    n_jobs=None
+                                    ):
+    
+        '''
+        Write separate trajectories for each thermodynamic state from a femto 
+        HREMD simulation.
+
+        Parameters
+        ----------
+        output_dir : str
+            Path to the directory where the individual state trajectories will 
+            be written.
+        selection : str, optional
+            An MDAnalysis selection of the atoms that should be used. Default is
+            'protein'.
+        n_jobs : int, optional
+            The number of parallel jobs to run. If None, will use all available 
+            cores. Default is None.
+        ref : str
+            Path to reference structure. If ref is provided, coordinates are 
+            aligned to C-alphas of selection.
+        '''
+
+        state_args_list = [(self.structure,
+                            self.traj_dir,
+                            self.state_replica_frames,
+                            self.save_interval,
+                            output_dir,
+                            selection,
+                            ref,
+                            i) 
+                            for i in range(self.n_states)] 
+
+
+        if n_jobs is None:
+            n_jobs = self.resources['num_cores']  
+        # print(f"Attempting {n_jobs} jobs for writing state trajectories.")
+
+        # because each job needs enough memory to hold the entire trajectory,
+        # need to check available resources and set n_jobs accordingly.
+        required_memory_gb = get_traj_size(self.structure,
+                                       str(Path(self.traj_dir)/"r0.dcd"),
+                                       selection=selection) /1e9
+        # print(required_memory_gb)
+        max_jobs = determine_max_jobs(required_memory_gb,
+                                        self.resources['available_ram_gb'],
+                                        reserve_pct=0.1)
+        # if n_jobs > max_jobs:
+            # # Then just use all cores for one state at a time.
+            # [self.write_state_trajectory_parallel(output_dir, 
+            #                                       selection, 
+            #                                       ref, 
+            #                                       i) 
+            #                          for i in range(self.n_states)]
+        n_jobs = min(n_jobs, max_jobs)
+        # print(f"Using {n_jobs} jobs for writing state trajectories.")
+        # run as many states as cores simultaneously
+
+        # Apparently for Pool, the function cannot be a method of a class
+        with Pool(n_jobs) as worker_pool:
+            worker_pool.starmap(write_state_trajectory,
+                                        state_args_list)
+            
+
+
+
+##################### Functions to get additional data from femto state data ###
 
 def get_state_energies(df):
     '''
@@ -601,14 +655,10 @@ def get_exchange_probabilities(data):
     indices = [i for i in zip(states_i, states_j)] # can return indices if it's necessary
     return swaps[states_i,states_j]/attempts[states_i, states_j]
 
-def concatenate_runs(state_trajectory_dir):
-    '''
-    Concatentate the trajectories from multiple runs for each state.
-    '''
-    return
-
 def freq_frames(freq_file):
     '''
+    TODO Move somewhere else.
+
     Return the number of frames that a contact frequency file 
     was calculated for.
 
