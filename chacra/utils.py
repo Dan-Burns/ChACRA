@@ -1,8 +1,6 @@
-from itertools import combinations
-import pandas as pd
 import numpy as np
 import re
-import os
+import psutil
 from MDAnalysis.analysis.distances import distance_array
 
 
@@ -129,4 +127,14 @@ def distribute_files(num_processes, files):
         tasks.append(files[start_idx:end_idx])
     
     return tasks
+
+def get_resources():
+    resources = {
+    'num_cores': psutil.cpu_count(logical=False),  # physical cores
+    'num_threads': psutil.cpu_count(logical=True),  # includes hyperthreads
+    'total_ram_gb': psutil.virtual_memory().total / 1e9,  
+    'available_ram_gb': psutil.virtual_memory().available / 1e9,
+    'available_ram_mb': psutil.virtual_memory().available / 1e6  
+    }
+    return resources
 
