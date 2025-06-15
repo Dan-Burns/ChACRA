@@ -1,4 +1,4 @@
-#!/bin/bash
+j#!/bin/bash
 structure=$1
 trajectory=$2
 contacts_folder=$3

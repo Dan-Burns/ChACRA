@@ -108,26 +108,6 @@ def sort_nested_dict(d):
         sorted_dict[outer_key] = sorted_nested_dict
     return sorted_dict
 
-
-def distribute_files(num_processes, files):
-    """
-    Distributes files from the given directory among the specified number of processes.
-    """
-    
-    total_files = len(files)
-    
-    # Calculate the number of files each process should handle
-    files_per_process = math.ceil(total_files / num_processes)
-    
-    # Create tasks as lists of files
-    tasks = []
-    for process_id in range(num_processes):
-        start_idx = process_id * files_per_process
-        end_idx = min(start_idx + files_per_process, total_files)
-        tasks.append(files[start_idx:end_idx])
-    
-    return tasks
-
 def get_resources():
     resources = {
     'num_cores': psutil.cpu_count(logical=False),  # physical cores
@@ -138,3 +118,22 @@ def get_resources():
     }
     return resources
 
+def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
+    '''
+    Add underscores to atom types of selected atoms.
+    This is useful if using the plumed_scaled_topologies script 
+    for hremd system modification.
+    With this, you still need to open the new topology file and delete the 
+    underscores from the beginning of the file [atomtypes]
+    or else plumed will look for atoms with 2 underscores to apply lambda to.
+    '''
+    top = pmd.gromacs.GromacsTopologyFile(gromacs_processed_top)
+
+    for atom in top.view[atom_indices].atoms:
+        atom.type = f"{atom.type}_"
+        if atom.atom_type is not pmd.UnassignedAtomType:
+            atom.atom_type = copy.deepcopy(atom.atom_type)
+            atom.atom_type.name = f"{atom.atom_type.name}_"
+
+
+    top.save(output_top)

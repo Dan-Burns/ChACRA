@@ -51,11 +51,9 @@ def sort_replica_trajectories(df:pd.DataFrame,
     ----------
     df : pd.DataFrame
         State data output from femto
-
     save_interval : int
         The number of cycles that elapse between writing coordinates.
         femto.md.config.HREMD(trajectory_interval=save_interval)
-
     traj_len : int
         The length of an individual replica trajectory.
 
@@ -143,8 +141,8 @@ class TrajectoryJob:
         'protein'.
     ref : str | None, optional
         Path to reference structure. If ref is provided, coordinates are aligned 
-        to C-alphas of selection. Default is None and coordinates will be aligned 
-        to C-alphas of original structure.
+        to C-alphas of selection. Default is None and coordinates will be 
+        aligned to C-alphas of original structure.
     state_index : int, optional
         Index of the state to write. Default is None.
     replica_index : int, optional
@@ -189,7 +187,7 @@ def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Stacked array of frames from all replicas that correspond to the 
+        Array of frames from all replicas that correspond to the 
         specified state.
     '''
 
@@ -222,9 +220,8 @@ def write_state_trajectory(job:TrajectoryJob):
     ----------
     job : TrajectoryJob
         A dataclass containing the parameters for the trajectory job.
-        Path to simulation topology / pdb.
 
-    TrajectoryJob(
+                TrajectoryJob(
                             structure=structure,
                             traj_dir=traj_dir,
                             hremd_data=state_replica_frames,
@@ -242,7 +239,8 @@ def write_state_trajectory(job:TrajectoryJob):
     
     '''
     
-    traj = [file for file in os.listdir(job.traj_dir) if (file.endswith("dcd"))][0]
+    traj = [file for file in os.listdir(job.traj_dir) 
+            if (file.endswith("dcd"))][0]
     u = mda.Universe(job.structure, str(Path(job.traj_dir)/traj))
     
 
@@ -270,9 +268,8 @@ def write_state_trajectory(job:TrajectoryJob):
                              ]
     coords = [c for c in coords if c is not None]
     coordinates = np.concatenate(coords, axis=0)
-    # These coordinates will not match write_state_trajectories because they are 
-    # added sequentially per replica and not into the array index corresponding 
-    # to the frame they were taken from. 
+    # These coordinates are added sequentially per replica and not into the 
+    # array index corresponding to the frame they were taken from. 
 
     with mda.Writer(str(Path(job.output_dir)/f"state_{job.state_index}.xtc"), 
                     n_atoms=sel.n_atoms) as writer:
@@ -288,6 +285,7 @@ class ReplicaHandler:
 
     A class to handle the replica exchange trajectories and state data from 
     femto HREMD simulations.
+
     Parameters
     ----------
     structure : str|os.PathLike
@@ -338,20 +336,16 @@ class ReplicaHandler:
         
         Parameters
         ----------
-
         output_dir : str
             Path to the directory where the individual state trajectories will 
             be written.
-
         selection : str, optional
             An MDAnalysis selection of the atoms that should be used. Default is
               'protein'.
-
         ref : str, optional
             Path to reference structure. If ref is provided, coordinates are 
             aligned to C-alphas of selection. Default is None and coordinates
             will be aligned to C-alphas of original structure.
-
         state_index : int
             Index of the state to write. 
 
@@ -457,7 +451,7 @@ class ReplicaHandler:
         max_jobs = determine_max_jobs(required_memory_gb,
                                         self.resources['available_ram_gb'],
                                         reserve_pct=0.1)
-        # TODO: If you're memory limited, is it faster to run one state at
+        # TODO: If you're memory limited, is it faster to run one state
         # with all cores processing that one state, or to run as many cores
         # as max jobs permits with one core per state?
         # if n_jobs > max_jobs:
@@ -494,10 +488,10 @@ def get_state_energies(df):
     energies = []
     for row, index in zip(df['u_kn'],df['replica_to_state_idx']):
         # each row contains n_states arrays of size n_states
-        # the index contains the replica id in the element corresponding to the state it's being simulated at
-        # at that frame.
-        # by indexing the vstacked row with [np.arange(n_states), index], you retrieve the energy of the 
-        # replica being simulated at that state
+        # the index contains the replica id in the element corresponding to the 
+        # state it's being simulated at that frame.
+        # by indexing the vstacked row with [np.arange(n_states), index], you 
+        # retrieve the energy of the replica being simulated at that state
         energies.append(np.vstack(row)[np.arange(n_states),index])
     return np.vstack(energies)
 
@@ -546,7 +540,7 @@ def get_exchange_probabilities(data):
     attempts = np.vstack(attempt_array[-1])
     states_i = np.array(range(n_states-1))
     states_j = np.array(range(1,n_states))
-    indices = [i for i in zip(states_i, states_j)] # can return indices if it's necessary
+    indices = [i for i in zip(states_i, states_j)] #return indices if necessary
     return swaps[states_i,states_j]/attempts[states_i, states_j]
 
 def freq_frames(freq_file):
