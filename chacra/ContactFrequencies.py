@@ -131,7 +131,7 @@ class ContactFrequencies:
                 contact_files = [f'{contact_data}/{file}' for file in sorted(
                             os.listdir(contact_data),key=lambda x: int(re.split(r'_|\.',x)[-2]))
                               if file.endswith('.tsv')]
-                print("Arranging the data in the following order :", flush=True)
+                # print("Arranging the data in the following order :", flush=True)
                 for file in contact_files:
                     print(file, flush=True)
                 contact_dictionary = make_contact_frequency_dictionary(
