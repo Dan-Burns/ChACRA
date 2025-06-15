@@ -609,9 +609,8 @@ def get_pair_distance(sel1, sel2, u):
     b = u.select_atoms(sel2).positions[0]
     return np.linalg.norm(a-b)
 
-#################### The Main Function ##########################
-#################### It's a Beast ##########################
 
+#################### Main Function ##########################
 
 def average_multimer(structure: str|os.PathLike, 
                      df: pd.DataFrame, 
@@ -841,9 +840,35 @@ def average_multimer(structure: str|os.PathLike,
             ################################ End inter-subunit ################
             ### At this point, contacts incorrectly captured by regex filter
             ### should be dropped, and the correct averaged name determined.
-            
-            averaged_data[averaged_name] = df_copy[to_average].sum(
+
+            # separate intra and inter that are occurring with the same residues
+            if identical_pair:
+                inter = []
+                for contact_name in to_average:
+                    contact_info = parse_id(contact_name)
+                    if contact_info['chaina'] != contact_info['chainb']:
+                        inter.append(contact_name)
+                for contact in inter:
+                    to_average.remove(contact)
+            else:
+                intra = []
+                for contact_name in to_average:
+                    contact_info = parse_id(contact_name)
+                    if contact_info['chaina'] == contact_info['chainb']:
+                        intra.append(contact_name)
+                for contact in intra:
+                    to_average.remove(contact)
+
+            if len(to_average) > denominator:
+                # in the case where an inter-subunit contact can happen
+                # from A to B and B to A on a trimer or larger
+                # you'll have more contacts than there are subunits
+                averaged_data[averaged_name] = df_copy[to_average].sum(
+                                                            axis=1)/len(to_average)
+            else:
+                averaged_data[averaged_name] = df_copy[to_average].sum(
                                                             axis=1)/denominator
+            
             standard_deviation[averaged_name] = df_copy[to_average].std(axis=1)
             # get rid of the contacts that were just averaged and reduce the 
             # number of remaining contacts to check in the dataframe
@@ -857,21 +882,26 @@ def average_multimer(structure: str|os.PathLike,
         return pd.DataFrame(averaged_data)
 
 
-def everything_from_averaged(averaged_contacts, original_contacts, u, 
-                             representative_chains,
-                             as_map=False):
+def everything_from_averaged(averaged_contacts:pd.DataFrame, 
+                            original_contacts:pd.DataFrame,
+                            u:mda.Universe, 
+                            representative_chains:list[str],
+                            as_map:bool=False):
     '''
     Take the averaged contacts and regenerate the entire protein's contacts 
     using this data. Useful for visualizing the flow of chacras across the whole 
     protein and doing network analysis on more statistically robust data.
 
     averaged_contacts : pd.DataFrame
-        The averaged contact data
+        The averaged contact data.
+
+    original_contacts : pd.DataFrame
+        The original contact dataframe.
 
     u : MDA.Universe 
         The same universe used for averaging contacts
 
-    representative_chains : list of strings
+    representative_chains : list
         The list of chain ids used when generating the averaged contact names.
 
     as_map : bool
@@ -978,7 +1008,7 @@ def everything_from_averaged(averaged_contacts, original_contacts, u,
     if as_map:
          return mapped_contacts
     else:
-        return replicated_contacts
+        return pd.DataFrame.from_dict(replicated_contacts)
 
 #### For depicting the high loading score contacts on all subunits,
 ## return as_map, and provide the original averaged high loading score contacts
