@@ -30,6 +30,20 @@ def has_only_identical_subunits(u: mda.Universe) -> bool:
                          " supports homomultimers.")
     else:
         return True
+    
+def seg_to_chain(u:mda.Universe) -> dict[int,str]:
+    '''
+    Returns the seg id to chain id mapping.
+
+    u : mda.Universe
+
+    Returns
+    -------
+    dict
+    {int(segid): str(chainid)}
+    '''
+    return {i: list(set(seg.atoms.chainIDs))[0] 
+            for i,seg in enumerate(u.segments)}
 
 def get_long_axis(subunit:mda.AtomGroup) -> np.ndarray:
     '''
@@ -149,7 +163,8 @@ def get_all_rotations(u:mda.Universe
                       ) -> dict[int, dict[int, np.ndarray]]:
     
     '''
-    Get all of the rotations for subunit i to subunits j to N for all subunits.
+    Get all of the rotations for subunit i to subunits j to N for all subunits
+    in a homomultimeric universe.
 
     u : mda.Universe
 
@@ -163,16 +178,24 @@ def get_all_rotations(u:mda.Universe
         of segment 0 to segment 1
     '''
 
-    u = u.copy()
-    segids = [i for i in range(len(u.segments))]
+    
+    if has_only_identical_subunits(u):
+        segids = [i for i in range(len(u.segments))]
+
     seg_combos = [combo for combo in permutations(segids,2)]
-    rotations = {segid: {segid:0 for segid in segids}
-                  for segid in segids}
+    seg_chain = seg_to_chain(u)
+    rotations = {seg_chain[segid1]: 
+                 {seg_chain[segid2]:0 for segid2 in segids
+                  if segid2 != segid1}
+                  for segid1 in segids}
+    
     for combo in seg_combos:
         sega, segb = combo
-        rotations[sega][segb] = get_rotation_matrix(u,
-                                                    u.segments[sega].atoms,
-                                                      u.segments[segb].atoms)
+        u2 = u.copy()
+        align_universe_by_subunit(u2, u2.segments[sega].atoms)
+        rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(u2.copy(),
+                                                    u2.segments[sega].atoms,
+                                                    u2.segments[segb].atoms)
     return rotations
 
 def get_equivalent_pairs(rotations:dict)->set[tuple]:
