@@ -615,6 +615,7 @@ class ContactPCA:
             self.pca.components_ = self.pca.components_*-1
         self.freqs = contact_df
         if significance_test == True:
+            # TODO Multiprocess
             self.permutated_pca(N_permutations=N_permutations)
             self.score_sums = self.get_score_sums()
         else:
@@ -853,6 +854,8 @@ class ContactPCA:
 
         Returns
             np.array of explained variance by PC for each permutation of the dataframe.
+
+        TODO multiprocess - divide N_permutations by cores
         '''    
         # adapted from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
         self._N_permutations = N_permutations
