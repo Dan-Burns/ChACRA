@@ -244,6 +244,7 @@ def get_all_rotations(u:mda.Universe,
             ref = [val for val in identical_subunits.values()
                    if sega in val][0][0]
             # position sega on the reference segment
+            
             align.alignto(u2.segments[sega].atoms, 
                       u.segments[ref].atoms,
                       select="name CA",)
@@ -259,15 +260,17 @@ def get_all_rotations(u:mda.Universe,
             # we need to position a copy of type b on top of type a's reference
             # and use this copy to collect the rotation of type a onto type b
             # reference subunit of type a
-            ref = [val for val in identical_subunits.values()
+            refa = [val for val in identical_subunits.values()
                    if sega in val][0][0]
             align.alignto(u2.segments[sega].atoms, 
-                      u.segments[ref].atoms,
+                      u.segments[refa].atoms,
                       select="name CA",)
-            # copy of type b
-            mobile = mda.Merge(u2.segments[segb].atoms)
+            # copy of type b always use the ref type b
+            refb = [val for val in identical_subunits.values()
+                   if segb in val][0][0]
+            mobile = mda.Merge(u2.segments[refb].atoms)
             # move mobile's com to hetero ref com and align their long axes.
-            align_mobile_to_ref(mobile.atoms, u2.segments[ref].atoms)
+            align_mobile_to_ref(mobile.atoms, u.segments[refa].atoms)
 
             ca_sela = mobile.select_atoms(f"name CA")
             ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
@@ -275,13 +278,12 @@ def get_all_rotations(u:mda.Universe,
                                                         ca_sela,
                                                         ca_selb,
                                                         )
-            print(f"end {combo}")
     return rotations
 
 def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
                                 identical_subunits:dict[int,list[int]],
                                 chain_seg_dict:dict[int,str],
-                                sorted:bool=False) -> dict:
+                                sort:bool=False) -> dict:
     '''
     Map a pair of subunits to other pairs of subunits with the same
     spatial relationship. 
@@ -343,12 +345,21 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
                     continue
 
                 d[(ch1,cha)].add((ch2,chb))
-    if sorted is True:
-        d = {tuple(sorted(key)): [tuple(sorted(v)) for v in val] 
-             for key, val in d.items()}
-    else:
-        d = {key: list(val) 
-             for key, val in d.items()}
+
+    seg_chain_dict = {seg:chain for chain, seg in chain_seg_dict.items()}
+    # make the entries for self-similars
+    for chain_list in identical_subunits.values():
+        d |= {(seg_chain_dict[seg],seg_chain_dict[seg]): 
+              set([(seg_chain_dict[seg2],seg_chain_dict[seg2])
+                   for seg2 in chain_list if seg2 != seg]) 
+                   for seg in chain_list}
+    
+    # last, add the key to it's own set
+    for pair in d:
+        d[pair].add(pair)
+    # convert to lists
+    d = {key: list(val) 
+            for key, val in d.items()}
     return d
 
 def get_long_axis(subunit: mda.AtomGroup) -> np.ndarray:
@@ -402,6 +413,7 @@ def validate_group_memberships(L, D):
     '''
     Ensure that each element of L occurs only once in
     one list value of D for all lists in D
+
     L : list
         list of chain IDs that will be used as a representative chains
         in a heteromultimer
@@ -449,35 +461,21 @@ def make_equivalent_contact_regex(resids):
     regex2 = rf"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
     return rf"{regex1}|{regex2}"
 
-def get_representative_pair_name(chaina, chainb, identical_subunits, 
-                                 representative_chains, equivalent_interactions):
+def get_representative_pair_name(chaina, 
+                                 chainb, 
+                                 identical_subunits, 
+                                 representative_chains, 
+                                 equivalent_interactions):
     '''
     provide the chains from the contact and get the chain names to use for 
     making a generalized/averaged contact name
     '''
     representative_pair = None
     if chaina == chainb:
-        for key, identical_subunit_list in identical_subunits.items():
-            if chaina in identical_subunit_list:
-                for representative_chain in representative_chains:
-                        if representative_chain in identical_subunit_list:
-                            representative_pair = (representative_chain, 
-                                                    representative_chain)
+        for pair, eq_pairs in equivalent_interactions.items():
+            if (chaina,chainb) in [tuple(sorted(pair2)) for pair2 in eq_pairs]:
+                representative_pair = tuple(sorted(pair))
                                 
-    # determine which equivalent_interaction set it came from 
-    else:
-        paira = (chaina,chainb)
-        
-        for representative_pair_name, equivalent_interaction_list in \
-        equivalent_interactions.items():
-            for pair in equivalent_interaction_list:
-                # The current version maintains the relationship
-                # rather than being alphabetical like the incoming contact
-                # so have to sort pair
-                if paira == pair: 
-                        representative_pair = representative_pair_name
-                        
-                        break
     if representative_pair is None:
         raise ValueError(f"Could not determine representative_pair for ({chaina}, {chainb})")
     
@@ -551,9 +549,10 @@ def average_multimer(structure: str|os.PathLike,
 
     identical_subunits = find_identical_subunits(u)
     seg_chain = seg_to_chain(u)
+    identical_chains = {key:[seg_chain[seg] for seg in val] 
+                        for key, val in identical_subunits.items()}
+    
     chain_seg = chain_to_seg(u)
-    denominator = len(identical_subunits[0])
-
     
 
     if has_only_identical_subunits(u):
@@ -569,7 +568,7 @@ def average_multimer(structure: str|os.PathLike,
                 "of each type of subunit.")
                 return
             elif len(representative_chains) != len(identical_subunits):
-                print("You need to specify 1 chain id for each type of subunit " \
+                print("You need to specify 1 chain id for each type of subunit "\
                 "in the representative_chains argument. They should be in " \
                 "contact in the structure.")
                 return
@@ -583,11 +582,18 @@ def average_multimer(structure: str|os.PathLike,
                                      in identical_subunits.values()]
                    
             
-    
+    denominator = len(identical_subunits[0])
     rotations = get_all_rotations(u, identical_subunits)
     equivalent_interactions = get_equivalent_interactions(rotations,
                                                         identical_subunits,
                                                         chain_seg)
+    # reduce equivalent_interactions to only keys involving representative chains
+    # using alphabetical order
+    eq_int = {}
+    for ch_pair, pair_list in equivalent_interactions.items():
+        if (ch_pair[0] in representative_chains):
+            eq_int[ch_pair] = pair_list
+    equivalent_interactions = eq_int
     # removing the columns in placed, so using a copy of the original data
     df_copy = df.copy()
     # hold the averaged data
@@ -622,7 +628,7 @@ def average_multimer(structure: str|os.PathLike,
             representative_pair = get_representative_pair_name(
                                                         chaina, 
                                                         chainb, 
-                                                        identical_subunits, 
+                                                        identical_chains, 
                                                         representative_chains, 
                                                         equivalent_interactions
                                                             )
