@@ -61,6 +61,40 @@ def chain_to_seg(u:mda.Universe) -> dict[str,int]:
     return {list(set(seg.atoms.chainIDs))[0]: i
             for i,seg in enumerate(u.segments)}
 
+def find_identical_subunits(u: mda.Universe):
+    """
+    Groups segments (subunits) by identical residue sequences.
+
+    Parameters
+    ----------
+    universe : mda.Universe
+        Protein structure.
+    """
+    d = defaultdict()
+    combos = combinations(range(len(u.segments)), 2)
+    group = 0
+    for combo in combos:
+        i, j = combo
+        if ''.join([convert_aa_code(k) 
+                    for k in u.segments[i].residues.resnames]) == \
+            ''.join([convert_aa_code(k) 
+                    for k in u.segments[j].residues.resnames]):
+            if len(d.values()) == 0:
+                d[group] = set([i,j])
+                group += 1
+            else:
+                found = False
+                for key,val in d.items():
+                    if (i in val) or (j in val):
+                        d[key].add(i)
+                        d[key].add(j)
+                        found = True
+                if found == False:
+                    d[group] = set([i,j])
+                    group += 1
+                
+    return {key:list(val) for key, val in d.items()}
+
 def same_list_membership(d: dict[int, list[str]], a: int, b: int) -> bool:
     '''
     Check if both `a` and `b` appear in the same list of the dictionary.
@@ -78,18 +112,13 @@ def align_principal_axes_to_global_frame(u:mda.Universe) -> np.ndarray:
     cov = np.cov(coords.T)
     eigvals, eigvecs = np.linalg.eigh(cov)
     
-    # Orthonormal frame defined by principal axes
     local_frame = eigvecs  # columns are basis vectors
-
-    # Global frame basis
     global_frame = np.eye(3)  # identity: x, y, z axes
 
-    # Rotation matrix that maps local_frame to global_frame:
     R = global_frame @ local_frame.T
 
     universe_com = u.atoms.center_of_mass()
     shifted = u.atoms.positions - universe_com
-
     rotated = shifted @ R.T
 
     u.atoms.positions = rotated 
@@ -118,16 +147,69 @@ def get_rotation_matrix(chaina:mda.AtomGroup,
 
     return matrix
 
+# def get_all_rotations(u:mda.Universe,
+#                       reference_segment:int=0,
+#                       identical_subunits:dict=None,
+#                       ) -> dict[int, dict[int, np.ndarray]]:
+    
+#     '''
+#     Get all of the rotations for subunit i to subunits j to N for all subunits
+#     in a homomultimeric universe.
+
+#     u : mda.Universe
+
+#     Returns
+#     -------
+#     dictionary
+#         The dictionary of rotation matrices with keys corresponding to seg ids
+#         and values of dictionaries with the segid of that the subunit was 
+#         rotated into and the corresponding rotation matrix.
+#         e.g. {0:{1:np.ndarray}} is the np.ndarray rotation matrix
+#         of segment 0 to segment 1
+#     '''
+#     if has_only_identical_subunits(u):
+#         segids = [i for i in range(len(u.segments))]#
+
+#     align_principal_axes_to_global_frame(u)
+
+#     seg_combos = [combo for combo in permutations(segids,2)]
+#     seg_chain = seg_to_chain(u)
+#     rotations = {seg_chain[segid1]: 
+#                  {seg_chain[segid2]:0 for segid2 in segids
+#                   if segid2 != segid1}
+#                   for segid1 in segids}
+    
+#     for combo in seg_combos:
+#         # rotating sega onto segb
+#         sega, segb = combo
+#         # u2 is rotated, u stays aligned with global frame
+#         u2 = u.copy()
+#         # every subunit is aligned to reference subunit before saving rotation
+#         align.alignto(u2.segments[sega].atoms, 
+#                       u.segments[reference_segment].atoms,
+#                       match_atoms=False)
+#         # then rotate sega onto segb given the same orientation as ref with 
+#         # everything else
+#         rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
+#                                                     u2.segments[sega].atoms,
+#                                                     u2.segments[segb].atoms)
+#     return rotations
+
 def get_all_rotations(u:mda.Universe,
-                      reference_segment:int=0,
                       identical_subunits:dict=None,
                       ) -> dict[int, dict[int, np.ndarray]]:
     
     '''
-    Get all of the rotations for subunit i to subunits j to N for all subunits
-    in a homomultimeric universe.
+    Get all of the rotations for subunit i to subunits j to N for all subunits.
 
     u : mda.Universe
+        Should contain only symmetric protein complexes with identical numbers
+        of subunits for all subunit types.
+    
+    identical_subunits : dict
+        The dictionary of segment id lists where each list only contains
+        the ids of subunits that are of identical types. 
+        i.e. find_identical_subunits(u) 
 
     Returns
     -------
@@ -138,49 +220,6 @@ def get_all_rotations(u:mda.Universe,
         e.g. {0:{1:np.ndarray}} is the np.ndarray rotation matrix
         of segment 0 to segment 1
     '''
-    if has_only_identical_subunits(u):
-        segids = [i for i in range(len(u.segments))]#
-
-    align_principal_axes_to_global_frame(u)
-    seg_combos = [combo for combo in permutations(segids,2)]
-    seg_chain = seg_to_chain(u)
-    rotations = {seg_chain[segid1]: 
-                 {seg_chain[segid2]:0 for segid2 in segids
-                  if segid2 != segid1}
-                  for segid1 in segids}
-    
-    for combo in seg_combos:
-        sega, segb = combo
-        u2 = u.copy()
-        align.alignto(u2.segments[sega].atoms, 
-                      u.segments[reference_segment].atoms,
-                      match_atoms=False)
-        rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-                                                    u2.segments[sega].atoms,
-                                                    u2.segments[segb].atoms)
-    return rotations
-
-def get_all_rotations_het(u:mda.Universe,
-                      reference_segment:int=0,
-                      identical_subunits:dict=None,
-                      ) -> dict[int, dict[int, np.ndarray]]:
-    
-    '''
-    Get all of the rotations for subunit i to subunits j to N for all subunits
-    in a homomultimeric universe.
-
-    u : mda.Universe
-
-    Returns
-    -------
-    dictionary
-        The dictionary of rotation matrices with keys corresponding to seg ids
-        and values of dictionaries with the segid of that the subunit was 
-        rotated into and the corresponding rotation matrix.
-        e.g. {0:{1:np.ndarray}} is the np.ndarray rotation matrix
-        of segment 0 to segment 1
-    '''
-    #### Can't Deal with D symmetry....
     segids = [i for i in range(len(u.segments))]#
     
     align_principal_axes_to_global_frame(u)
@@ -193,49 +232,56 @@ def get_all_rotations_het(u:mda.Universe,
                   for segid1 in segids}
     
     for combo in seg_combos:
-        
+        # rotating sega onto segb
         sega, segb = combo
+        # u2 is rotated. u stays aligned to global frame
         u2 = u.copy()
-        # for key, val in identical_subunits.items():
-        #     done = False
-        #     if ((sega in val) and (segb not in val)) and (done == False):
+        # if they're identical subunits
         if same_list_membership(identical_subunits,
                                 sega, 
                                 segb):
             # just use first instance of the chain type as ref for now
             ref = [val for val in identical_subunits.values()
-                   if sega in val][0]
-            sela = u2.select_atoms(f"chainID {seg_chain[sega]} and name CA") # do based off of CAs to avoid issues with minor atom difs
-            selb = u.select_atoms(f"chainID {seg_chain[segb]} and name CA")
-            align.alignto(sela, 
-                selb,
-                match_atoms=False)
-            print(f"same start {combo}")
-            
-            # rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-            #                                             u2.segments[sega].atoms,
-            #                                             u2.segments[segb].atoms)
-            selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
+                   if sega in val][0][0]
+            # position sega on the reference segment
+            align.alignto(u2.segments[sega].atoms, 
+                      u.segments[ref].atoms,
+                      select="name CA",)
+
+            ca_sela = u2.select_atoms(f"chainID {seg_chain[sega]} and name CA")
+            ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
             rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-                                                        sela,
-                                                        selb)
-            print(f"end {combo}")
-        else:
-            mobile = mda.Merge(u2.segments[segb].atoms)
+                                                        ca_sela,
+                                                        ca_selb,
+                                                        )
+        else: # they're non-identical subunits
+            # so if we're interested in the relationship of type a to type b
+            # we need to position a copy of type b on top of type a's reference
+            # and use this copy to collect the rotation of type a onto type b
+            # reference subunit of type a
             ref = [val for val in identical_subunits.values()
-                   if sega in val][0]
+                   if sega in val][0][0]
+            align.alignto(u2.segments[sega].atoms, 
+                      u.segments[ref].atoms,
+                      select="name CA",)
+            # copy of type b
+            mobile = mda.Merge(u2.segments[segb].atoms)
+            # move mobile's com to hetero ref com and align their long axes.
             align_mobile_to_ref(mobile.atoms, u2.segments[ref].atoms)
 
-            u3 = mda.Merge(mobile.atoms, u2.segments[segb].atoms)
-            print(f"different start {combo}")
+            ca_sela = mobile.select_atoms(f"name CA")
+            ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
             rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-                                                u3.segments[0].atoms,
-                                                u3.segments[1].atoms)
+                                                        ca_sela,
+                                                        ca_selb,
+                                                        )
             print(f"end {combo}")
     return rotations
 
 def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
-                         sorted=False) -> dict:
+                                identical_subunits:dict[int,list[int]],
+                                chain_seg_dict:dict[int,str],
+                                sorted:bool=False) -> dict:
     '''
     Map a pair of subunits to other pairs of subunits with the same
     spatial relationship. 
@@ -244,7 +290,20 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
     ----------
     array dict : dict
         Keys are chainid1 with dictionary values. The sub dictionaries 
-        give chainid2 and its vector relationship to chainid1. 
+        give chainid2 and its rotation matrix relationship to chainid1. 
+
+    identical_subunits : dict
+        Keys are integers and values are lists of segment ids that are 
+        identical.
+
+    chain_seg_dict : dict
+        Keys are chain id strings and values are the corresponding segment id 
+        integer.
+
+    sorted : bool
+        If True, all of the chain ID tuples will be alphabetically sorted. This
+        eliminates the orientation relationship information. 
+        Default is False.
 
     Returns
     -------
@@ -252,19 +311,36 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
     Mapping of the relationships of chains x to y (values) that are equivalent 
     to chain i to j (keys)
     '''
+    
     d = defaultdict(set)
+    # take a subunit (ch1) and it's rotations with all others in matrix_dict1
     for ch1, matrix_dict1 in array_dict.items():
-        #
+        # take each subunit in the matrix_dict and ch1's rotation onto cha
         for cha, matrixa in matrix_dict1.items():
+            # take all other subunits' rotations onto all others
             for ch2, matrix_dict2 in array_dict.items():
+                # if ch1 onto X, don't consider ch1 onto anything else
                 if ch2 == ch1:
                     continue
-               
+                # ensure that we're only looking at mappings of other subunits
+                # that are identical to ch1 type
+                elif not same_list_membership(identical_subunits,
+                                              chain_seg_dict[ch1],
+                                              chain_seg_dict[ch2]):
+                    continue
+                
                 chb = np.argmin([
                 (np.linalg.norm(matrixa - matrixb, ord='fro')) 
                 for matrixb in matrix_dict2.values()])
 
+                # get the actual subunit name string by indexing it from the argmin
                 chb = list(matrix_dict2.keys())[chb]
+                # ensure that what cha is being mapped onto is coming from the same
+                # type of subunits as what chb is mapped onto
+                if not same_list_membership(identical_subunits,
+                                            chain_seg_dict[cha],
+                                            chain_seg_dict[chb]):
+                    continue
 
                 d[(ch1,cha)].add((ch2,chb))
     if sorted is True:
@@ -415,39 +491,7 @@ def get_pair_distance(sel1, sel2, u):
     b = u.select_atoms(sel2).positions[0]
     return np.linalg.norm(a-b)
 
-def find_identical_subunits(u: mda.Universe):
-    """
-    Groups segments (subunits) by identical residue sequences.
 
-    Parameters
-    ----------
-    universe : mda.Universe
-        Protein structure.
-    """
-    d = defaultdict()
-    combos = combinations(range(len(u.segments)), 2)
-    group = 0
-    for combo in combos:
-        i, j = combo
-        if ''.join([convert_aa_code(k) 
-                    for k in u.segments[i].residues.resnames]) == \
-            ''.join([convert_aa_code(k) 
-                    for k in u.segments[j].residues.resnames]):
-            if len(d.values()) == 0:
-                d[group] = set([i,j])
-                group += 1
-            else:
-                found = False
-                for key,val in d.items():
-                    if (i in val) or (j in val):
-                        d[key].add(i)
-                        d[key].add(j)
-                        found = True
-                if found == False:
-                    d[group] = set([i,j])
-                    group += 1
-                
-    return {key:list(val) for key, val in d.items()}
 
 
 #################### Main Function ##########################
@@ -506,7 +550,8 @@ def average_multimer(structure: str|os.PathLike,
     u = mda.Merge(protein)
 
     identical_subunits = find_identical_subunits(u)
-
+    seg_chain = seg_to_chain(u)
+    chain_seg = chain_to_seg(u)
     denominator = len(identical_subunits[0])
 
     
@@ -528,12 +573,21 @@ def average_multimer(structure: str|os.PathLike,
                 "in the representative_chains argument. They should be in " \
                 "contact in the structure.")
                 return
-            else:
-                validate_group_memberships(representative_chains, 
-                                           identical_subunits)
-    equivalent_interactions = get_equivalent_interactions(u,
+            elif not validate_group_memberships(representative_chains, 
+                                           identical_subunits):
+                print("The representative chains don't come from unique sets "\
+                      "of subunits in the identical_subunits dictionary.")
+                return
+            if representative_chains is None: # need to base this off of nearest subunits
+                representative_chains = [val[0] for val 
+                                     in identical_subunits.values()]
+                   
+            
+    
+    rotations = get_all_rotations(u, identical_subunits)
+    equivalent_interactions = get_equivalent_interactions(rotations,
                                                         identical_subunits,
-                                                        representative_chains)
+                                                        chain_seg)
     # removing the columns in placed, so using a copy of the original data
     df_copy = df.copy()
     # hold the averaged data
