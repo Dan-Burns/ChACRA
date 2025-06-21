@@ -233,7 +233,7 @@ def get_all_rotations(u:mda.Universe,
 def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
                                 identical_subunits:dict[int,list[int]],
                                 chain_seg_dict:dict[int,str],
-                                sort:bool=False) -> dict:
+                                representative_chains:list=None) -> dict:
     '''
     Map a pair of subunits to other pairs of subunits with the same
     spatial relationship. 
@@ -252,10 +252,10 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
         Keys are chain id strings and values are the corresponding segment id 
         integer.
 
-    sorted : bool
-        If True, all of the chain ID tuples will be alphabetically sorted. This
-        eliminates the orientation relationship information. 
-        Default is False.
+    representative_chains : list
+        If a list of chainIDs is provided, the returned dictionary will only
+        include non-redundant key, value pairs where the key involves a 
+        chain in the representative_chains list.
 
     Returns
     -------
@@ -310,6 +310,12 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
     # convert to lists
     d = {key: list(val) 
             for key, val in d.items()}
+    if representative_chains is not None:
+        eq_int = {}
+        for ch_pair, pair_list in d.items():
+            if (ch_pair[0] in representative_chains):
+                eq_int[ch_pair] = pair_list
+        d = eq_int
     return d
 
 def get_long_axis(subunit: mda.AtomGroup) -> np.ndarray:
@@ -411,31 +417,89 @@ def make_equivalent_contact_regex(resids):
     regex2 = rf"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
     return rf"{regex1}|{regex2}"
 
-def get_representative_pair_name(chaina, 
-                                 chainb, 
-                                 equivalent_interactions):
+def alphabetize(contact_name):
+    a, b = contact_name.split("-")
+    if a<b:
+        return contact_name
+    else:
+        return f"{b}-{a}"
+def map_chains(chain_pair, pairs_list):
+    '''
+    Maps alphabetically ordered chains to their relationship order with other
+    equivalently interacting chains. Used to generate the correct contact names.
+
+    chain_pair : tuple
+        The alphabetically ordered tuple of chain IDs
+
+    pairs_list : list
+        The list of chain pair tuples from the equivalent_interactions
+        that contain the relative orientation information rather than being
+        alphabetically ordered.
+
+    Returns
+    -------
+    Dictionary
+    The mapping of the input chain pairs to their ordered relationship
+
+    '''
+    for pair in pairs_list:
+        if chain_pair[0] in pair and chain_pair[1] in pair:
+            if chain_pair[0] == pair[0]:
+                chain_map = {0:'a',1:'b'}
+            else:
+                chain_map = {0:'b',1:'a'}
+    return chain_map
+
+def make_equivalent_contact_names(resinfo,
+                                  equivalent_interactions):
+    
+    # say the alphabettically ordered resids is "C","D" but in 
+    # the list it's ordered ("D","C"). Now you just have to say that the resids in 
+    # the second element of the tuple, map to the chain in the first part of the tuple
+    # and create the contact name using that ordering and the switching the 
+    # name around to be alphabetically ordered before using it to access the df
+    in_pair = (resinfo['chaina'],resinfo['chainb'])
+    for key, pair_list in equivalent_interactions.items():
+        if in_pair in [tuple(sorted(pair)) for pair in pair_list]:
+            chain_pairs = equivalent_interactions[key]
+    # determine which tuple element corresponds to chaina and chainb
+    chain_map = map_chains(in_pair, chain_pairs)
+   
+    contacts = []
+    for pair in chain_pairs:
+        contacts.append(f"{pair[0]}:{resinfo[f'resn{chain_map[0]}']}:{resinfo[f'resid{chain_map[0]}']}-"\
+                     f"{pair[1]}:{resinfo[f'resn{chain_map[1]}']}:{resinfo[f'resid{chain_map[1]}']}")
+
+    contacts = [alphabetize(contact) for contact in contacts]
+    return list(set(contacts))
+
+def get_representative_name(resinfo, 
+                            equivalent_interactions):
     '''
     provide the chains from the contact and get the chain names to use for 
     making a generalized/averaged contact name
     '''
-    representative_pair = None
-    if chaina == chainb:
-        for pair, eq_pairs in equivalent_interactions.items():
-            if (chaina,chainb) in [tuple(sorted(pair2)) for pair2 in eq_pairs]:
-                representative_pair = tuple(sorted(pair))
-                                
-    if representative_pair is None:
-        raise ValueError(f"Could not determine representative_pair for ({chaina}, {chainb})")
-    
-    return representative_pair
 
-def get_pair_distance(sel1, sel2, u):
-    '''
-    Return the distance between two selections
-    '''
-    a = u.select_atoms(sel1).positions[0]
-    b = u.select_atoms(sel2).positions[0]
-    return np.linalg.norm(a-b)
+    chaina, chainb = resinfo['chaina'],resinfo['chainb']
+    for pair, eq_pairs in equivalent_interactions.items():
+        if (chaina,chainb) in [tuple(sorted(pair2)) for pair2 in eq_pairs]:
+            representative_pair = tuple(sorted(pair))
+            chain_list = equivalent_interactions[pair]
+            break
+    chain_map = map_chains((chaina,chainb),chain_list)
+    name = f"{pair[0]}:{resinfo[f'resn{chain_map[0]}']}:{resinfo[f'resid{chain_map[0]}']}-"\
+                     f"{pair[1]}:{resinfo[f'resn{chain_map[1]}']}:{resinfo[f'resid{chain_map[1]}']}"                     
+    
+    
+    return alphabetize(name)
+
+# def get_pair_distance(sel1, sel2, u):
+#     '''
+#     Return the distance between two selections
+#     '''
+#     a = u.select_atoms(sel1).positions[0]
+#     b = u.select_atoms(sel2).positions[0]
+#     return np.linalg.norm(a-b)
 
 
 
@@ -480,18 +544,18 @@ def average_multimer(structure: str|os.PathLike,
     '''
     structure = str(structure)
     u = mda.Universe(structure)
-    protein = u.select_atoms('protein')
+    u = mda.Merge(u.select_atoms('protein'))
     ###### Only averaging contacts for protein
-    u = mda.Merge(protein)
-
+    
+    # int key to list of int segids
     identical_subunits = find_identical_subunits(u)
-    seg_chain = seg_to_chain(u)
+    seg_chain = seg_to_chain(u) # segid to chain dict
+    # int key to list of identical chain strings
     identical_chains = {key:[seg_chain[seg] for seg in val] 
                         for key, val in identical_subunits.items()}
+    chain_seg = chain_to_seg(u) # chain str to segid dict
     
-    chain_seg = chain_to_seg(u)
-    
-
+    # Checks and representative chain assignments if None
     if has_only_identical_subunits(u):
         
         if representative_chains is None:
@@ -518,20 +582,20 @@ def average_multimer(structure: str|os.PathLike,
                 representative_chains = [val[0] for val 
                                      in identical_subunits.values()]
                    
-            
+    # ensure correct averaging calculation if fewer the N equivalent contacts 
+    # in to_average       
     denominator = len(identical_subunits[0])
+    # for identifying equivalent spatial relationships between subunits
     rotations = get_all_rotations(u, identical_subunits)
+    # non alphabetically sorted dictionary where key (B,A) has list of
+    # chain pairs that are equivalent to A's relationship to B
+    # this let's you directly assign which contact names to search for.
+    # reduce equivalent_interactions to only keys with representative_chains
     equivalent_interactions = get_equivalent_interactions(rotations,
                                                         identical_subunits,
-                                                        chain_seg)
-    # reduce equivalent_interactions to only keys involving representative chains
-    # using alphabetical order
-    eq_int = {}
-    for ch_pair, pair_list in equivalent_interactions.items():
-        if (ch_pair[0] in representative_chains):
-            eq_int[ch_pair] = pair_list
-    equivalent_interactions = eq_int
-    # removing the columns in placed, so using a copy of the original data
+                                                        chain_seg,
+                                                        representative_chains)
+    # removing the columns in place, so using a copy of the original data
     df_copy = df.copy()
     # hold the averaged data
     averaged_data = {}
@@ -545,168 +609,17 @@ def average_multimer(structure: str|os.PathLike,
         # as equivalent contacts are averaged, the original columns are removed
         while len(df_copy.columns) > 0:
             # take the first of the remaining column names as the template
-            resids = parse_id(df_copy.columns[0])
-
-            # create the regular expression that will be used to match
-            # equivalent contacts in the rest of the dataframe
-            regex = make_equivalent_contact_regex(resids)
-            # find all of the other (equivalent) contacts that involve these 
-            # residue names and numbers
-            to_average = list(df_copy.filter(regex=regex, axis=1).columns)
-            # chaina and chainb are picked up from this iterations initial contact 
-            chaina, chainb = resids['chaina'], resids['chainb']
-            if chaina == chainb:
-                identical_pair = True # confusing - identical_subunits dictionary refers to different IDs but this indicates same ID
-            else:
-                identical_pair = False
-
-            # then this chain pair is mapped back to the
-            # the representative chains
-            representative_pair = get_representative_pair_name(
-                                                        chaina, 
-                                                        chainb,  
-                                                        equivalent_interactions
-                                                            )
-            ################ Determine Average Contact Name and
-            ################## Filter out things that shouldn't be in to_average 
-                # The point of all this is that the contact that
-                # involves the representative chain might not have occurred
-                # during the simulations on that subunit, but did on others.
-                # If this is the case, you have to identify which residue goes
-                # on which chain of the contact involving the representative pair
-                # there is probably a more efficient way....
-                
-            ############### Happening in same subunit ##########################
-            if identical_pair:
-                # This is the easiest (and most common) case
-                averaged_name =  f"{representative_pair[0]}:{resids['resna']}:{resids['resida']}-{representative_pair[1]}:{resids['resnb']}:{resids['residb']}"
-            ################## Happening Inter-Subunit ######################
-            else:
-                # filter and catch the averaged_name if it's in to_average
-                to_drop = []
-       
-                matched_name = None
-                
-                for contact_name in to_average:
-                        contact_info = parse_id(contact_name)
-                        # drop everything that's not from the 
-                        # equivalent_interaction set
-
-                        # The measuring requirement is here: in the current equivalent_interactions you would just have a 
-                        # key pair that is not duplicated in its list value and the non sorted pairs in the list
-                        # tell you implicitly which subunit a residue should come from but you can't use this information
-                        # and instead have to make the distance measurements.
-                        if (contact_info['chaina'],contact_info['chainb']) not \
-                            in equivalent_interactions[representative_pair]:
-                            to_drop.append(contact_name)
-                        # if one of to_average involves both of 
-                        # representative_pair's chains, then the name is 
-                        # determined    
-                        if (contact_info['chaina'], 
-                            contact_info['chainb']) == representative_pair:
-                            matched_name = contact_name
-
-                # drop the ones that don't fit the original pair
-                for contact_name in to_drop:
-                        to_average.remove(contact_name)
+            resinfo = parse_id(df_copy.columns[0])
+            averaged_name = get_representative_name(resinfo, 
+                                                    equivalent_interactions)
+            to_average = make_equivalent_contact_names(resinfo, 
+                                                       equivalent_interactions)
+            # Get only the contact names that exist in the dataframe
+            to_average = np.intersect1d(to_average, df_copy.columns.values)
 
 
-                ########################## if inter-hetero subunit ##########    
-                if get_chain_group(representative_pair[0], identical_subunits) \
-                != get_chain_group(representative_pair[1], identical_subunits):
-                        # and the order that the hetero subunit appears in 
-                        # representative_pairs matches, you can name it without 
-                        # further consideration 
-                        if get_chain_group(representative_pair[0], 
-                                           identical_subunits) ==  \
-                                            get_chain_group(resids['chaina'], 
-                                                            identical_subunits):
-                            averaged_name =  f"{representative_pair[0]}:{resids['resna']}:{resids['resida']}-{representative_pair[1]}:{resids['resnb']}:{resids['residb']}"
-                else: 
-                        # if a contact was found earlier that matches the 
-                        # representative pair, you name it now
-                        if matched_name is not None:
-                            averaged_name = matched_name
-
-                        else:
-                        # have to determine if the original contact for this
-                        # iteration happens to have the flipped 
-                        # inter-subunit naming and to_average didn't include
-                        # the contact with the representative naming scheme
-                        # (should not happen often)
-                        # If it hasn't been figured out at this point,
-                        # we measure the distance between the contacting 
-                        # residues for each contact and determine the 
-                        # distance that these residues should be apart
-                        # and then test the representative_pair residue 
-                        # distances with the default name and with the 
-                        # flipped resid info
-
-                            # measure each distance in to_average's contacts ###
-                            contact_distances = []
-                            for contact_name in to_average:
-                                contact_info = parse_id(contact_name)
-                                sel1 = f"chainID {contact_info['chaina']} and resnum {contact_info['resida']} and name CA"
-                                sel2 = f"chainID {contact_info['chainb']} and resnum {contact_info['residb']} and name CA"
-                                contact_distances.append(
-                                    get_pair_distance(sel1, sel2, u)
-                                    )
-
-                            #### get correct contact averaged_name by checking 
-                            ## two possible distances ##
-                            mean_distance = np.mean(contact_distances)
-
-                            testa1 = f"chainID {representative_pair[0]} and resnum {contact_info['resida']} and name CA"
-                            testa2 = f"chainID {representative_pair[1]} and resnum {contact_info['residb']} and name CA"
-                            testb1 = f"chainID {representative_pair[1]} and resnum {contact_info['resida']} and name CA"
-                            testb2 = f"chainID {representative_pair[0]} and resnum {contact_info['residb']} and name CA"
-
-                            testa = get_pair_distance(testa1, testa2, u)
-                            testb = get_pair_distance(testb1, testb2, u)
-                            
-        # if the difference between the mean contact distance distance and the 
-        # chain swapped one is greater....
-                            if np.abs(testa-mean_distance) < \
-                                np.abs(testb-mean_distance):
-                                averaged_name = f"{representative_pair[0]}:{resids['resna']}:{resids['resida']}-{representative_pair[1]}:{resids['resnb']}:{resids['residb']}"
-                            else:
-                                averaged_name =  f"{representative_pair[0]}:{resids['resnb']}:{resids['residb']}-{representative_pair[1]}:{resids['resna']}:{resids['resida']}"
-            ###### End flipped contact name adjustment ###########
-            ################################ End inter-subunit ################
-            ### At this point, contacts incorrectly captured by regex filter
-            ### should be dropped, and the correct averaged name determined.
-
-            # separate intra and inter that are occurring with the same residues
-            if identical_pair: # regex picks up intra and inter
-                inter = []
-                for contact_name in to_average:
-                    contact_info = parse_id(contact_name)
-                    if contact_info['chaina'] != contact_info['chainb']:
-                        inter.append(contact_name)
-                for contact in inter:
-                    to_average.remove(contact)
-            else:
-                intra = []
-                for contact_name in to_average:
-                    contact_info = parse_id(contact_name)
-                    if contact_info['chaina'] == contact_info['chainb']:
-                        intra.append(contact_name)
-                for contact in intra:
-                    to_average.remove(contact)
-            # This is where the orientation relationships are valuable
-            # this check should be done regardless of the len(to_average)
-            # take the first one in to_average and say that 
-            # cha's resida and chb's residb need to be assigned to 
-            # chd resida and che residb based on the equivalent_interactions
-            # list members
-
-            # Ares1-Bres2 needs to be distinguished from Bres1-Ares2
             if len(to_average) > denominator:
-                
-
-                # in the case where an inter-subunit contact can happen
-                # from A to B and B to A with the same resids on a trimer or 
-                # larger, you'll have more contacts than there are subunits
+    
                 print(f"averaging {len(to_average)} contacts "\
                       f"when there should be at most {denominator}. "\
                       f"contacts are : {to_average}")
@@ -715,7 +628,7 @@ def average_multimer(structure: str|os.PathLike,
             else:
                 averaged_data[averaged_name] = df_copy[to_average].sum(
                                                             axis=1)/denominator
-            
+
             standard_deviation[averaged_name] = df_copy[to_average].std(axis=1)
             # get rid of the contacts that were just averaged and reduce the 
             # number of remaining contacts to check in the dataframe
@@ -727,7 +640,7 @@ def average_multimer(structure: str|os.PathLike,
         return pd.DataFrame(averaged_data), pd.DataFrame(standard_deviation)
     else:
         return pd.DataFrame(averaged_data)
-
+    
 
 def everything_from_averaged(averaged_contacts:pd.DataFrame, 
                             original_contacts:pd.DataFrame,
@@ -759,6 +672,8 @@ def everything_from_averaged(averaged_contacts:pd.DataFrame,
     Returns
     -------
     pd.DataFrame of the averaged contact values applied back to all chains.
+
+    TODO: get rid of measurements and use the orientation aware equivalent_interactions
     '''
     print("Collecting some information. One moment.")
     protein = u.select_atoms('protein')
