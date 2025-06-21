@@ -10,17 +10,14 @@ import pathlib
 from sklearn.decomposition import PCA
 from .utils import *
 import tqdm
-from functools import partial
 from scipy.stats import linregress 
 from ChACRA.chacra.average import everything_from_averaged
 from ChACRA.chacra.visualize.contacts_to_pymol import \
     pymol_averaged_chacras_to_all_subunits, get_contact_data, to_pymol
 from ChACRA.chacra.utils import multi_intersection
 import MDAnalysis as mda
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count
 from joblib import Parallel, delayed
-
-
 
 
 def make_contact_frequency_dictionary(freq_files):
@@ -58,6 +55,35 @@ def make_contact_frequency_dictionary(freq_files):
                 
                     
     return contact_dictionary
+
+def load_contact_file(path):
+    # Read only the contact data
+    df = pd.read_csv(path, sep="\t", skiprows=2, header=None,
+                     names=["residue_1", "residue_2", "contact_frequency"],
+                     skipinitialspace=True)
+    
+    # Combine residue names into a single string key
+    df["pair"] = df["residue_1"] + "-" + df["residue_2"]
+    
+    # Convert to a Series: index = pair, value = contact frequency
+    return df.set_index("pair")["contact_frequency"]
+
+def make_contact_dataframe(freq_folder, temps=None):
+    contact_files = [f'{freq_folder}/{file}' for file in sorted(
+                            os.listdir(freq_folder),key=lambda x: int(
+                                                    re.split(r'_|\.',x)[-2]))
+                              if file.endswith('.tsv')]
+    # Read and collect into a list of Series
+    series_list = [load_contact_file(fp) for fp in contact_files]
+
+    # Combine into a DataFrame with outer join, fill missing with 0
+    combined_df = pd.DataFrame(series_list).fillna(0)
+    if temps is not None:
+        combined_df.index=temps
+    else:
+        combined_df.index=[i for i in range(len(combined_df))]
+    combined_df.columns.name=None
+    return combined_df
 
 class ContactFrequencies:
     
@@ -990,17 +1016,6 @@ class ContactPCA:
                      output, 
                      pc_range=(pcs[0],pcs[-1]), 
                      group=group_pcs)
-
-
-#TODO class for combined chacra 
-# hold all the original data ContactFrequencies and ContactPCA
-# hold a combined contact pca with appened system names to all contacts
-# hold a difference ContactFrequencies with the original names
-    
-
-
-
-
 
 
 
