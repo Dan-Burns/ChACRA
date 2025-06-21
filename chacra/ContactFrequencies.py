@@ -9,7 +9,6 @@ import os
 import pathlib
 from sklearn.decomposition import PCA
 from .utils import *
-from .utils import *
 import tqdm
 from scipy.stats import linregress 
 from ChACRA.chacra.average import everything_from_averaged
@@ -67,13 +66,13 @@ class ContactFrequencies:
                  min_max_temp=None, 
                  structure=None,
                  get_chacras=True, 
-                 N_permutations=500):
+                 N_permutations=500,
+                 verbose=False):
         '''
         The main object for investigating the molecule's contact frequency data.
 
         Parameters
         ----------
-
         contact_data : string or pd.DataFrame or dict
             Path to file ('.csv') or pickle ('.pd') of the prepared contact 
             frequency data or the path to the directory containing the 
@@ -104,6 +103,9 @@ class ContactFrequencies:
         N_permutations : int
             If get_chacras == True, the number of times to permutate the data to
             obtain chacra (PC) significance values.
+        
+        verbose : bool
+            For debugging.
 
         Returns
         -------
@@ -123,17 +125,21 @@ class ContactFrequencies:
                     self.freqs = pd.read_pickle(contact_data)
                 else:
         
-                    print('Provide a file with a .csv or .pd (pickle format) file extension. \n'\
-                            'Or provide a path the folder containing the original getcontacts .tsv files.')
+                    print('Provide a file with a .csv or .pd (pickle format) '\
+                          'file extension.\n'\
+                            'Or provide a path the folder containing the '\
+                                'original getcontacts .tsv files.')
             
             elif os.path.isdir(contact_data):
 
                 contact_files = [f'{contact_data}/{file}' for file in sorted(
-                            os.listdir(contact_data),key=lambda x: int(re.split(r'_|\.',x)[-2]))
+                            os.listdir(contact_data),key=lambda x: int(
+                                                    re.split(r'_|\.',x)[-2]))
                               if file.endswith('.tsv')]
-                # print("Arranging the data in the following order :", flush=True)
-                for file in contact_files:
-                    print(file, flush=True)
+                
+                if verbose == True:
+                    for file in contact_files:
+                        print(file, flush=True)
                 contact_dictionary = make_contact_frequency_dictionary(
                                                             contact_files)
                 self.freqs = pd.DataFrame(contact_dictionary)
@@ -528,14 +534,14 @@ class ContactFrequencies:
             index2 = all_resis.index(f"{resinfo['chainb']}{resinfo['residb']}")
             
 
-            values = {}                                  # previous means of accessing values
-            values['mean']  = df_array[:,i].mean(axis=0) #self.freqs[contact].mean()  
-            values['stdev'] = df_array[:,i].mean(axis=0) #self.freqs[contact].std()
-            values['difference'] = np.abs(df_array[-1,i] - df_array[0,i]) #np.abs(self.freqs[contact].iloc[-1])-np.abs(self.freqs[contact].iloc[0])
+            values = {}                               
+            values['mean']  = df_array[:,i].mean(axis=0) 
+            values['stdev'] = df_array[:,i].mean(axis=0) 
+            values['difference'] = np.abs(df_array[-1,i] - df_array[0,i]) 
             
             if hasattr(self, "cpca") and pc is not None:
                 #TODO offer sorted loadings to catch sign
-                values['loading_score'] = loading_array[i,pc-1] #self.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contact]
+                values['loading_score'] = loading_array[i,pc-1] 
             elif pc is not None and hasattr(self, "cpca") == False:
                 print("Instantiate the cpca attribute with ContactPCA.")
                 break
@@ -548,11 +554,11 @@ class ContactFrequencies:
         return pd.DataFrame(data, columns=all_resis, index=all_resis)       
 
 
-def _de_correlate_df(df):
+def de_correlate_df(df):
     '''
-    randomize the values within a dataframe's columns
+    randomize the rows within a dataframe's columns
     '''
-    # improved version!
+   
     a = df.values
     idx = np.random.rand(*a.shape).argsort(0) # argsort(0) returns row indices
     out = a[idx, np.arange(a.shape[1])] # index by independently randomized rows
@@ -719,44 +725,6 @@ class ContactPCA:
             return edge_dict
         else:
             return edges  
-
-                
-    # def get_top_contact(self, resnum, pc_range=None):
-    #     '''
-    #     Return the contact name, normalized loading score, pc on which it has 
-    #     its highest score, and the overall rank the score represents on the pc.
-    #     pc_range is the range of PCs to include in the search for the
-    #     highest score
-        
-    #     pc_range is inclusive
-    #     #TODO this needs to be specific with chainid
-    #     ## TODO Remove after confirming - just need get_top_score
-    #     Get everything at once
-    #     norm_loadings[['PC1','PC2','PC3']].max(axis=1)
-    #     test_pca.norm_loadings[['PC1','PC2','PC3']].values.argmax(axis=1)+1
-    #     '''
-    #     if pc_range == None and self.top_chacras == None:
-    #         pcs = ['PC'+str(i) for i in range(1,5)]
-        
-    #     elif pc_range is not None:
-    #         pcs = ['PC'+str(i) for i in range(pc_range[0],pc_range[1]+1)]
-
-    #     else:
-    #         pcs = ['PC'+str(i) for i in self.top_chacras]
-
-
-    #     contacts = []
-    #     for contact in self.norm_loadings.index:
-    #         #TODO add resname and/or chain 
-    #         if str(resnum) in parse_id(contact).values():
-    #             contacts.append(contact)
-
-
-    #     highest_scores = self.norm_loadings[pcs].loc[contacts].max()
-    #     top_score = highest_scores.sort_values()[-1]
-    #     top_pc = highest_scores.sort_values().index[-1]
-    #     contact = self.norm_loadings.loc[contacts][self.norm_loadings[pcs].loc[contacts][top_pc] == top_score].index[0]
-    #     return {'contact':contact, 'PC':top_pc, 'loading_score':top_score}
     
     
     def get_top_score(self, contact, pc_range=None):
@@ -827,24 +795,22 @@ class ContactPCA:
         '''
 
     
-        chacra_centers = self.sorted_norm_loadings(pc).loc[(self.sorted_norm_loadings(pc)[f'PC{pc}'] >= cutoff)].index
+        chacra_centers = self.sorted_norm_loadings(pc).loc[
+            (self.sorted_norm_loadings(pc)[f'PC{pc}'] >= cutoff)].index
         if absolute == True:
             return self.sorted_norm_loadings(pc).loc[chacra_centers]
         else:
             return self.loadings.loc[chacra_centers]
-        
-    # def dynamic_energy_warping(self):
-    #     '''
-    #     Use dynamic time warping to find the explore contact frequency
-    #     and pc projections
-    #     '''
-        
    
-
     def permutated_pca(self, N_permutations=500, get_loading_pvals=False):
         '''
-        Randomize the values within the contact frequency columns to test the significance of the contact PCs.
-        After this is run the suggested chacras for further investigation are available as .top_chacras.
+        Randomize the order of the contact frequency rows in each column 
+        ndependently and perform PCA on the scrambled data to test the 
+        significance of the contact PCs. The probability that the difference in 
+        adjacent eigenvalues is greater in the scrambled data than the original
+        data serves as a P value for each PC.
+        After this is run the suggested chacras for further investigation are 
+        available as .top_chacras.
 
         contact_frequencies : pd.DataFrame
             The dataframe of contact frequencies that the ContactPCA is based off of.
@@ -866,8 +832,8 @@ class ContactPCA:
         variance = np.zeros((N_permutations, len(df.index)))
         print('This can take a moment. Kshama.')
         for i in tqdm.tqdm(range(N_permutations)):
-            # _de_correlate_df is way faster now using array indexing
-            X_aux = _de_correlate_df(df)    
+            
+            X_aux = de_correlate_df(df)    
             pca.fit(X_aux)
             # record the explained variance of this iteration's PCs
             variance[i, :] = pca.explained_variance_ratio_
@@ -875,19 +841,24 @@ class ContactPCA:
             # ....probably no value in it
             if get_loading_pvals:
                 if i == 0:
-                    permutated_components = (np.abs(pca.components_) >= np.abs(self.pca.components_))*1
+                    permutated_components = (np.abs(pca.components_) >= \
+                                             np.abs(self.pca.components_))*1
                 else:
                     # summing up the number of times that the randomized data loadings have greater values than the 
                     # real data
-                    permutated_components += (np.abs(pca.components_) >= np.abs(self.pca.components_))*1
+                    permutated_components += (np.abs(pca.components_) >= \
+                                              np.abs(self.pca.components_))*1
         self._permutated_explained_variance = variance
         # The average of this tells you the probability of randomized data having higher loading scores
         # if this value is low (<0.05) then the real loading score is significant
         if get_loading_pvals:
             self.permutated_component_pvals = permutated_components/N_permutations
     
-        self.chacra_pvals = np.sum(np.abs(np.diff(variance, axis=1, prepend=0)) > \
-                    np.abs(np.diff(self.pca.explained_variance_ratio_, prepend=0)), axis=0) / N_permutations
+        self.chacra_pvals = np.sum(np.abs(
+                                    np.diff(variance, axis=1, prepend=0)) > \
+                    np.abs(np.diff(
+                        self.pca.explained_variance_ratio_, prepend=0)
+                        ), axis=0) / N_permutations
 
         deepest_chacra = np.where((self.chacra_pvals  > 0.05)==False)[0][-1] + 1
         self.top_chacras = list(range(1,deepest_chacra+1))
@@ -924,7 +895,8 @@ class ContactPCA:
         
         results = sort_nested_dict(results)
         
-        return pd.DataFrame([result.values() for result in results.values()], index=results.keys(), columns=results[1].keys())
+        return pd.DataFrame([result.values() for result in results.values()], 
+                            index=results.keys(), columns=results[1].keys())
 
     def to_pymol(self, pcs=None, cutoff=0.6, 
                  output='chacra_selections.pml',
@@ -1048,7 +1020,8 @@ class CombinedChacra():
     ----------
     data_dict : dict
         Dictionary with keys (strings) defining the name of the corresponding
-        pd.DataFrame values.  The dataframes must all contain the same number of rows (temperatures).
+        pd.DataFrame values.  The dataframes must all contain the same number of 
+        rows (temperatures).
         Example
         -------
         {'apo':pd.DataFrame(apo_contact_frequencies),
@@ -1067,7 +1040,8 @@ class CombinedChacra():
                 for key in data_dict.keys()}
         
         self.reverse_mappers = {
-                                name:{val:key for key, val in self.mappers[name].items()}
+                                name:{val:key for key, val 
+                                      in self.mappers[name].items()}
                                 for name in self.mappers
         }
         
@@ -1109,16 +1083,16 @@ class CombinedChacra():
         
     def get_top_changes(self, cutoff, min_loading_dif=.2, pc_range=None):
         '''
-        Get the contacts from the combined chacras that are present above the loading
-        score cutoff in one ensemble but not the other
+        Get the contacts from the combined chacras that are present above the 
+        loading score cutoff in one ensemble but not the other
 
         Parameters
         ----------
 
         cutoff: float
-            Minimum normalized (absolute) loading score to consider.
-            If a contact is above this in one ensemble and below in another on the same pc
-            this contact will be reported.
+            Minimum normalized (absolute) loading score to consider. If a 
+            contact is above this in one ensemble and below in another on the 
+            same pc this contact will be reported.
 
         pc_range: tuple of int
             The range of pcs to consider (inclusive).
@@ -1149,15 +1123,18 @@ class CombinedChacra():
                 contactb = f'{self.names[1]}_{contact}'
                 if (contacta in above_cutoff and 
                 contactb not in above_cutoff) \
-                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contacta]
-                    - self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contactb])
+                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[
+                                                                    contacta]
+                    - self.combined.cpca.norm_loadings[f'PC{pc}'].loc[
+                                                                    contactb])
                         > min_loading_dif):
                     different[pc].append((contacta, 
                                          contactb))
                     
                 elif (contactb in above_cutoff and 
                 contacta not in above_cutoff) \
-                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contactb]
+                    and ((self.combined.cpca.norm_loadings[f'PC{pc}'].loc[
+                        contactb]
                     - self.combined.cpca.norm_loadings[f'PC{pc}'].loc[contacta])
                         > min_loading_dif):
                     different[pc].append((contactb, 
@@ -1207,14 +1184,16 @@ class CombinedChacra():
                     (self.combined.cpca.loadings[f'PC{pc}'][contacta] < 0 and                                                       
                     self.combined.cpca.loadings[f'PC{pc}'][contactb] > 0):                                                          
                     # and at least one is above the cutoff
-                    if (self.combined.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contacta]
-                                                                < cutoff) and \
-                        (self.combined.cpca.sorted_norm_loadings(pc)[f'PC{pc}'].loc[contactb]
-                                                                < cutoff):
+                    if (self.combined.cpca.sorted_norm_loadings(pc)[
+                        f'PC{pc}'].loc[contacta] < cutoff) and \
+                        (self.combined.cpca.sorted_norm_loadings(pc)[
+                            f'PC{pc}'].loc[contactb] < cutoff):
                         pass
                     # and at least one has its highest score on the current pc
-                    elif (list(self.combined.cpca.get_top_score(contacta).keys())[0] == pc) or \
-                        (list(self.combined.cpca.get_top_score(contactb).keys())[0] == pc):
+                    elif (list(self.combined.cpca.get_top_score(contacta).keys()
+                               )[0] == pc) or \
+                        (list(self.combined.cpca.get_top_score(contactb).keys()
+                              )[0] == pc):
                         different_signs.add(contact)
         
         return list(different_signs)
@@ -1248,8 +1227,10 @@ class CombinedChacra():
         different= []
 
         for contact in self.shared_contacts:
-            if (((stdev_min < self.original_data[self.names[0]][contact].std() < stdev_max) 
-                 and (stdev_min < self.original_data[self.names[1]][contact].std() < stdev_max)) and 
+            if (((stdev_min < self.original_data[self.names[0]][contact
+                                                            ].std() < stdev_max) 
+                 and (stdev_min < self.original_data[self.names[1]][contact
+                                                    ].std() < stdev_max)) and 
                 (np.abs(self.original_data[self.names[0]][contact].mean() - \
                 self.original_data[self.names[1]][contact].mean()) > mean_dif)):
                 different.append(contact)
@@ -1297,7 +1278,8 @@ class CombinedChacra():
         Paramters
         ---------
         names: list
-            The list of names that have been prepended in to the combined contact frequency names.
+            The list of names that have been prepended in to the combined 
+            contact frequency names.
         
         df: pd.DataFrame
             The combined loading score or contact frequency df
@@ -1305,7 +1287,8 @@ class CombinedChacra():
         Returns
         -------
         Dictionary
-        Names are keys and dataframe values with prepended names removed from the contact ids
+        Names are keys and dataframe values with prepended names removed from 
+        the contact ids
         '''
         # only really need this for loading score df
         if self.combined.cpca.loadings.columns[0] == "PC1": # loading score df
