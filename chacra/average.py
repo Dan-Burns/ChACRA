@@ -124,6 +124,55 @@ def align_principal_axes_to_global_frame(u:mda.Universe) -> np.ndarray:
 
     u.atoms.positions = rotated 
 
+def get_long_axis(subunit: mda.AtomGroup) -> np.ndarray:
+    coords = subunit.positions - subunit.center_of_mass()
+    cov = np.cov(coords.T)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    # Longest axis corresponds to largest eigenvalue
+    long_axis = eigvecs[:, np.argmax(eigvals)]
+    return long_axis / np.linalg.norm(long_axis)
+
+def align_mobile_to_ref(mobile: mda.AtomGroup, ref: mda.AtomGroup):
+    '''
+    Aligns the long axis of mobile atom group to ref atom group's in place.
+    '''
+    # Compute COMs and long axes
+    ref_com = ref.center_of_mass()
+    mob_com = mobile.center_of_mass()
+
+    ref_axis = get_long_axis(ref)
+    mob_axis = get_long_axis(mobile)
+
+    # Compute rotation matrix to align mobile axis to reference axis
+    v = np.cross(mob_axis, ref_axis)
+    c = np.dot(mob_axis, ref_axis)
+    s = np.linalg.norm(v)
+
+    if s == 0:  # Vectors already aligned or anti-aligned
+        if c > 0:
+            R = np.eye(3)
+        else:
+            # 180 degree rotation: find orthogonal axis to rotate around
+            ortho = np.eye(3)[np.argmin(np.abs(mob_axis))]  # any axis not aligned
+            v = np.cross(mob_axis, ortho)
+            v /= np.linalg.norm(v)
+            K = np.array([[0, -v[2], v[1]],
+                          [v[2], 0, -v[0]],
+                          [-v[1], v[0], 0]])
+            R = np.eye(3) + 2 * K @ K
+    else:
+        v /= s  # normalize rotation axis
+        K = np.array([[0, -v[2], v[1]],
+                      [v[2], 0, -v[0]],
+                      [-v[1], v[0], 0]])
+        R = np.eye(3) + K + K @ K * ((1 - c) / (s ** 2))
+
+    # Apply transformation: move COM to origin, rotate, then translate to ref COM
+    shifted = mobile.positions - mob_com
+    rotated = shifted @ R.T
+    aligned = rotated + ref_com
+    mobile.positions = aligned
+
 def get_rotation_matrix(chaina:mda.AtomGroup, 
                         chainb:mda.AtomGroup,
                         ) -> np.ndarray:
@@ -314,62 +363,17 @@ def get_equivalent_interactions(array_dict:dict[str,dict[str,np.ndarray]],
     d = {key: list(val) 
             for key, val in d.items()}
     if representative_chains is not None:
+        # TODO add check to get rid of redundant lists
+        # e.g. if a-b is in list 1 and list 2 drop key:list2
+        # but you have to consider representative_chains and sorted elements
+        # because in a trimer AB and AC will be two keys but map to the same
+        # pairs (when sorted)
         eq_int = {}
         for ch_pair, pair_list in d.items():
             if (ch_pair[0] in representative_chains):
                 eq_int[ch_pair] = pair_list
         d = eq_int
     return d
-
-def get_long_axis(subunit: mda.AtomGroup) -> np.ndarray:
-    coords = subunit.positions - subunit.center_of_mass()
-    cov = np.cov(coords.T)
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    # Longest axis corresponds to largest eigenvalue
-    long_axis = eigvecs[:, np.argmax(eigvals)]
-    return long_axis / np.linalg.norm(long_axis)
-
-def align_mobile_to_ref(mobile: mda.AtomGroup, ref: mda.AtomGroup):
-    '''
-    Aligns the long axis of mobile atom group to ref atom group's in place.
-    '''
-    # Compute COMs and long axes
-    ref_com = ref.center_of_mass()
-    mob_com = mobile.center_of_mass()
-
-    ref_axis = get_long_axis(ref)
-    mob_axis = get_long_axis(mobile)
-
-    # Compute rotation matrix to align mobile axis to reference axis
-    v = np.cross(mob_axis, ref_axis)
-    c = np.dot(mob_axis, ref_axis)
-    s = np.linalg.norm(v)
-
-    if s == 0:  # Vectors already aligned or anti-aligned
-        if c > 0:
-            R = np.eye(3)
-        else:
-            # 180 degree rotation: find orthogonal axis to rotate around
-            ortho = np.eye(3)[np.argmin(np.abs(mob_axis))]  # any axis not aligned
-            v = np.cross(mob_axis, ortho)
-            v /= np.linalg.norm(v)
-            K = np.array([[0, -v[2], v[1]],
-                          [v[2], 0, -v[0]],
-                          [-v[1], v[0], 0]])
-            R = np.eye(3) + 2 * K @ K
-    else:
-        v /= s  # normalize rotation axis
-        K = np.array([[0, -v[2], v[1]],
-                      [v[2], 0, -v[0]],
-                      [-v[1], v[0], 0]])
-        R = np.eye(3) + K + K @ K * ((1 - c) / (s ** 2))
-
-    # Apply transformation: move COM to origin, rotate, then translate to ref COM
-    shifted = mobile.positions - mob_com
-    rotated = shifted @ R.T
-    aligned = rotated + ref_com
-    mobile.positions = aligned
-
 
 def validate_group_memberships(L:list, D:dict) -> bool:
     '''
@@ -429,6 +433,7 @@ def alphabetize(contact_name:str) -> str:
         return contact_name
     else:
         return f"{b}-{a}"
+    
 def map_chains(chain_pair:tuple, pairs_list:list) -> dict:
     '''
     Maps alphabetically ordered chains to their relationship order with other
@@ -677,9 +682,6 @@ def everything_from_averaged(averaged_contacts:pd.DataFrame,
     Returns
     -------
     pd.DataFrame of the averaged contact values applied back to all chains.
-
-    TODO: get rid of measurements and use the orientation aware 
-    equivalent_interactions
     '''
     print("Collecting some information. One moment.")
     protein = u.select_atoms('protein')
