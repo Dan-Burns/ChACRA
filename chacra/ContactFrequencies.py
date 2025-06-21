@@ -10,12 +10,15 @@ import pathlib
 from sklearn.decomposition import PCA
 from .utils import *
 import tqdm
+from functools import partial
 from scipy.stats import linregress 
 from ChACRA.chacra.average import everything_from_averaged
 from ChACRA.chacra.visualize.contacts_to_pymol import \
     pymol_averaged_chacras_to_all_subunits, get_contact_data, to_pymol
 from ChACRA.chacra.utils import multi_intersection
 import MDAnalysis as mda
+from multiprocessing import Pool, cpu_count
+from joblib import Parallel, delayed
 
 
 
@@ -101,7 +104,7 @@ class ContactFrequencies:
                 cont.cpca.get_chacra_centers(1)...
         
         N_permutations : int
-            If get_chacras == True, the number of times to permutate the data to
+            If get_chacras == True, the number of times to permute the data to
             obtain chacra (PC) significance values.
         
         verbose : bool
@@ -554,15 +557,25 @@ class ContactFrequencies:
         return pd.DataFrame(data, columns=all_resis, index=all_resis)       
 
 
-def de_correlate_df(df):
+def de_correlate(a):
     '''
-    randomize the rows within a dataframe's columns
+    randomize the rows within array columns
     '''
-   
-    a = df.values
     idx = np.random.rand(*a.shape).argsort(0) # argsort(0) returns row indices
     out = a[idx, np.arange(a.shape[1])] # index by independently randomized rows
-    return pd.DataFrame(out, columns=df.columns)                  
+    return out      
+
+def run_permuted_pca(vals, n_permutations):
+    """
+    df_values: np.ndarray of shape (n_samples, n_features)
+    original_components: np.ndarray or None
+    get_loading_pvals: bool
+    """
+    #with parallel_backend('threading', n_jobs=1):
+    pca = PCA()
+    xvrs = [pca.fit(de_correlate(vals)).explained_variance_ratio_ 
+            for _ in range(n_permutations)]
+    return xvrs
 
 def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
     '''
@@ -622,11 +635,11 @@ class ContactPCA:
         self.freqs = contact_df
         if significance_test == True:
             # TODO Multiprocess
-            self.permutated_pca(N_permutations=N_permutations)
+            self.permuted_pca(N_permutations=N_permutations)
             self.score_sums = self.get_score_sums()
         else:
-            self._permutated_explained_variance = None
-            self.permutated_component_pvals = None
+            self._permuted_explained_variance = None
+            self.permuted_component_pvals = None
             self.chacra_pvals = None
             self.top_chacras = None
             self.score_sums = None
@@ -801,67 +814,51 @@ class ContactPCA:
             return self.sorted_norm_loadings(pc).loc[chacra_centers]
         else:
             return self.loadings.loc[chacra_centers]
-   
-    def permutated_pca(self, N_permutations=500, get_loading_pvals=False):
+    def permuted_pca(self, N_permutations=500, n_jobs=None):
         '''
-        Randomize the order of the contact frequency rows in each column 
-        ndependently and perform PCA on the scrambled data to test the 
-        significance of the contact PCs. The probability that the difference in 
-        adjacent eigenvalues is greater in the scrambled data than the original
-        data serves as a P value for each PC.
-        After this is run the suggested chacras for further investigation are 
-        available as .top_chacras.
+        Perform permuted PCA in parallel.
 
-        contact_frequencies : pd.DataFrame
-            The dataframe of contact frequencies that the ContactPCA is based off of.
-
+        Parameters
+        ----------
         N_permutations : int
-            Number of times to randomize the dataframe and perform PCA.
-
-        Returns
-            np.array of explained variance by PC for each permutation of the dataframe.
-
-        TODO multiprocess - divide N_permutations by cores
-        '''    
-        # adapted from here https://www.kaggle.com/code/tiagotoledojr/a-primer-on-pca
-        self._N_permutations = N_permutations
-        df = self.freqs
-        
-       
-        pca = PCA()
-        variance = np.zeros((N_permutations, len(df.index)))
+            Total number of permutations to run across all processes.
+        '''
         print('This can take a moment. Dhairya rakho.')
-        for i in tqdm.tqdm(range(N_permutations)):
-            
-            X_aux = de_correlate_df(df)    
-            pca.fit(X_aux)
-            # record the explained variance of this iteration's PCs
-            variance[i, :] = pca.explained_variance_ratio_
-            # track the behavior of the loading scores too
-            # ....probably no value in it
-            if get_loading_pvals:
-                if i == 0:
-                    permutated_components = (np.abs(pca.components_) >= \
-                                             np.abs(self.pca.components_))*1
-                else:
-                    # summing up the number of times that the randomized data loadings have greater values than the 
-                    # real data
-                    permutated_components += (np.abs(pca.components_) >= \
-                                              np.abs(self.pca.components_))*1
-        self._permutated_explained_variance = variance
-        # The average of this tells you the probability of randomized data having higher loading scores
-        # if this value is low (<0.05) then the real loading score is significant
-        if get_loading_pvals:
-            self.permutated_component_pvals = permutated_components/N_permutations
-    
-        self.chacra_pvals = np.sum(np.abs(
-                                    np.diff(variance, axis=1, prepend=0)) > \
-                    np.abs(np.diff(
-                        self.pca.explained_variance_ratio_, prepend=0)
-                        ), axis=0) / N_permutations
 
-        deepest_chacra = np.where((self.chacra_pvals  > 0.05)==False)[0][-1] + 1
-        self.top_chacras = list(range(1,deepest_chacra+1))
+        df_values = self.freqs.values
+        self._N_permutations = N_permutations
+
+        n_cores = cpu_count()
+        if (n_jobs == None) or (n_jobs > n_cores):
+            n_jobs = n_cores
+
+        
+        # Split total permutations across processes
+        base_n = N_permutations // n_jobs
+        remainder = N_permutations % n_jobs
+        n_permutations_list = [base_n + (1 if i < remainder else 0) for i in range(n_jobs)]
+        
+        results = Parallel(n_jobs=n_jobs, backend="loky")(
+        delayed(run_permuted_pca)(df_values, n) for n in tqdm.tqdm(n_permutations_list)
+        )
+     
+        # Flatten the list of arrays (list[list[np.ndarray]]) → list[np.ndarray]
+        variance_list = [arr for sublist in results for arr in sublist]
+        variance = np.array(variance_list)  # shape (N_permutations, n_components)
+        self._permuted_explained_variance = variance
+
+        # Compare diffs in permuted vs real
+        real_diffs = np.abs(np.diff(self.pca.explained_variance_ratio_, prepend=0))
+        perm_diffs = np.abs(np.diff(variance, axis=1, prepend=0))
+
+        self.chacra_pvals = np.mean(perm_diffs > real_diffs, axis=0)
+
+        try:
+            deepest_chacra = np.where(self.chacra_pvals <= 0.05)[0][-1] + 1
+        except IndexError:
+            deepest_chacra = 0
+
+        self.top_chacras = list(range(1, deepest_chacra + 1))
 
     def get_score_sums(self):
         '''
