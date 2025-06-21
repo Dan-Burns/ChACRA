@@ -830,7 +830,7 @@ class ContactPCA:
        
         pca = PCA()
         variance = np.zeros((N_permutations, len(df.index)))
-        print('This can take a moment. Kshama.')
+        print('This can take a moment. Dhairya rakho.')
         for i in tqdm.tqdm(range(N_permutations)):
             
             X_aux = de_correlate_df(df)    
