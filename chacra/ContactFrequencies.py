@@ -39,14 +39,15 @@ def load_contact_file(path:str) -> pd.DataFrame:
     
     return df.set_index("pair")["contact_frequency"]
 
-def make_contact_dataframe(freq_folder:str|os.PathLike, 
+def make_contact_dataframe(freq_files:str|os.PathLike|list, 
                            temps:list=None) -> pd.DataFrame:
     '''
     Provide the folder with all of the contact frequency files from the replica
     exchange simulations and return a dataframe of the contacts across states.
 
-    freq_folder : str | os.PathLike
-        Path to the folder with all of the contact frequency files.
+    freq_files : str | os.PathLike | list
+        Path to the folder with all of the contact frequency files or list of 
+        paths in sorted order.
 
     temps : list
         Optional list of temperatures for the replicas.
@@ -56,8 +57,11 @@ def make_contact_dataframe(freq_folder:str|os.PathLike,
     pd.DataFrame
         The dataframe of all the contact frequencies at each state.
     '''
-    contact_files = [f'{freq_folder}/{file}' for file in sorted(
-                            os.listdir(freq_folder),key=lambda x: int(
+    if isinstance(freq_files, list):
+        contact_files = freq_files
+    else:
+        contact_files = [f'{freq_files}/{file}' for file in sorted(
+                            os.listdir(freq_files),key=lambda x: int(
                                                     re.split(r'_|\.',x)[-2]))
                               if file.endswith('.tsv')]
 
