@@ -1,8 +1,47 @@
 import numpy as np
 import re
 import psutil
-from MDAnalysis.analysis.distances import distance_array
+import parmed as pmd
 
+def make_contact_frequency_dictionary(freq_files:list) -> pd.DataFrame:
+    '''
+    Deprecated in favor of make_contact_dataframe().
+    go through a list of frequency files and record all of the frequencies for 
+    each replica.  
+
+    freq_files : list
+        List of paths to each contact frequency file, presorted.
+
+    Returns : Dict
+        The Dictionary of contact keys and frequency lists.
+    ''' 
+    contact_dictionary = {}
+  
+    regex = r'\w:\w+:\d+\s+\w:\w+:\d+'
+    # go through each of the contact files and fill in the lists
+    for i, file in enumerate(freq_files):
+        with open(file, 'r') as freqs:
+            for line in freqs.readlines():
+                if re.search(regex, line):
+                    line = line.strip()
+                    first, second, num_str = line.split()
+                    label = first + "-" + second
+                    
+                    
+                    if label not in contact_dictionary.keys():
+                        contact_dictionary[label] = [0 for n in range(i)]
+                        contact_dictionary[label].append(float(num_str))
+                    else:
+                        contact_dictionary[label].append(float(num_str))
+        
+        #Extend all the lists before opening the next freq_file
+        for key in contact_dictionary.keys():
+            if i > 0 and len(contact_dictionary[key]) != i+1:
+                length = len(contact_dictionary[key])
+                extend = (i+1) - length
+                contact_dictionary[key].extend([0 for n in range(extend)])
+            
+    return contact_dictionary
 
 def sort_dictionary_values(dictionary):
     return dict(sorted(dictionary.items(), key=lambda item: -item[1]))
