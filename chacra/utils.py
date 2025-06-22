@@ -2,6 +2,7 @@ import numpy as np
 import re
 import psutil
 import parmed as pmd
+import pandas as pd
 
 def make_contact_frequency_dictionary(freq_files:list) -> pd.DataFrame:
     '''
