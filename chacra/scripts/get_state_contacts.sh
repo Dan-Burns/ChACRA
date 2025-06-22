@@ -1,4 +1,4 @@
-j#!/bin/bash
+#!/bin/bash
 structure=$1
 trajectory=$2
 contacts_folder=$3
@@ -8,7 +8,7 @@ n_jobs=$5
 
 
 
-
+# can just have getcontacts in the same environment - only need vmdpython
 source $(conda info --base)/etc/profile.d/conda.sh
 conda activate getcontacts
 
