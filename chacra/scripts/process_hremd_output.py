@@ -82,12 +82,12 @@ for i in range(n_states):
 
 
 if run == 1:
-    contact_files = [f'./contact_output/run_{i}/freqs/{file}' for file in 
-                         sorted(os.listdir(f'./contact_output/run_{i}/freqs'),
+    contact_files = [f'./contact_output/run_{run}/freqs/{file}' for file in 
+                         sorted(os.listdir(f'./contact_output/run_{run}/freqs'),
                             key=lambda x: int(re.split(r'_|\.',x)[-2]))
                               if file.endswith('.tsv')]
        
-    df = pd.DataFrame(make_contact_dataframe(contact_files))
+    df = make_contact_dataframe(contact_files)
     df.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
     
 # Go through previous runs' contact frequency files and generate a 
@@ -103,7 +103,7 @@ if run > 1:
                               if file.endswith('.tsv')]
         frame_counts[i] = freq_frames(contact_files[0])
 
-        cdfs[i] = pd.DataFrame(make_contact_dataframe(contact_files))
+        cdfs[i] = make_contact_dataframe(contact_files)
 
     total_frames = sum(frame_counts.values())
     adjusted_cdfs = {}
