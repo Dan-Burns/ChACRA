@@ -12,7 +12,7 @@ from .utils import *
 import tqdm
 from scipy.stats import linregress 
 from ChACRA.chacra.average import everything_from_averaged
-from ChACRA.chacra.visualize.contacts_to_pymol import \
+from ChACRA.chacra.visualize.pymol import \
     pymol_averaged_chacras_to_all_subunits, get_contact_data, to_pymol
 from ChACRA.chacra.utils import multi_intersection
 import MDAnalysis as mda
@@ -20,43 +20,15 @@ from multiprocessing import cpu_count
 from joblib import Parallel, delayed
 
 
-def make_contact_frequency_dictionary(freq_files):
+def load_contact_file(path:str) -> pd.DataFrame:
     '''
-    go through a list of frequency files and record all of the frequencies for 
-    each replica.  
-    '''
-    
-    
-    contact_dictionary = {}
-  
-    regex = r'\w:\w+:\d+\s+\w:\w+:\d+'
-    # go through each of the contact files and fill in the lists
-    for i, file in enumerate(freq_files):
-        with open(file, 'r') as freqs:
-            for line in freqs.readlines():
-                if re.search(regex, line):
-                    line = line.strip()
-                    first, second, num_str = line.split()
-                    label = first + "-" + second
-                    
-                    
-                    if label not in contact_dictionary.keys():
-                        contact_dictionary[label] = [0 for n in range(i)]
-                        contact_dictionary[label].append(float(num_str))
-                    else:
-                        contact_dictionary[label].append(float(num_str))
-        
-        #Extend all the lists before opening the next freq_file
-        for key in contact_dictionary.keys():
-            if i > 0 and len(contact_dictionary[key]) != i+1:
-                length = len(contact_dictionary[key])
-                extend = (i+1) - length
-                contact_dictionary[key].extend([0 for n in range(extend)])
-                
-                    
-    return contact_dictionary
+    path : str
+        Path to the contact frequency tsv file.
 
-def load_contact_file(path):
+    Returns
+    -------
+    pd.DataFrame
+    '''
     # Read only the contact data
     df = pd.read_csv(path, sep="\t", skiprows=2, header=None,
                      names=["residue_1", "residue_2", "contact_frequency"],
@@ -65,18 +37,32 @@ def load_contact_file(path):
     # Combine residue names into a single string key
     df["pair"] = df["residue_1"] + "-" + df["residue_2"]
     
-    # Convert to a Series: index = pair, value = contact frequency
     return df.set_index("pair")["contact_frequency"]
 
-def make_contact_dataframe(freq_folder, temps=None):
+def make_contact_dataframe(freq_folder:str|os.PathLike, 
+                           temps:list=None) -> pd.DataFrame:
+    '''
+    Provide the folder with all of the contact frequency files from the replica
+    exchange simulations and return a dataframe of the contacts across states.
+
+    freq_folder : str | os.PathLike
+        Path to the folder with all of the contact frequency files.
+
+    temps : list
+        Optional list of temperatures for the replicas.
+
+    Returns
+    -------
+    pd.DataFrame
+        The dataframe of all the contact frequencies at each state.
+    '''
     contact_files = [f'{freq_folder}/{file}' for file in sorted(
                             os.listdir(freq_folder),key=lambda x: int(
                                                     re.split(r'_|\.',x)[-2]))
                               if file.endswith('.tsv')]
-    # Read and collect into a list of Series
+
     series_list = [load_contact_file(fp) for fp in contact_files]
 
-    # Combine into a DataFrame with outer join, fill missing with 0
     combined_df = pd.DataFrame(series_list).fillna(0)
     if temps is not None:
         combined_df.index=temps
@@ -85,20 +71,18 @@ def make_contact_dataframe(freq_folder, temps=None):
     combined_df.columns.name=None
     return combined_df
 
-class ContactFrequencies:
-    
-    
-    
-    def __init__(self, contact_data, 
-                 temps=None, 
-                 temp_progression=None, 
-                 min_max_temp=None, 
-                 structure=None,
-                 get_chacras=True, 
-                 N_permutations=500,
-                 verbose=False):
+class ContactFrequencies: 
+    def __init__(self, 
+                 contact_data:str|os.PathLike|dict|pd.DataFrame, 
+                 temps:list=None, 
+                 temp_progression:str=None, 
+                 min_max_temp:tuple[int|float]=None, 
+                 structure:str|os.PathLike=None,
+                 get_chacras:bool=True, 
+                 N_permutations:int=1000,
+                 verbose:bool=False):
         '''
-        The main object for investigating the molecule's contact frequency data.
+        This is the main object for exploring the contact frequency data.
 
         Parameters
         ----------
@@ -211,8 +195,6 @@ class ContactFrequencies:
                                    structure=structure)
         else:
             self.cpca = None
-        
-
     
     def get_contact_partners(self, resid1, resid2=None, ):
         '''
@@ -268,14 +250,10 @@ class ContactFrequencies:
             regex = rf"{regex1}|{regex2}"
         return self.freqs.filter(regex=regex, axis=1)
     
-    
-    #TODO function to identify the most inversely correlated contact involving each 
-    # partner in a given contact
-
     def find_correlated_contacts(self, contact, inverse=True):
         '''
         Returns a list of n_contacts involving one member of the input contact
-        with the highest (inverse) correlation values.
+        with the highest correlation values.
         This helps identify a contact that is made as a function of another one
         breaking.
 
@@ -292,14 +270,6 @@ class ContactFrequencies:
         list
         List of contacts sorted in descending order of correlation values.
         '''
-        # TODO a lower temperature range might correlate with one contact
-        # while a higher temperature range might begin correlating with another
-        # this might work best using a linear combination of PCs to identify
-        # patterns of contact making and breaking that depend on more than one contact
-
-        # can also return based on the whole matrix from 
-        # self.freqs.corr().filter(regex=rf'{a}|{b}',axis=0).filter(regex=rf'{a}|{b}',axis=1).min()...
-        
 
         a,b = contact.split('-')
         cor = self.freqs.corr()[[contact]]
@@ -842,7 +812,9 @@ class ContactPCA:
             return self.loadings.loc[chacra_centers]
     def permuted_pca(self, N_permutations=500, n_jobs=None):
         '''
-        Perform permuted PCA in parallel.
+        Perform PCA on permutations of the contact frequency data in parallel.
+        The contact columns have their rows reordered independently.
+        Used to find the suggested significant subset of chacras/PCs.
 
         Parameters
         ----------
@@ -961,8 +933,6 @@ class ContactPCA:
             The chain IDs that were used as the representative chains for the
             averaged data. 
 
-        TODO: Need a function to reconstruct data from averaged with fewer
-        required arguments.
         '''
         if pcs is not None:
             pass
