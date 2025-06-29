@@ -26,8 +26,9 @@ def has_only_identical_subunits(u: mda.Universe) -> bool:
     """
     seqs = [tuple(seg.residues.resnames) for seg in u.segments]
     if not all(s == seqs[0] for s in seqs):
-        raise ValueError("Not all subunits are identical. This function only"\
-                         " supports homomultimers.")
+        # raise ValueError("Not all subunits are identical. This function only"\
+        #                  " supports homomultimers.")
+        return False
     else:
         return True
 
@@ -464,8 +465,8 @@ def map_chains(chain_pair:tuple, pairs_list:list) -> dict:
 def make_equivalent_contact_names(resinfo:dict,
                                   equivalent_interactions:dict) -> list:
     '''
-    Uses the orientation aware equivalent_interactions that is already reduced
-    to the keys involving the representative_chains to make the names for the 
+    Uses the orientation-aware equivalent_interactions (that is already reduced
+    to the keys involving the representative_chains) to make the names for the 
     contacts that are equivalent to the resinfo contact.
 
     resinfo : dict
@@ -566,7 +567,11 @@ def average_multimer(structure: str|os.PathLike,
     # int key to list of int segids
     identical_subunits = find_identical_subunits(u)
     chain_seg = chain_to_seg(u) # chain str to segid dict
-    
+    seg_chain = seg_to_chain(u)
+    # validate_group_memberships is expecting integers but representative chains
+    # is strings
+    identical_chains = {group:[seg_chain[el] for el in val] for group, val in 
+                        identical_subunits.items()}
     # Checks and representative chain assignments if None
     if has_only_identical_subunits(u):
         if representative_chains is None:
@@ -585,7 +590,7 @@ def average_multimer(structure: str|os.PathLike,
                 "contact in the structure.")
                 return
             elif not validate_group_memberships(representative_chains, 
-                                           identical_subunits):
+                                           identical_chains):
                 print("The representative chains don't come from unique sets "\
                       "of subunits in the identical_subunits dictionary.")
                 return
@@ -613,11 +618,12 @@ def average_multimer(structure: str|os.PathLike,
     standard_deviation = {}
     # TODO keep track of what's averaged
     ############## Main Loop Begins here ###################
-    print('Collecting equivalent contacts and averaging.\n')
+    print('Just a moment.\n')
     total_count = len(df.columns)
     with tqdm.tqdm(total=total_count) as progress:
         # as equivalent contacts are averaged, the columns are removed
         while len(df_copy.columns) > 0:
+            #  TODO Multiprocessing for this block
             # take the first of the remaining column names as the template
             resinfo = parse_id(df_copy.columns[0])
             # Create the name that the averaged value will be associated with
@@ -652,7 +658,6 @@ def average_multimer(structure: str|os.PathLike,
     else:
         return pd.DataFrame(averaged_data)
     
-
 def everything_from_averaged(averaged_contacts:pd.DataFrame, 
                             u:mda.Universe, 
                             representative_chains:list[str],
