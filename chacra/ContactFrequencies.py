@@ -18,7 +18,8 @@ from ChACRA.chacra.utils import multi_intersection
 import MDAnalysis as mda
 from multiprocessing import cpu_count
 from joblib import Parallel, delayed
-
+import warnings
+warnings.filterwarnings("ignore", message="Biopython*")
 
 def load_contact_file(path:str) -> pd.DataFrame:
     '''
@@ -404,8 +405,6 @@ class ContactFrequencies:
     #                     str(int(split_ids['residb'])+starting_residue_number-1)
     #     # TODO return the renumbered dataframe in place.
                 
-
-
     def exclude_below(self,min_frequency=0.05,row_range=None):
         '''
         If the maximum frequency for a contact is below min_frequency,
@@ -991,8 +990,6 @@ class ContactPCA:
                      pc_range=(pcs[0],pcs[-1]), 
                      group=group_pcs)
 
-
-
 class CombinedChacra():
     '''
     Combine multiple contact frequency data sets and perform PCA on them.
@@ -1301,7 +1298,4 @@ class CombinedChacra():
             # normalized values are distributed between the ensembles
             # so only one ensemble will have a maximum of 1 on a given pc
             self.separated_cpca[name].norm_loadings = \
-                                    self.separated_cpca[name].loadings
-                                                                
-
-    
+                                    self.separated_cpca[name].loadings                                               
