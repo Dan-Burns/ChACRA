@@ -672,9 +672,6 @@ def everything_from_averaged(averaged_contacts:pd.DataFrame,
     averaged_contacts : pd.DataFrame
         The averaged contact data.
 
-    original_contacts : pd.DataFrame
-        The original contact dataframe.
-
     u : MDA.Universe 
         The same universe used for averaging contacts
 
@@ -684,7 +681,6 @@ def everything_from_averaged(averaged_contacts:pd.DataFrame,
     as_map : bool
         Returns a dictionary mapping each averaged contact name to a list of the
         corresponding replicated contact names
-
 
     Returns
     -------

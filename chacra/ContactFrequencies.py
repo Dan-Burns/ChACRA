@@ -900,6 +900,7 @@ class ContactPCA:
                  output='chacra_selections.pml',
                  group_pcs=True,
                  scale_spheres=False,
+                 sphere_scale_range=(0.6,1.5),
                  reconstruct_from_averaged=False,
                  original_contacts=None,
                  representative_chains=None):
@@ -960,15 +961,11 @@ class ContactPCA:
         top_contacts = []
         for i in pcs:
             top_contacts.extend(list(self.get_chacra_center(i,cutoff).index))
-            # top_contacts.extend(self.sorted_norm_loadings(i).loc[
-            #                     self.sorted_norm_loadings(i)[f'PC{i}'] > cutoff
-            #                                                     ].index)
         top_contacts = list(set(top_contacts))
 
         if reconstruct_from_averaged is True:
             u = mda.Universe(self.structure)
-            mapped_contacts = everything_from_averaged(self.freqs[top_contacts], 
-                                                   original_contacts, 
+            mapped_contacts = everything_from_averaged(self.freqs[top_contacts],          
                                                    u, 
                                                    representative_chains,
                                                    as_map=True)
@@ -976,20 +973,21 @@ class ContactPCA:
                 mapped_contacts.keys(),
                 self.freqs,
                 self, 
-                pc_range=(pcs[0],pcs[-1])) # pc_range should be changed to list
+                pc_range=(pcs[0],pcs[-1]),
+                variable_sphere_scale=scale_spheres,
+                sphere_scale_range=sphere_scale_range) 
             pymol_averaged_chacras_to_all_subunits(mapped_contacts,
                                                     pymol_data, 
                                                     output)
 
         else:
-            cont = ContactFrequencies(self.freqs,
-                                        get_chacras=False)
             to_pymol(top_contacts, 
-                     cont,
+                     self.freqs,
                      self, 
                      output, 
                      pc_range=(pcs[0],pcs[-1]), 
                      variable_sphere_scale=scale_spheres,
+                     sphere_scale_range=sphere_scale_range,
                      group=group_pcs)
 
 class CombinedChacra():

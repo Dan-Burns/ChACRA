@@ -8,12 +8,10 @@ import collections
 from scipy.interpolate import interp1d
 from ..utils import parse_id
 from .colors import chacra_colors
+from Bio.PDB import PDBParser
 
-# TODO offer red, blue etc spectrums to link individual contact plots to color codes on pymol depiction
-# TODO update all the functions to just accept one contact object and add a single function to write a pymol file for specific chacra(s)
-# TODO sphere scale should be from a min and max scale argument normalizing
-# the sphere scale against the min loading score
-def get_contact_data(contact_list, contactFrequencies, contactPCA,
+
+def get_contact_data(contact_list, freqs, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),
                     variable_sphere_scale=False,
@@ -28,9 +26,9 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     contact_list : list
         List of the contacts in format chain1:resname1:resnum1-chain1:resname1:resnum1
     
-    contactFrequencies : ContactFrequencies object
+    freqs : pd.DataFrame
        
-        object's methods provide easy access to relevant data
+        contact_frequencies
 
     contactPCA : contactPCA object
         
@@ -45,15 +43,12 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
     Returns
     -------
     dictionary of dictionaries containing contact name and corresponding data for writing the pymol selections
-    
 
-    # TODO have to figure out how to deal with duplicate names in different pc groups so you can depict just spheres of one color 
-    # TODO update to new get_scores function, eliminate 'rank' and anything but highest score
     '''
     data = {contact:{} for contact in contact_list}
 
     #easier access to contact dataframe
-    cdf = contactFrequencies.freqs
+    cdf = freqs
 
     for contact in contact_list:
         chaina, resna, resia, chainb, resnb, resib = re.split(
@@ -64,11 +59,12 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         data[contact]['resia'] = resia
         data[contact]['chainb'] = chainb
         data[contact]['resnb'] = resnb
-        data[contact]['resib'] =resib
+        data[contact]['resib'] = resib
 
         # get the PC that the contact scores highest on
         # dictionary where first key is top PC
-        score = contactPCA.get_top_score(contact, pc_range=(pc_range[0],pc_range[1]))
+        score = contactPCA.get_top_score(contact, pc_range=(pc_range[0],
+                                                            pc_range[1]))
 
         top_pc = list(score.keys())[0]
 
@@ -80,35 +76,26 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         data[contact]['color'] = f'0x{chacra_colors[top_pc-1][1:-2]}'
 
-        # take the slope by default from first 7 temps or length of df if it's smaller than 7 rows
+        # positive slope depicted with solid lines, negative with dashes
         data[contact]['slope'] = get_slope(cdf,
                                         contact, 
                                         temp_range=(slope_range[0],
-                                                    min(slope_range[1],cdf.shape[0])))
-
-        # TODO I don't think this is being used anywhere....
-        data[contact]['sel_1'] = f'resname {resna} and resnum {resia} and chain {chaina}'
-        data[contact]['sel_2'] = f'resname {resnb} and resnum {resib} and chain {chainb}'
-
-        # option to depict the temperature sensitivity rank in terms of how solid or transparent the spheres are
-        # probably best when visualzing a single PC
+                                        min(slope_range[1],cdf.shape[0])))
     
-    if variable_sphere_scale:
-        lowest_score = sorted(data.items(), key=lambda t:t[1]["loading_score"]
-                              )[0][1]['loading_score']
-        interpolator = get_variance_to_sphere_scale_interpolator(lowest_score,
-                                 min_sphere_scale=sphere_scale_range[0],
-                                 max_sphere_scale=sphere_scale_range[1],
-                                    )
-        for contact in data.keys():
+    lowest_score = sorted(data.items(), key=lambda t:t[1]["loading_score"]
+                            )[0][1]['loading_score']
+    interpolator = get_variance_to_sphere_scale_interpolator(lowest_score,
+                                min_sphere_scale=sphere_scale_range[0],
+                                max_sphere_scale=sphere_scale_range[1],
+                                )
+    for contact in data.keys():
 
-            data[contact]['sphere_scale'] = interpolator(
+        data[contact]['sphere_scale'] = 1 if variable_sphere_scale is False\
+                                                else interpolator(
                                                 data[contact]['loading_score'])
 
     # sort the dictionary in ascending order of loading score so that
     # the highest scores get colored last (and take visual precedence)
-    # can also make the option to sort by any of the dictionary items
-    # sort the dictionary by score
     result = collections.OrderedDict(sorted(data.items(), key=lambda t:t[1]["loading_score"]))
     return result
 
@@ -225,19 +212,23 @@ def write_selections(contact_data, output_file):
             f.write('\n')
 
 
-def to_pymol(contact_list, contactFrequencies, contactPCA,
-                     output_file = 'output.pml',
-                    slope_range=(0,7),
-                    pc_range=(1,4),
-                    variable_sphere_scale=False,
-                    group=True):
+def to_pymol(contact_list, 
+            freqs, 
+            contactPCA,
+            output_file = 'output.pml',
+            slope_range=(0,7),
+            pc_range=(1,4),
+            variable_sphere_scale=False,
+            sphere_scale_range=(0.6,1.5),
+            group=True):
     '''
      Parameters
     ----------
     contact_list : list
         List of the contacts in format chain1:resname1:resnum1-chain1:resname1:resnum1
     
-    contactFrequencies : ContactFrequencies object
+    freqs : pd.DataFrame
+        contact frequencies
 
     contactPCA : contactPCA object
 
@@ -256,16 +247,17 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     for i in range(1,max_pc+1):
         top_contacts.extend(cpca.sorted_norm_loadings(i).index[:20])
     top_contacts = list(set(top_contacts))
-    to_pymol(top_contacts, ContactFrequencies, ContactPCA, output_file, pc_range(1,max_pc))
+    to_pymol(top_contacts, freqs, ContactPCA, output_file, pc_range(1,max_pc))
     '''
 
     # remove any duplicates
     contact_list = list(set(contact_list))
     # get all the data
-    contact_data = get_contact_data(contact_list, contactFrequencies, contactPCA,
+    contact_data = get_contact_data(contact_list, freqs, contactPCA,
                     slope_range=slope_range,
                     pc_range=pc_range,
-                    variable_sphere_scale=variable_sphere_scale
+                    variable_sphere_scale=variable_sphere_scale,
+                    sphere_scale_range=sphere_scale_range
                     )
     # write it to pymol file
     if output_file.split('.')[-1] != 'pml':
@@ -324,30 +316,11 @@ def get_variance_to_sphere_scale_interpolator(
     
     return interpolator
 
-# def get_sphere_scale(interpolator, pc, variance):
-#     '''
-#     Take the interpolator and explained variance from the above function
-#     and return the sphere scale for depicting the contact.
 
-#     Parameters
-#     ----------
-#     interpolator : scipy interp1d object
-#         DESCRIPTION.
-#     pc : int
-#         pc of contact.
-#     variance : np.array
-#         array of explained variance by pc.
-
-#     Returns
-#     -------
-#     float corresponding to the size of the sphere to depict in pymol.
-
-#     '''
-#     return interpolator(variance[pc-1])
-
-
-
-def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
+def pymol_averaged_chacras_to_all_subunits(mapped_contacts, 
+                                           pymol_data, 
+                                           output,
+                                           ):
     '''
     Create data for contacts_to_pymol.write_selections so that you can visualize the averaged contact
     data's top PC contacts (chacras) applied back to all the subunits from which they were averaged.
@@ -377,8 +350,7 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
     pymol_data = get_contact_data(mapped_contacts.keys(),average_ContactFrequencies,ContactPCA, pc_range=(1,max_pc))
 
     pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, 'path/to/output.pml')
-    
-    #TODO make consistent with to_pymol arguments so you can use sphere_scale etc.
+
     '''
     full_protein_pymol_data = {}
     for averaged_contact_name in pymol_data:
@@ -387,148 +359,35 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
             if replicated_name != averaged_contact_name:
                 resids = parse_id(replicated_name)
                 full_protein_pymol_data[replicated_name] = {
-                            'chaina': resids['chaina'],
-                            'resna': resids['resna'],
-                            'resia': resids['resida'],
-                            'chainb': resids['chainb'],
-                            'resnb': resids['resnb'],
-                            'resib': resids['residb'],
-                            'top_pc': pymol_data[averaged_contact_name]['top_pc'],
-                            'loading_score': pymol_data[averaged_contact_name]['loading_score'],
-                            'color': pymol_data[averaged_contact_name]['color'],
-                            'slope': pymol_data[averaged_contact_name]['slope'],
-                            'sel_1': f"resname {resids['resna']} and resnum {resids['resida']} and chain {resids['chaina']}",
-                            'sel_2': f"resname {resids['resnb']} and resnum {resids['residb']} and chain {resids['chainb']}"
-                            }
+    'chaina': resids['chaina'],
+    'resna': resids['resna'],
+    'resia': resids['resida'],
+    'chainb': resids['chainb'],
+    'resnb': resids['resnb'],
+    'resib': resids['residb'],
+    'top_pc': pymol_data[averaged_contact_name]['top_pc'],
+    'loading_score': pymol_data[averaged_contact_name]['loading_score'],
+    'color': pymol_data[averaged_contact_name]['color'],
+    'sphere_scale': pymol_data[averaged_contact_name]['sphere_scale'],
+    'slope': pymol_data[averaged_contact_name]['slope'],
+    'sel_1': f"resname {resids['resna']} and resnum {resids['resida']} and chain {resids['chaina']}",
+    'sel_2': f"resname {resids['resnb']} and resnum {resids['residb']} and chain {resids['chainb']}"
+    }
                 
     write_group_selections(full_protein_pymol_data, output)
 
 
-###### GRADIENT COLORING #################
-        
-def contact_frequency_color_gradient(output='./colors.pml',df=None, 
-                                     contact_pca=None, pc=1,
-                                     cmap_name='plasma', contact_list=None):
-    '''
-    Find top scoring contact for each residue and color according to slope
-    Probably need to put a data prep function in ContactFrequencies and feed
-    the data to this.
-    '''
-    
-    residue_slopes = {}
-    loading_scores = {}
-    
-    for contact in contact_list:
-        resa, resb = contact.split('-')
-        cha, resna, resnuma = resa.split(':')
-        chb, resnb, resnumb = resb.split(':')
-        slope = get_slope(df,contact)
-        loading_score = contact_pca.get_top_score(contact, (pc,pc))
-        loading_score = loading_score[loading_score.keys()[0]]
-        
-        if resa in list(residue_slopes.keys()):
-            continue
-        else:
-            residue_slopes[resa] = slope
-            loading_scores[resnuma] = loading_score
-        if resb in list(residue_slopes.keys()):
-            continue
-        else:
-            residue_slopes[resb] = slope
-            loading_scores[resnumb] = loading_score
-
-    
-    #steepest_up = max(list(residue_slopes.values()))
-    #steepest_down = min(list(residue_slopes.values()))
-    
-    n_residues = len(list(residue_slopes.keys()))
-    cmap = cm.get_cmap(cmap_name, n_residues)
-    #values = np.array(list(residue_slopes.values()))
-    # How to deal with normalizing the negative number but keep the sign for 
-    # diverging colormap?        
-    #normalized_values =  (values-min(values))/(max(values)-min(values))
-    norm = mpl.colors.Normalize(vmin=-1, vmax=1)
-    # need to use loading score instead of slope to assign colors
-    with open(output, 'w') as file:
-        for i, residue in enumerate(list(residue_slopes.keys())):
-            chain, resn, resi = residue.split(':')
-            if residue_slopes[residue] <= 0:
-                index = norm(-loading_scores[resi])
-                color_index = int(index *cmap.N)
-            else:
-                index = norm(loading_scores[resi])
-                color_index = int(index *cmap.N)
-            
-                
-            hex_color = '0x'+str(to_hex(cmap(color_index))[1:])
-            
-            file.write('color ' + hex_color + ', resi ' + str(resi) + \
-                       ' and chain ' + chain + '\n' \
-                       )
-    
-def slope_color_gradient(output,
-                         contact_slope_dictionary, 
-                         cmap_name="plasma"):
-    '''
-    Provide a dictionary of contact keys and corresponding slopes
-    and color according to absolute value with solid or dashed line to 
-    denote increasing or decreasing slope
-    '''
-    # sort the dictionary
-    sorted_dict = dict(sorted(contact_slope_dictionary.items(), 
-                              key=lambda item: np.abs(item[1]))) 
-    # get an array of the slopes
-    values = np.array(list(sorted_dict.values()))
-    
-    # count the residues that will be colored
-    residues = []
-    
-    for contact,slope in sorted_dict.items():
-        resa, resb = contact.split('-')
-        cha, resna, resnuma = resa.split(':')
-        chb, resnb, resnumb = resb.split(':')
-    
-        if resa not in residues:
-            residues.append(resa)
-        if resb not in residues:
-            residues.append(resb)
-    
-    # make the cmap across the gradients
-    # and make the range that will be used for the cmap indices with norm
-    n_residues = len(residues)
-    cmap = cm.get_cmap(cmap_name, n_residues) 
-    norm = mpl.colors.Normalize(vmin=np.min(np.abs(values)), 
-                                vmax=np.max(np.abs(values)))
-    
-    with open(output, 'w') as file:
-        for i, contact in enumerate(list(sorted_dict.keys())):
-            ch1,resn1,resi1,ch2,resn2,resi2 = re.split(':|-',contact)
-            
-            index = norm(np.abs(sorted_dict[contact]))
-            color_index = int(index *cmap.N)
-            
-                
-            hex_color = '0x'+str(to_hex(cmap(color_index))[1:])
-            line_string = label_distance(ch1,resi1,ch2,resi2)
-            if sorted_dict[contact]>0:
-                dash_gap = 0
-            else:
-                dash_gap = 0.8
-            file.write(f'color {hex_color}, (resi {resi1} and chain {ch1})\
-   or (resi {resi2} and chain {ch2})\n\
-   show spheres, ((resi {resi1} and chain {ch1})\
-   or (resi {resi2} and chain {ch2})) and name CA\n\
-   {line_string}\n\
-   set dash_gap,{dash_gap},{resi1}-{resi2}\n\
-   color {hex_color}, {resi1}-{resi2}\n'
-                        )
-    
-
-
 
 ################## NETWORKX ###############
-def nx_edges_to_pymol(output, edges, color='blue', variable_width=False, max_weight=None, min_weight=None, max_width=20, min_width=2):
-    #TODO add option to take first n from the full dictionary so you don't have to presort them
+def nx_edges_to_pymol(output, 
+                      edges, 
+                      color='blue', 
+                      variable_width=False, 
+                      max_weight=None, 
+                      min_weight=None, 
+                      max_width=20, 
+                      min_width=2):
+    
     '''
     make distance line depictions of networkx edges
 
@@ -621,7 +480,13 @@ def nx_to_pymol(output, sel_name, res_list, iteration):
         pymol_input = sel_string +'\n'+ color_string +'\n'
         
         file.write(pymol_input)
-        
+
+def label_distance(chaina, resa, chainb, resb):
+    string = f"distance {chaina}:{resa}-{chainb}-{resb}, "\
+             f"chain {chaina} and resi {resa} and name CA, "\
+             f"chain {chainb} and resi {resb} and name CA, "
+    return string
+
 def nx_path_to_pymol(output, sel_name, res_list):
     '''
     Generate a path between two residues and draw lines and spheres between
@@ -633,39 +498,35 @@ def nx_path_to_pymol(output, sel_name, res_list):
         for i, res in enumerate(res_list):
             chain, resname, resid = res.split(':')
             if i != len(res_list) - 1:
-                sel_string += '(resi '+resid+' and chain '+chain+') or '
+                sel_string += f'(resi {resid} and chain {chain}) or '
                 if i > 0:
                     # TODO the write_selections function replaced the label_distance function
                     # TODO add replacement functions
                     prev_chain, _, prev_resi = res_list[i-1].split(':')
 
     
-                    dist_string = label_distance(chain, resid, prev_chain, 
-                                                 prev_resi)
-                    color_distance = 'color blue, '+resid+'-'+prev_resi+' \n'
+                    dist_string = label_distance(chain, resid, 
+                                                 prev_chain, prev_resi)
+                    color_distance = f'color blue, {chain}:{resid}-'\
+                                     f'{prev_chain}-{prev_resi} \n'
                     file.write(dist_string+'\n')
                     file.write(color_distance)
             else:
-                sel_string += '(resi '+resid+' and chain '+chain+')'
+                sel_string += f'(resi {resid} and chain {chain})'
                 prev_chain, _, prev_resi = res_list[i-1].split(':')
     
                 dist_string = label_distance(chain, resid, prev_chain, 
                                              prev_resi)
-                color_distance = 'color blue, '+resid+'-'+prev_resi+' \n'
+                color_distance = f'color blue, {resid}-{prev_resi} \n'
                 file.write(dist_string+'\n')
                 file.write(color_distance)
                 
         
         
         file.write(sel_string + ' \n')
-        file.write('color blue, '+sel_name+' \n')
-        file.write('show spheres, '+sel_name+' and name CA \n')
+        file.write(f'color blue, {sel_name} \n')
+        file.write(f'show spheres, {sel_name} and name CA \n')
         
-                
-
-        
-    
-
 def nx_to_pymol_gradient(output, res_list, colors):
     '''
     take a res list (in the contact name chain:resname:resid format
@@ -712,12 +573,13 @@ def node_centrality_gradient(output='./colors.pml',
             file.write('color ' + hex_color + ', resi ' + resi + \
                        ' and chain ' + chain + '\n' \
                        )
-        
-
 
 ##################### GENERAL STRUCTURE COLORING ##################
 #TODO get rid of pdb parser and switch to mdanalysis pdb functions
-def coordinate_color_gradient(output='./colors.pml',structure=None,cmap_name='plasma', coord='y'):
+def coordinate_color_gradient(output='./colors.pml',
+                              structure=None,
+                              cmap_name='plasma', 
+                              coord='y'):
     '''
     Produce a pymol coloring script to color a structure in a gradient
     across the given axis
@@ -759,8 +621,10 @@ def coordinate_color_gradient(output='./colors.pml',structure=None,cmap_name='pl
         
 
 #TODO Fix this function so it's more robust - the draft is at the bottom      
-def circular_color_gradient(output='./colors.pml',structure=None,
-                            cmap_name='plasma', coords=('x','y'), 
+def circular_color_gradient(output='./colors.pml',
+                            structure=None,
+                            cmap_name='plasma', 
+                            coords=('x','y'), 
                             seg_id=None,extra_id=None):
     '''
     Normalize x and y from -1 to 1 and then find the length of the normalized 
