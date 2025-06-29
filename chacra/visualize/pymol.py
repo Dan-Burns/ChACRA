@@ -11,6 +11,8 @@ from .colors import chacra_colors
 
 # TODO offer red, blue etc spectrums to link individual contact plots to color codes on pymol depiction
 # TODO update all the functions to just accept one contact object and add a single function to write a pymol file for specific chacra(s)
+# TODO sphere scale should be from a min and max scale argument normalizing
+# the sphere scale against the min loading score
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),
@@ -184,13 +186,6 @@ def write_group_selections(contact_data, output_file, ca_only=True):
             f.write(f'group {group}_line, {lines[group]}\n')
             f.write(f'color 0x{chacra_colors[group-1][1:-2]}, {group}_line \n')
 
-
-
-
-
-
-
-
 def write_selections(contact_data, output_file):
     '''
     Write the pymol commands for a depicting the contacts to a file.
@@ -205,8 +200,6 @@ def write_selections(contact_data, output_file):
     
 
     '''
-
-
     with open(output_file, 'w') as f:
         # iterating through dictionary and taking the contact name (contact)
         # and the corresponding dictionary (data) 
@@ -244,8 +237,6 @@ def write_selections(contact_data, output_file):
                 f.write(f"set sphere_scale, {data['sphere_scale']}, {contact} \n")
             # done with a contact's commands
             f.write('\n')
-
-        
 
 
 def to_pymol(contact_list, contactFrequencies, contactPCA,
@@ -299,8 +290,6 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
         write_group_selections(contact_data, output_file)
     else:
         write_selections(contact_data, output_file)
-
-
 
 
 def get_slope(df,contact,temp_range=(0,7)):
