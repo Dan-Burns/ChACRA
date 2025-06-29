@@ -16,10 +16,8 @@ from .colors import chacra_colors
 def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=(0,7),
                     pc_range=(1,4),
-                    variable_sphere_transparency=False,
                     variable_sphere_scale=False,
                     sphere_scale_range=(0.6,1.5),
-                    max_transparency=.9,
                     ):
     '''
     collect all the relevant data that the other functions will need to 
@@ -94,21 +92,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
 
         # option to depict the temperature sensitivity rank in terms of how solid or transparent the spheres are
         # probably best when visualzing a single PC
-    if variable_sphere_transparency:
-        scores = []
-        for contact in data.keys():
-            scores.append(data[contact]['loading_score'])
-
-        max_rank = max(scores)
-        min_rank = min(scores)
-        m = -(max_transparency/(max_rank-min_rank))
-        b = -m
-
-        for contact in data.keys():
-            rank = data[contact]['loading_score']
-            sphere_transparency = (m * rank) + b
-            data[contact]['sphere_transparency'] = sphere_transparency
-
+    
     if variable_sphere_scale:
         lowest_score = sorted(data.items(), key=lambda t:t[1]["loading_score"]
                               )[0][1]['loading_score']
@@ -171,9 +155,6 @@ def write_group_selections(contact_data, output_file, ca_only=True):
             # Can add the options for different line width and dash gaps here
             if data['slope'] >= 0.0:
                 f.write(f"set dash_gap, 0, {contact}-line\n")
-
-            if 'sphere_transparency' in data.keys():
-                f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
             
             if 'sphere_scale' in data.keys():
                 f.write(f"set sphere_scale, {data['sphere_scale']}, {contact} \n")
@@ -238,9 +219,6 @@ def write_selections(contact_data, output_file):
             # show spheres
             f.write(f"show spheres, {contact} and name CA\n")
 
-            if 'sphere_transparency' in data.keys():
-                f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
-
             if 'sphere_scale' in data.keys():
                 f.write(f"set sphere_scale, {data['sphere_scale']}, {contact} \n")
             # done with a contact's commands
@@ -251,7 +229,6 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
                      output_file = 'output.pml',
                     slope_range=(0,7),
                     pc_range=(1,4),
-                    variable_sphere_transparency=False,
                     variable_sphere_scale=False,
                     group=True):
     '''
@@ -288,7 +265,6 @@ def to_pymol(contact_list, contactFrequencies, contactPCA,
     contact_data = get_contact_data(contact_list, contactFrequencies, contactPCA,
                     slope_range=slope_range,
                     pc_range=pc_range,
-                    variable_sphere_transparency=variable_sphere_transparency,
                     variable_sphere_scale=variable_sphere_scale
                     )
     # write it to pymol file
