@@ -9,6 +9,8 @@ import tqdm
 import os
 from scipy.spatial.transform import Rotation as R
 from MDAnalysis.lib.util import convert_aa_code
+import warnings
+warnings.filterwarnings("ignore", message="Biopython*")
 
 def has_only_identical_subunits(u: mda.Universe) -> bool:
     """
