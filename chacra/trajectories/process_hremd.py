@@ -168,7 +168,7 @@ class TrajectoryJob:
 
 def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
     '''
-    Get the frames from all replicas that correspond to a specific state.
+    Get the frames from a replica that correspond to a specific state.
 
     Parameters
     ----------
@@ -187,7 +187,7 @@ def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Array of frames from all replicas that correspond to the 
+        Array of frames from a replica that correspond to the 
         specified state.
     '''
 
