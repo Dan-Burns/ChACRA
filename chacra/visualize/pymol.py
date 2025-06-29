@@ -18,6 +18,7 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
                     pc_range=(1,4),
                     variable_sphere_transparency=False,
                     variable_sphere_scale=False,
+                    sphere_scale_range=(0.6,1.5),
                     max_transparency=.9,
                     ):
     '''
@@ -30,12 +31,11 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
         List of the contacts in format chain1:resname1:resnum1-chain1:resname1:resnum1
     
     contactFrequencies : ContactFrequencies object
-        from TSenCA.ContactAnalyis.ContactFrequencies
+       
         object's methods provide easy access to relevant data
 
     contactPCA : contactPCA object
-        from TSenCA.ContactAnalyis.ContactFrequencies
-
+        
     slope_range : tuple of int
         the lowest and highest (row) indices (inclusive) from the contact data to calculate
         the slope of the contact frequencies within
@@ -110,16 +110,21 @@ def get_contact_data(contact_list, contactFrequencies, contactPCA,
             data[contact]['sphere_transparency'] = sphere_transparency
 
     if variable_sphere_scale:
-
+        lowest_score = sorted(data.items(), key=lambda t:t[1]["loading_score"]
+                              )[0][1]['loading_score']
+        interpolator = get_variance_to_sphere_scale_interpolator(lowest_score,
+                                 min_sphere_scale=sphere_scale_range[0],
+                                 max_sphere_scale=sphere_scale_range[1],
+                                    )
         for contact in data.keys():
-            data[contact]['loading_score']
-            sphere_scale =  data[contact]['loading_score']
-            data[contact]['sphere_scale'] = sphere_scale
 
-        # sort the dictionary in ascending order of loading score so that
-        # the highest scores get colored last (and take visual precedence)
-        # can also make the option to sort by any of the dictionary items
-        # sort the dictionary by score
+            data[contact]['sphere_scale'] = interpolator(
+                                                data[contact]['loading_score'])
+
+    # sort the dictionary in ascending order of loading score so that
+    # the highest scores get colored last (and take visual precedence)
+    # can also make the option to sort by any of the dictionary items
+    # sort the dictionary by score
     result = collections.OrderedDict(sorted(data.items(), key=lambda t:t[1]["loading_score"]))
     return result
 
@@ -169,6 +174,9 @@ def write_group_selections(contact_data, output_file, ca_only=True):
 
             if 'sphere_transparency' in data.keys():
                 f.write(f"set sphere_transparency, {data['sphere_transparency']}, {contact} \n")
+            
+            if 'sphere_scale' in data.keys():
+                f.write(f"set sphere_scale, {data['sphere_scale']}, {contact} \n")
 
             # done with a contact's commands
             f.write('\n')
@@ -312,10 +320,11 @@ def get_slope(df,contact,temp_range=(0,7)):
 
 
 
-def get_variance_to_sphere_scale_interpolator(eigenvalues,
+def get_variance_to_sphere_scale_interpolator(
+                                min_loading_score=0,
                                  min_sphere_scale=0.6,
                                  max_sphere_scale=1.2,
-                                 pcs=[i+1 for i in range(3)]):
+                                 ):
     '''
     Take an np.array of the eigenvalues corresponding to the PCs you want to
     adjust the sphere sizes for and return a scipy interpolation function that
@@ -323,9 +332,6 @@ def get_variance_to_sphere_scale_interpolator(eigenvalues,
 
     Parameters
     ----------
-    eigenvalues : np.array
-        eigenvalue array
-        
     max_sphere_scale: maximum size you want the largest eigenvalue spheres to 
     be in pymol
     
@@ -335,39 +341,33 @@ def get_variance_to_sphere_scale_interpolator(eigenvalues,
     scipy interpolater.
 
     '''
-    variance = eigenvalues/eigenvalues.sum()
-    # principal component id corresponding to the last one you're going
-    # to depic contacts for
-    max_pc = int(max(pcs)-1)
-    min_variance = min(variance[:max_pc])
-    max_variance = max(variance[:max_pc])
     
-    interpolator = interp1d([min_variance, max_variance],
+    interpolator = interp1d([min_loading_score, 1],
                             [min_sphere_scale, 
                              max_sphere_scale])
     
-    return interpolator, variance
+    return interpolator
 
-def get_sphere_scale(interpolator, pc, variance):
-    '''
-    Take the interpolator and explained variance from the above function
-    and return the sphere scale for depicting the contact.
+# def get_sphere_scale(interpolator, pc, variance):
+#     '''
+#     Take the interpolator and explained variance from the above function
+#     and return the sphere scale for depicting the contact.
 
-    Parameters
-    ----------
-    interpolator : scipy interp1d object
-        DESCRIPTION.
-    pc : int
-        pc of contact.
-    variance : np.array
-        array of explained variance by pc.
+#     Parameters
+#     ----------
+#     interpolator : scipy interp1d object
+#         DESCRIPTION.
+#     pc : int
+#         pc of contact.
+#     variance : np.array
+#         array of explained variance by pc.
 
-    Returns
-    -------
-    float corresponding to the size of the sphere to depict in pymol.
+#     Returns
+#     -------
+#     float corresponding to the size of the sphere to depict in pymol.
 
-    '''
-    return interpolator(variance[pc-1])
+#     '''
+#     return interpolator(variance[pc-1])
 
 
 
@@ -402,6 +402,7 @@ def pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, output):
 
     pymol_averaged_chacras_to_all_subunits(mapped_contacts, pymol_data, 'path/to/output.pml')
     
+    #TODO make consistent with to_pymol arguments so you can use sphere_scale etc.
     '''
     full_protein_pymol_data = {}
     for averaged_contact_name in pymol_data:

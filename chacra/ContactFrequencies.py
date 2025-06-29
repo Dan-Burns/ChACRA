@@ -899,12 +899,13 @@ class ContactPCA:
     def to_pymol(self, pcs=None, cutoff=0.6, 
                  output='chacra_selections.pml',
                  group_pcs=True,
+                 scale_spheres=False,
                  reconstruct_from_averaged=False,
                  original_contacts=None,
                  representative_chains=None):
         '''
         Write a .pml file to visualize chacras on the structure.
-
+        
         Parameters
         ----------
         pcs : list
@@ -975,7 +976,7 @@ class ContactPCA:
                 mapped_contacts.keys(),
                 self.freqs,
                 self, 
-                pc_range=(pcs[0],pcs[-11])) # pc_range should be changed to list
+                pc_range=(pcs[0],pcs[-1])) # pc_range should be changed to list
             pymol_averaged_chacras_to_all_subunits(mapped_contacts,
                                                     pymol_data, 
                                                     output)
@@ -988,6 +989,7 @@ class ContactPCA:
                      self, 
                      output, 
                      pc_range=(pcs[0],pcs[-1]), 
+                     variable_sphere_scale=scale_spheres,
                      group=group_pcs)
 
 class CombinedChacra():
