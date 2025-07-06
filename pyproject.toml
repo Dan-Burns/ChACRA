@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools",
+            "setuptools_scm",
+            ]
+dependencies = [
+            "femto",
+            "openmm>=8.0.0",
+            "mdanalysis>=2.9.0",
+            "numpy",
+            "pandas",
+            "scipy",
+            "vmd-python",
+            "tqdm",
+            "prolif",
+            "pyarrow",
+            "nglview",
+            "matplotlib",
+            "sklearn",
+            "biopython",
+            "seaborn",
+            "networkx"
+            ]
+
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ChACRA"
+version = "0.7.0"
+dependencies = [
+    "pandas",
+    
+]
+scripts = ["scripts/get_state_contacts.sh"]
+
+
+
+[tool.setuptools.packages.find]
+where = ["chacra"]  
+include = ["*"]  # ["*"] by default
+exclude = ["examples.tetramer","examples.trimer"] 
+namespaces = false 
+
+[project.scripts]
+process-output = "chacra.scripts.process_hremd_output:main"
+chacra-project = "chacra.scripts.project_setup:main"
+run-femto = "chacra.scripts.run_femto_hremd:main"
+run-hremd = "chacra.scripts.run_hremd:main"

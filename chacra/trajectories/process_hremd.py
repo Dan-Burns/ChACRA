@@ -189,6 +189,9 @@ def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
     np.ndarray
         Array of frames from a replica that correspond to the 
         specified state.
+
+    TODO: return array of indices so you can place them into the final state
+    array in the order they were sampled.
     '''
 
     u = mda.Universe(job.structure, 
