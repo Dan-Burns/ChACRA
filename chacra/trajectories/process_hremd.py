@@ -206,12 +206,12 @@ def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
         return None
     else:
         coordinates = np.zeros((state_traj_len,n_atoms,3))
-    
+        indices = job.hremd_data[job.replica_index][state]
         for i,frame in enumerate(job.hremd_data[job.replica_index][state]):
             u.trajectory[frame]
             coordinates[i] = sel.positions 
         
-        return coordinates
+        return indices, coordinates
     
 
 def write_state_trajectory(job:TrajectoryJob):
@@ -241,11 +241,12 @@ def write_state_trajectory(job:TrajectoryJob):
     Writes state trajectory for state_index to output_dir.
     
     '''
-    
+    # total traj_len should just be part of trajectory_job
     traj = [file for file in os.listdir(job.traj_dir) 
             if (file.endswith("dcd"))][0]
     u = mda.Universe(job.structure, str(Path(job.traj_dir)/traj))
     
+    traj_len = len(u.trajectory)
 
     if job.ref is not None:
         ref = mda.Universe(job.ref)
@@ -256,7 +257,7 @@ def write_state_trajectory(job:TrajectoryJob):
     out_u = mda.Universe(job.structure)
     sel = out_u.select_atoms(job.selection)
 
-    coords = [get_state_coordinates_from_replica(
+    results = [get_state_coordinates_from_replica(
                 TrajectoryJob(
                             structure=job.structure, 
                             traj_dir=job.traj_dir, 
@@ -269,8 +270,17 @@ def write_state_trajectory(job:TrajectoryJob):
                             )
                              for i in range(job.n_states)
                              ]
-    coords = [c for c in coords if c is not None]
-    coordinates = np.concatenate(coords, axis=0)
+    
+    results = [r for r in results if r is not None]
+    indices, coords = zip(*results)
+    coordinates = np.zeros((traj_len, sel.n_atoms, 3))
+    for index_array, coord_array in zip(indices, coords):
+        if coord_array is None:
+            continue
+        else:
+            coordinates[index_array] = coord_array
+
+    
     # These coordinates are added sequentially per replica and not into the 
     # array index corresponding to the frame they were taken from. 
 
@@ -384,16 +394,16 @@ class ReplicaHandler:
         if n_jobs is None:
             n_jobs = self.resources['num_cores']
         with Pool(n_jobs) as worker_pool:
-            coords = worker_pool.map(get_state_coordinates_from_replica,
+            results = worker_pool.map(get_state_coordinates_from_replica,
                                         coords_args_list)
-
-        coords = [c for c in coords if c is not None]
-        coordinates = np.concatenate(coords, axis=0)
-        # The order of coordinates will not match the order from the original 
-        # write_state_trajectories because they are added sequentially to the 
-        # coordinates array as they're encountered per replica rather than into 
-        # the array index corresponding to the frame they were taken from in the
-        # given replica.
+        results = [r for r in results if r is not None]
+        indices, coords = zip(*results)
+        coordinates = np.zeros((self.traj_len, sel.n_atoms, 3))
+        for index_array, coord_array in zip(indices, coords):
+            if coord_array is None:
+                continue
+            else:
+                coordinates[index_array] = coord_array
 
         with mda.Writer(str(Path(output_dir)/f"state_{state}.xtc"), 
                         n_atoms=sel.n_atoms) as writer:
