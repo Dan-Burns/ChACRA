@@ -10,7 +10,41 @@ from networkx.algorithms import community
 from networkx import edge_betweenness_centrality as betweenness
 from .utils import sort_dictionary_values
 
-def edge_to_contact(edge_data,contact_data):
+
+def make_network(contacts, 
+                 temp, 
+                 
+                 ):
+    '''
+
+    cont : ContactFrequencies
+        The ContactFrequencies object containing the contacts 
+        to compose the network from.
+    
+    temp : the temperature corresponding to the data row to take your contact
+    
+    selection : list
+        list of selected contacts to construct the graph from.
+
+    Returns
+    -------
+    nx.Graph
+    '''
+    # you want the edge weights to be inverse contact frequencies
+    # lower edge weight value means "closer"/ higher contact frequency
+    #TODO add exclusion cutoffs
+   
+    inverse = contacts.get_edges(temp=temp, as_dict=True)
+    original = contacts.get_edges(temp=temp, inverse=False)
+
+    G = nx.Graph()
+
+    G.add_weighted_edges_from(original)
+    nx.set_edge_attributes(G,inverse,name='inverse')
+    return G
+
+def edge_to_contact(edge_data,
+                    contact_data):
     '''
     Convert networkx edge back to original contact name.
     edge : tuple or list of tuples
@@ -50,41 +84,9 @@ def edge_to_contact(edge_data,contact_data):
 
         return contact
 
-def make_network(cont, 
-                 temp, 
-                 
-                 ):
-    '''
-
-    cont : ContactFrequencies
-        The ContactFrequencies object containing the contacts 
-        to compose the network from.
-    
-    temp : the temperature corresponding to the data row to take your contact
-    
-    selection : list
-        list of selected contacts to construct the graph from.
-
-    Returns
-    -------
-    nx.Graph
-    '''
-    # you want the edge weights to be inverse contact frequencies
-    # lower edge weight value means "closer"/ higher contact frequency
-    #TODO add exclusion cutoffs
-   
-    inverse = cont.get_edges(temp=temp, as_dict=True)
-    original = cont.get_edges(temp=temp, inverse=False)
-
-    G = nx.Graph()
-
-    G.add_weighted_edges_from(original)
-    nx.set_edge_attributes(G,inverse,name='inverse')
-    return G
-
-
-
-def get_communities(G, n_communities=5, removed_edges=False):
+def get_communities(G:nx.Graph, 
+                    n_communities:int=5, 
+                    removed_edges:bool=False):
     '''
     # visualize with
     for i, community in enumerate(communities):
@@ -131,7 +133,8 @@ def get_communities(G, n_communities=5, removed_edges=False):
     else:
         return communities
 
-def get_betweenness_centrality(G, weight='inverse'):
+def get_betweenness_centrality(G:nx.Graph, 
+                               weight:str='inverse'):
     '''
     If using on averaged data, consider reconstructing the whole complex's network with average.everything_from_averaged
     before investigating centrality.
@@ -144,7 +147,8 @@ def get_betweenness_centrality(G, weight='inverse'):
     
     return sorted_edges
 
-def make_minimum_graph(contact_data, return_contacts=True):
+def make_minimum_graph(contact_data, 
+                       return_contacts=True):
     '''
     Not Implemented
 
@@ -174,8 +178,11 @@ def make_minimum_graph(contact_data, return_contacts=True):
     else:
         return min_graph
     
-def pc_network(start_contact, contact_data, n_contacts=100, end_contact=None,
-               max_pc=None):
+def pc_network(start_contact: str, 
+               contact_data, 
+               n_contacts:int=100, 
+               end_contact:str=None,
+               max_pc:int=None):
     '''
     Given a starting contact, find the next contact that involves either residue that has the highest
     loading score on any of the top principal components and continue until you reach n_contacts or a specified contact.
