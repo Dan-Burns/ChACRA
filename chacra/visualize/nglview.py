@@ -2,9 +2,9 @@ import MDAnalysis as mda
 import nglview as nv
 import numpy as np
 
-from chacra.utils import parse_id
 from chacra.colors import chacra_colors, hex_to_RGB
 from chacra.pymol import get_contact_data
+from chacra.utils import parse_id
 
 # class to easily depict ChACRA data in nglview
 # if you want more than one atom at a time use np.isin

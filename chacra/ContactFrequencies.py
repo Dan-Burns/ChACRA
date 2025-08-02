@@ -12,6 +12,10 @@ import MDAnalysis as mda
 import numpy as np
 import pandas as pd
 import tqdm
+from joblib import Parallel, delayed
+from scipy.stats import linregress
+from sklearn.decomposition import PCA
+
 from chacra.average import everything_from_averaged
 from chacra.utils import multi_intersection
 from chacra.visualize.pymol import (
@@ -19,9 +23,6 @@ from chacra.visualize.pymol import (
     pymol_averaged_chacras_to_all_subunits,
     to_pymol,
 )
-from joblib import Parallel, delayed
-from scipy.stats import linregress
-from sklearn.decomposition import PCA
 
 from .utils import *
 
