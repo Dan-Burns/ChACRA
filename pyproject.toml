@@ -47,6 +47,26 @@ run-femto = "chacra.scripts.run_femto_hremd:main"
 run-hremd = "chacra.scripts.run_hremd:main"
 
 [tool.ruff]
+# Match Black's default line length
 line-length = 80
-select = ["E", "F", "I"]  # E=pycodestyle, F=pyflakes, I=isort                  
-exclude = ["tests/data"]
+# Lint rules: E=pycodestyle, F=pyflakes, I=isort, B=bugbear
+select = ["E", "F", "I", "B"]
+exclude = [
+    "tests/data",        # Ignore large test data
+    "dist",              # Build artifacts
+    "build",
+    ".venv",
+]
+# Automatically fix simple issues (when using --fix)
+fix = true
+
+[tool.black]
+line-length = 80
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = "tests/data"
