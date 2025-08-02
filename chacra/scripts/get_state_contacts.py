@@ -23,7 +23,7 @@ def main():
 
     subprocess.run(
         [
-            "get_dynamic_contacts.py",
+            "get-dynamic-contacts",
             "--topology",
             structure,
             "--trajectory",
@@ -45,7 +45,7 @@ def main():
 
     subprocess.run(
         [
-            "get_contact_frequencies.py",
+            "get-contact-frequencies",
             "--input_files",
             contacts_out,
             "--output_file",
