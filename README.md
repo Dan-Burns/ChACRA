@@ -11,6 +11,25 @@ https://github.com/Dan-Burns/ChACRA
 
 Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD).  The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature.  The chacras can reveal functionally critical residue interactions.
 
+### Installation
+
+Clone and enter the repository.
+
+```
+git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChACRA
+```
+
+Create the conda environment. 
+```
+micromamba env create -f environment.yaml 
+'''
+
+Then install ChACRA.
+```
+pip install -e .
+```
+
+
 To start, first generate a set of md trajectories across a temperature range.  This is should done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
 
 Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). It has the benefit of being a very accurate method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
