@@ -1,7 +1,5 @@
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.interpolate import make_interp_spline
 from .visualize.colors import *
 from itertools import combinations
