@@ -6,51 +6,6 @@ from scipy.interpolate import make_interp_spline
 from .visualize.colors import *
 from itertools import combinations
 
-# example darkmode/neon 
-# https://towardsdatascience.com/cyberpunk-style-with-matplotlib-f47404c9d4c5
-'''
-plt.style.use("dark_background")
-for param in ['text.color', 'axes.labelcolor', 'xtick.color', 'ytick.color']:
-    plt.rcParams[param] = '0.9'  # very light grey
-for param in ['figure.facecolor', 'axes.facecolor', 'savefig.facecolor']:
-    plt.rcParams[param] = '#212946'  # bluish dark grey
-colors = [
-    '#08F7FE',  # teal/cyan
-    '#FE53BB',  # pink
-    '#F5D300',  # yellow
-    '#00ff41',  # matrix green
-]
-
-fig, ax = plt.subplots()
-df['Potential Energy (kJ/mole)'].plot(marker='o', color=colors, ax=ax)
-# Redraw the data with low alpha and slighty increased linewidth:
-n_shades = 10
-diff_linewidth = 1.05
-alpha_value = 0.3 / n_shades
-for n in range(1, n_shades+1):
-    df['Potential Energy (kJ/mole)'].plot(marker='o',
-            linewidth=2+(diff_linewidth*n),
-            alpha=alpha_value,
-            legend=False,
-            ax=ax,
-            color=colors)
-# Color the areas below the lines:
-
-#for column, color in zip(df, colors):
-#    ax.fill_between(x=df.index,
-#                    y1=df[column].values,
-#                    y2=[0] * len(df),
-#                    color=color,
-#                    alpha=0.1)
-                    
-ax.grid(color='#2A3459')
-#ax.set_xlim([ax.get_xlim()[0] - 0.2, ax.get_xlim()[1] + 0.2])  # to not have the markers cut off
-#ax.set_ylim(0)
-plt.show()
-'''
-
-
-
 def plot_difference_of_roots(cpca,n_pcs=None,filename=None, dot_color=cherenkov_blue, cutoff_color='r'):
     '''
     Plot the difference of roots test results

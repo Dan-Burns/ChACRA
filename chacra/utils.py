@@ -76,23 +76,6 @@ def split_id(contact):
     '''
     resa, resb = re.split("-", contact)
     return {'resa':resa, 'resb':resb}
-
-# def get_angle(a,b,c):
-#     ba = a - b
-#     bc = c - b
-
-#     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-#     angle = np.arccos(cosine_angle)
-#     return angle
-        
-# def normit(data, center=True):
-#     '''
-#     normalize a list of values.
-#     '''
-#     if center == True:
-#         return (data - data.mean())/np.abs((data - data.mean())).max()
-#     else:
-#         return data/np.abs(data).max()
     
 def multi_intersection(lists, cutoff=None, verbose=False):
     '''
@@ -133,8 +116,6 @@ def multi_intersection(lists, cutoff=None, verbose=False):
         print(f'n lists initial: {initial} \nn lists final: {final}')
     return sorted(list(set1.intersection(*setlist)))
 
-# def get_subplot_rows(n_items, n_columns):
-#     return (n_items + n_columns - 1) // n_columns
 
 def sort_nested_dict(d):
     '''
