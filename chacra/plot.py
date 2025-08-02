@@ -1,8 +1,10 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline
-from .visualize.colors import *
 from itertools import combinations
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import make_interp_spline
+
+from chacra.visualize.colors import *
 
 
 def plot_difference_of_roots(
@@ -127,7 +129,7 @@ def plot_chacras(
         # plt.ylim((-6,4))
         ax.plot(X_, 1 * Y_, color=colors[pc - 1])
 
-    ax.set_title(f"ChACRA Modes")
+    ax.set_title("ChACRA Modes")
     if temp_scale is not None:
         ax.set_xlabel(f"Temperature ({temp_scale})", fontsize=12)
     else:

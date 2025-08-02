@@ -1,23 +1,25 @@
 def main():
     import argparse
+
     import femto.md.utils.mpi
-    import openmm
-    from openmm import XmlSerializer, LangevinMiddleIntegrator, unit
-    from openmm.app import PDBFile, Simulation
     import MDAnalysis as mda
-    import numpy as np
     import mdtop
+    import numpy as np
+    import openmm
+    from openmm import LangevinMiddleIntegrator, XmlSerializer, unit
+    from openmm.app import PDBFile, Simulation
 
     femto.md.utils.mpi.divide_gpus()
     import pathlib
     from datetime import datetime
-    import openmm.unit
-    import femto.md.simulate
+
     import femto.md.config
     import femto.md.constants
     import femto.md.hremd
-    import femto.md.utils.openmm
     import femto.md.rest
+    import femto.md.simulate
+    import femto.md.utils.openmm
+    import openmm.unit
 
     parser = argparse.ArgumentParser(description="Run HREMD simulation.")
 
@@ -50,14 +52,20 @@ def main():
         "--min_temp",
         type=float,
         default=290,
-        help="The minimum effective temperature (in kelvin) of the replica exchange ensemble.\
-                        This is the same as the solvent temperature for all replicas",
+        help="""
+            The minimum effective temperature (in kelvin) of the replica
+            exchange ensemble.This is the same as the solvent temperature for
+            all replicas.
+            """,
     )
     parser.add_argument(
         "--max_temp",
         type=float,
         default=450,
-        help="The maximum effective temperature (in kelvin) of the replica exchange ensemble.",
+        help="""
+            The maximum effective temperature (in kelvin) of the replica 
+            exchange ensemble.
+            """,
     )
     parser.add_argument(
         "--n_systems", type=int, required=True, help="The number of replicas."
@@ -78,14 +86,18 @@ def main():
         "--warmup_steps",
         type=int,
         default=0,
-        help="The number of warmup steps to run before starting replica exchange attempts.\
-                        Only necessary on the first run.",
+        help="""
+            The number of warmup steps to run before starting replica exchange 
+            attempts. Only necessary on the first run.
+            """,
     )
     parser.add_argument(
         "--lambda_selection",
         type=str,
         default="protein",
-        help="The MDAnalysis selection to which the lambda scaling will be applied.",
+        help="""
+        The MDAnalysis selection to which the lambda scaling will be applied.
+        """,
     )
     args = parser.parse_args()
     system_file = args.system_file

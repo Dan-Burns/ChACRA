@@ -1,8 +1,7 @@
-import numpy as np
 import re
-import psutil
-import parmed as pmd
+
 import pandas as pd
+import psutil
 
 
 def make_contact_frequency_dictionary(freq_files: list) -> pd.DataFrame:
@@ -152,23 +151,3 @@ def get_resources():
         "available_ram_mb": psutil.virtual_memory().available / 1e6,
     }
     return resources
-
-
-def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
-    """
-    Add underscores to atom types of selected atoms.
-    This is useful if using the plumed_scaled_topologies script
-    for hremd system modification.
-    With this, you still need to open the new topology file and delete the
-    underscores from the beginning of the file [atomtypes]
-    or else plumed will look for atoms with 2 underscores to apply lambda to.
-    """
-    top = pmd.gromacs.GromacsTopologyFile(gromacs_processed_top)
-
-    for atom in top.view[atom_indices].atoms:
-        atom.type = f"{atom.type}_"
-        if atom.atom_type is not pmd.UnassignedAtomType:
-            atom.atom_type = copy.deepcopy(atom.atom_type)
-            atom.atom_type.name = f"{atom.atom_type.name}_"
-
-    top.save(output_top)

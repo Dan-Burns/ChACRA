@@ -1,10 +1,11 @@
-import subprocess
-import traceback
-from ChACRA.chacra.trajectories.process_hremd import *
 import argparse
 import os
 import shutil
+import subprocess
+import traceback
 from datetime import datetime
+
+from chacra.trajectories.process_hremd import *
 
 
 def main():
@@ -228,7 +229,7 @@ def main():
         print("Standard Output:", e.stdout)
         print("Standard Error:", e.stderr)
 
-    except Exception as e:
+    except Exception:
         print("An unexpected error occurred:")
         traceback.print_exc()
 

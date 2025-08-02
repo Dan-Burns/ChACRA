@@ -1,0 +1,23 @@
+name: chacra-dev
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - openmm>=8.0.0
+  - mdanalysis>=2.9.0
+  - numpy
+  - pandas
+  - scipy
+  - tqdm
+  - matplotlib
+  - scikit-learn  
+  - networkx
+  - nglview
+  - pre-commit
+  - ipykernel
+  - vmd-python
+  - prolif
+  - femto
+    

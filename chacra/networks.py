@@ -4,11 +4,13 @@
 # network visualization
 # https://robert-haas.github.io/gravis-docs/
 # construct minimal graph that connects all the most sensitive contacts
-import networkx as nx
 import itertools
-from networkx.algorithms import community
+
+import networkx as nx
 from networkx import edge_betweenness_centrality as betweenness
-from .utils import sort_dictionary_values
+from networkx.algorithms import community
+
+from chacra.utils import sort_dictionary_values
 
 
 def make_network(
@@ -186,8 +188,8 @@ def pc_network(
     start_contact: str,
     contact_data,
     n_contacts: int = 100,
-    end_contact: str = None,
-    max_pc: int = None,
+    end_contact: str | None = None,
+    max_pc: int | None = None,
 ):
     """
     Given a starting contact, find the next contact that involves either residue that has the highest

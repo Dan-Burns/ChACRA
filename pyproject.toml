@@ -17,20 +17,7 @@ authors = [{name = "Dan Burns", email = "dnlburns808@gmail.com"}]
 license = {file = "LICENSE"}
 readme = "README.md"
 dependencies = [
-            "femto",
-            "openmm>=8.0.0",
-            "mdanalysis>=2.9.0",
-            "numpy",
-            "pandas",
-            "scipy",
-            "vmd-python",
-            "tqdm",
-            "prolif",
-            "pyarrow",
-            "nglview",
-            "matplotlib",
-            "sklearn",
-            "networkx"
+        
             ]
 
 
@@ -49,7 +36,7 @@ get-state-contacts = "chacra.scripts.get_state_contacts:main"
 
 [tool.ruff]
 # Match Black's default line length
-line-length = 80
+line-length = 88
 # Lint rules: E=pycodestyle, F=pyflakes, I=isort, B=bugbear
 select = ["E", "F", "I", "B"]
 exclude = [
@@ -62,7 +49,7 @@ exclude = [
 fix = true
 
 [tool.black]
-line-length = 80
+line-length = 88
 target-version = ["py310"]
 
 [tool.mypy]

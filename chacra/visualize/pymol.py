@@ -1,14 +1,15 @@
-import re
-import numpy as np
-from scipy.stats import linregress
-import matplotlib as mpl
-from pylab import cm
-from matplotlib.colors import to_hex
 import collections
-from scipy.interpolate import interp1d
-from ..utils import parse_id
-from .colors import chacra_colors
+import re
+
+import numpy as np
 from Bio.PDB import PDBParser
+from matplotlib.colors import to_hex
+from pylab import cm
+from scipy.interpolate import interp1d
+from scipy.stats import linregress
+
+from chacra.utils import parse_id
+from chacra.colors import chacra_colors
 
 
 def get_contact_data(

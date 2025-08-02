@@ -1,6 +1,6 @@
-import prolif as plf
 import numpy as np
 import pandas as pd
+import prolif as plf
 
 # These parameters should match the default from getcontacts.
 # However the results with these parameters are still different - could be SMARTS patterns...
@@ -38,6 +38,7 @@ getcontacts_params = {
 }
 
 from itertools import product
+
 from prolif.interactions import Hydrophobic, VdWContact
 
 

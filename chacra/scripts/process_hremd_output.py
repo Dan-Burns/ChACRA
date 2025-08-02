@@ -1,11 +1,11 @@
-import os
-from ChACRA.chacra.trajectories.process_hremd import *
-from ChACRA.chacra.ContactFrequencies import make_contact_dataframe
 import argparse
 import os
-import pandas as pd
 import re
 import subprocess
+
+import pandas as pd
+from chacra.ContactFrequencies import make_contact_dataframe
+from chacra.trajectories.process_hremd import *
 
 
 def main():
@@ -69,7 +69,7 @@ def main():
     u = mda.Universe(structure_file)
     sel = u.select_atoms(args.output_selection)
 
-    selection_file = f"./structures/state_trajectory_selection.pdb"
+    selection_file = "./structures/state_trajectory_selection.pdb"
 
     sel.write(selection_file)
 

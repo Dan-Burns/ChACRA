@@ -1,14 +1,16 @@
-import MDAnalysis as mda
-from MDAnalysis.analysis import align
-import numpy as np
-import pandas as pd
+import os
+import warnings
 from collections import defaultdict
 from itertools import combinations, permutations
-from .utils import *
+
+import MDAnalysis as mda
+import numpy as np
+import pandas as pd
 import tqdm
-import os
+from MDAnalysis.analysis import align
 from MDAnalysis.lib.util import convert_aa_code
-import warnings
+
+from .utils import *
 
 warnings.filterwarnings("ignore", message="Biopython*")
 
@@ -297,7 +299,7 @@ def get_all_rotations(
             # move mobile's com to hetero ref com and align their long axes.
             align_mobile_to_ref(mobile.atoms, u.segments[refa].atoms)
 
-            ca_sela = mobile.select_atoms(f"name CA")
+            ca_sela = mobile.select_atoms("name CA")
             ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
             rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
                 ca_sela,
@@ -310,7 +312,7 @@ def get_equivalent_interactions(
     array_dict: dict[str, dict[str, np.ndarray]],
     identical_subunits: dict[int, list[int]],
     chain_seg_dict: dict[int, str],
-    representative_chains: list = None,
+    representative_chains: list | None = None,
 ) -> dict:
     """
     Map a pair of subunits to other pairs of subunits with the same
@@ -570,7 +572,7 @@ def get_pair_distance(sel1, sel2, u):
 def average_multimer(
     structure: str | os.PathLike,
     df: pd.DataFrame,
-    representative_chains: list = None,
+    representative_chains: list | None = None,
     return_stdev: bool = False,
 ) -> pd.DataFrame:
     """

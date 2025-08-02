@@ -1,14 +1,16 @@
-import numpy as np
-import pandas as pd
-import MDAnalysis as mda
-from MDAnalysis.analysis import align
-import pyarrow
 import os
-from ..utils import get_resources
-from multiprocessing import Pool
-from pathlib import Path
 import sys
 from dataclasses import dataclass
+from multiprocessing import Pool
+from pathlib import Path
+
+import MDAnalysis as mda
+import numpy as np
+import pandas as pd
+import pyarrow
+from MDAnalysis.analysis import align
+
+from chacra.utils import get_resources
 
 
 def load_femto_data(hremd_data: str | os.PathLike) -> pd.DataFrame:

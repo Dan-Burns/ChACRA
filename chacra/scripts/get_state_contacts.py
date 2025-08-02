@@ -6,7 +6,8 @@ from pathlib import Path
 def main():
     if len(sys.argv) != 6:
         print(
-            "Usage: get-state-contacts <structure> <trajectory> <contacts_folder> <state> <n_jobs>"
+            "Usage: get-state-contacts <structure> <trajectory> <contacts_folder> "
+            "<state> <n_jobs>"
         )
         sys.exit(1)
 

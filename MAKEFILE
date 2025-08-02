@@ -1,0 +1,24 @@
+PYTHON = python
+SRC_DIR = chacra
+TEST_DIR = tests
+
+.PHONY: lint format test typecheck precommit all
+
+all: lint test
+
+lint:
+	ruff check $(SRC_DIR) $(TEST_DIR)
+	black --check $(SRC_DIR) $(TEST_DIR)
+
+format:
+	ruff check $(SRC_DIR) $(TEST_DIR) --fix
+	black $(SRC_DIR) $(TEST_DIR)
+
+test:
+	pytest $(TEST_DIR)
+
+typecheck:
+	mypy $(SRC_DIR)
+
+precommit:
+	pre-commit run --all-files

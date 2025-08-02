@@ -2,26 +2,28 @@
 """
 Author: Dan Burns
 """
-import pandas as pd
-import numpy as np
-import re
 import os
 import pathlib
-from sklearn.decomposition import PCA
-from .utils import *
+import re
+import warnings
+from multiprocessing import cpu_count
+
+import MDAnalysis as mda
+import numpy as np
+import pandas as pd
 import tqdm
-from scipy.stats import linregress
-from ChACRA.chacra.average import everything_from_averaged
-from ChACRA.chacra.visualize.pymol import (
-    pymol_averaged_chacras_to_all_subunits,
+from chacra.average import everything_from_averaged
+from chacra.utils import multi_intersection
+from chacra.visualize.pymol import (
     get_contact_data,
+    pymol_averaged_chacras_to_all_subunits,
     to_pymol,
 )
-from ChACRA.chacra.utils import multi_intersection
-import MDAnalysis as mda
-from multiprocessing import cpu_count
 from joblib import Parallel, delayed
-import warnings
+from scipy.stats import linregress
+from sklearn.decomposition import PCA
+
+from .utils import *
 
 warnings.filterwarnings("ignore", message="Biopython*")
 
@@ -97,10 +99,10 @@ class ContactFrequencies:
     def __init__(
         self,
         contact_data: str | os.PathLike | dict | pd.DataFrame,
-        temps: list = None,
-        temp_progression: str = None,
-        min_max_temp: tuple[int | float] = None,
-        structure: str | os.PathLike = None,
+        temps: list | None = None,
+        temp_progression: str | None = None,
+        min_max_temp: tuple[int | float] | None = None,
+        structure: str | os.PathLike | None = None,
         get_chacras: bool = True,
         N_permutations: int = 1000,
         verbose: bool = False,
