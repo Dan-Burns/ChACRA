@@ -8,8 +8,8 @@ from pylab import cm
 from scipy.interpolate import interp1d
 from scipy.stats import linregress
 
-from chacra.colors import chacra_colors
 from chacra.utils import parse_id
+from chacra.visualize.colors import chacra_colors
 
 
 def get_contact_data(
