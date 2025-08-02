@@ -1,0 +1,2 @@
+exclude tests/*
+global-exclude *.dcd *.xtc *.pdb *.h5 *.tar.gz
