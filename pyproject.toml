@@ -4,13 +4,15 @@ requires = ["setuptools",
             ]
 build-backend = "setuptools.build_meta"
 
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "ChACRA"
 version = "0.7.0"
-description = "Reveal the energy dependent interaction modes of proteins with "\ 
-               replica exchange simulations and contact analysis."
+
+description = """
+Reveal the energy dependent interaction modes of proteins with  
+replica exchange simulations and contact analysis.
+"""
+
 authors = [{name = "Dan Burns", email = "dnlburns808@gmail.com"}]
 license = {file = "LICENSE"}
 readme = "README.md"
@@ -31,8 +33,6 @@ dependencies = [
             "networkx"
             ]
 
-scripts = ["scripts/get_state_contacts.sh"]
-
 
 [tool.setuptools.packages.find]
 where = ["chacra"]  
@@ -45,6 +45,7 @@ process-output = "chacra.scripts.process_hremd_output:main"
 chacra-project = "chacra.scripts.project_setup:main"
 run-femto = "chacra.scripts.run_femto_hremd:main"
 run-hremd = "chacra.scripts.run_hremd:main"
+get-state-contacts = "chacra.scripts.get_state_contacts:main"
 
 [tool.ruff]
 # Match Black's default line length
