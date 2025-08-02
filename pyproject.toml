@@ -2,6 +2,18 @@
 requires = ["setuptools",
             "setuptools_scm",
             ]
+build-backend = "setuptools.build_meta"
+
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ChACRA"
+version = "0.7.0"
+description = "Reveal the energy dependent interaction modes of proteins with "\ 
+               replica exchange simulations and contact analysis."
+authors = [{name = "Dan Burns", email = "dnlburns808@gmail.com"}]
+license = {file = "LICENSE"}
+readme = "README.md"
 dependencies = [
             "femto",
             "openmm>=8.0.0",
@@ -16,22 +28,10 @@ dependencies = [
             "nglview",
             "matplotlib",
             "sklearn",
-            "biopython",
-            "seaborn",
             "networkx"
             ]
 
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "ChACRA"
-version = "0.7.0"
-dependencies = [
-    "pandas",
-    
-]
 scripts = ["scripts/get_state_contacts.sh"]
-
 
 
 [tool.setuptools.packages.find]
