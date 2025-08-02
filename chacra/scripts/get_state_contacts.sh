@@ -9,8 +9,8 @@ n_jobs=$5
 
 
 # can just have getcontacts in the same environment - only need vmdpython
-source $(conda info --base)/etc/profile.d/conda.sh
-conda activate getcontacts
+# source $(conda info --base)/etc/profile.d/conda.sh
+# conda activate getcontacts
 
 get_dynamic_contacts.py \
 --topology "$structure" \
