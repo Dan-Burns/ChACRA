@@ -45,3 +45,8 @@ process-output = "chacra.scripts.process_hremd_output:main"
 chacra-project = "chacra.scripts.project_setup:main"
 run-femto = "chacra.scripts.run_femto_hremd:main"
 run-hremd = "chacra.scripts.run_hremd:main"
+
+[tool.ruff]
+line-length = 80
+select = ["E", "F", "I"]  # E=pycodestyle, F=pyflakes, I=isort                  
+exclude = ["tests/data"]
