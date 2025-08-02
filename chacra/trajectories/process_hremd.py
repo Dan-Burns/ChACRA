@@ -166,7 +166,8 @@ class TrajectoryJob:
 
 ################# Functions called from the ReplicaHandler class ###############
 
-def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
+def get_state_coordinates_from_replica(job: TrajectoryJob) -> tuple[
+                                                        np.ndarray, np.ndarray]:
     '''
     Get the frames from a replica that correspond to a specific state.
 
@@ -186,12 +187,10 @@ def get_state_coordinates_from_replica(job: TrajectoryJob) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    tuple(np.ndarray, np.ndarray)
+        indices to place coordinates in final array,
         Array of frames from a replica that correspond to the 
         specified state.
-
-    TODO: return array of indices so you can place them into the final state
-    array in the order they were sampled.
     '''
 
     u = mda.Universe(job.structure, 
@@ -279,10 +278,6 @@ def write_state_trajectory(job:TrajectoryJob):
             continue
         else:
             coordinates[index_array] = coord_array
-
-    
-    # These coordinates are added sequentially per replica and not into the 
-    # array index corresponding to the frame they were taken from. 
 
     with mda.Writer(str(Path(job.output_dir)/f"state_{job.state_index}.xtc"), 
                     n_atoms=sel.n_atoms) as writer:
@@ -486,7 +481,7 @@ class ReplicaHandler:
 
 ##################### Functions to get additional data from femto state data ###
 
-def get_state_energies(df):
+def get_state_energies(df: pd.DataFrame) -> np.ndarray:
     '''
     df : pd.DataFrame
         State data output from femto.
@@ -508,7 +503,9 @@ def get_state_energies(df):
         energies.append(np.vstack(row)[np.arange(n_states),index])
     return np.vstack(energies)
 
-def get_exchange_probability(df, state_i, state_j):
+def get_exchange_probability(df: pd.DataFrame, 
+                             state_i:int, 
+                             state_j:int) -> float:
     '''
     df : pd.DataFrame
         State data output from femto
@@ -527,14 +524,14 @@ def get_exchange_probability(df, state_i, state_j):
 
     return final_swap[state_i][state_j]/final_attempts[state_i][state_j]
 
-def get_exchange_probabilities(data):
+def get_exchange_probabilities(data : pd.DataFrame | str) -> np.ndarray:
     '''
     Get all the pairwise (nearest neighbors only) exchange
     probabilities
 
     Parameters
     ----------
-    df : pd.DataFrame | str
+    data : pd.DataFrame | str
         State data output from femto loaded in dataframe
         or path to the samples.arrow file.
 
@@ -556,7 +553,7 @@ def get_exchange_probabilities(data):
     indices = [i for i in zip(states_i, states_j)] #return indices if necessary
     return swaps[states_i,states_j]/attempts[states_i, states_j]
 
-def freq_frames(freq_file):
+def freq_frames(freq_file: str|os.PathLike) -> int:
     '''
     TODO Move somewhere else.
 
