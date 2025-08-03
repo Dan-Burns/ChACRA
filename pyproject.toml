@@ -32,7 +32,6 @@ namespaces = false
 [project.scripts]
 process-output = "chacra.scripts.process_hremd_output:main"
 chacra-project = "chacra.scripts.project_setup:main"
-run-femto = "chacra.scripts.run_femto_hremd:main"
 run-hremd = "chacra.scripts.run_hremd:main"
 get-state-contacts = "chacra.scripts.get_state_contacts:main"
 
