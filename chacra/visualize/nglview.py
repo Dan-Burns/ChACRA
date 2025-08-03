@@ -1,23 +1,22 @@
 import MDAnalysis as mda
 import nglview as nv
 import numpy as np
-
+from chacra.ContactFrequencies import ContactFrequencies, ContactPCA
 from chacra.utils import parse_id
 from chacra.visualize.colors import chacra_colors, hex_to_RGB
 from chacra.visualize.pymol import get_contact_data
 
 # class to easily depict ChACRA data in nglview
 # if you want more than one atom at a time use np.isin
-# np.where(np.isin(u.atoms.resids,[2,1]) & (u.atoms.segids == 'G') & (u.atoms.names == 'CA'))
+# np.where(np.isin(
+# u.atoms.resids,[2,1]) & (u.atoms.segids == 'G') & (u.atoms.names == 'CA'))
 # nglview reindex from 0 if you take a subset of atoms from the original universe
-# use this line to get the new 0 based indices for a subselection if the entire protein is not in nv.view
+# use this line to get the new 0 based indices for a subselection if the entire 
+# protein is not in nv.view
 # np.where(np.in1d(all_indices,indices_to_select))[0]
 
 
-# offer cylinder width option to depict most sensitive contact with largest cylinder
-
-
-def get_midpoint(a, b):
+def get_midpoint(a:np.ndarray, b:np.ndarray) -> np.ndarray:
     """
     Get the midpoint of two vectors.
 
@@ -31,7 +30,9 @@ def get_midpoint(a, b):
     return np.mean([a, b], axis=0)
 
 
-def get_contact_indices(contact, u, ca_only=True):
+def get_contact_indices(contact:str, 
+                        u:mda.Universe, 
+                        ca_only:bool=True) -> np.ndarray:
     """
     Get the atom or residue indices from an mda.Universe/ structure
 
@@ -69,7 +70,7 @@ def get_contact_indices(contact, u, ca_only=True):
     return np.asarray(indices)
 
 
-def get_positions(atom_indices, u):
+def get_positions(atom_indices:list[int], u:mda.Universe) -> list[np.ndarray]:
     """
     atom_indices : list
         list of atom indices
@@ -85,17 +86,17 @@ def get_positions(atom_indices, u):
 
 
 def draw_line(
-    contact,
-    u,
-    view,
-    width=0.3,
-    arrows=False,
-    contact_data=None,
-    variable_width=False,
-    width_coef=1.3,
-    exp=2,
-    color=None,
-):
+    contact:str,
+    u:mda.Universe,
+    view:nv.widget.NGLWidget,
+    width:float=0.3,
+    arrows:bool=False,
+    contact_data:dict | None=None,
+    variable_width:bool=False,
+    width_coef:float=1.3,
+    exp:int|float=2,
+    color:list | np.ndarray | str | None=None,
+) -> nv.widget.NGLWidget:
     """
     Draw a line between contacting residues with nglview
 
@@ -110,21 +111,23 @@ def draw_line(
         The width of the cylinder between the residues
 
     arrows : bool
-        Draw arrowheads to indicate whether the contact has a tendency to form or break across temperature.
-        If True, must provide contact_data.
+        Draw arrowheads to indicate whether the contact has a tendency to form 
+        or break across temperature.If True, must provide contact_data.
 
     contact_data : dictionary from contacts_to_pymol.get_contact_data()
-        Dictionary containing the information to depicting correct arrow direction.
+        Dictionary containing the information to depicting correct arrow 
+        direction.
 
     variable_width : bool
         Vary the width of the contact line according to the loading scores.
         (loading_score * width_coef) ** exp
 
     width_coef : float
-        value by which to multiply a contact's loading score to alter the width of the line.
+        value by which to multiply a contact's loading score to alter the width 
+        of the line.
 
     exp : int or float
-        value by which to rais the loading_score*width_coef.
+        value by which to raise the loading_score*width_coef.
 
     color : list or array or string
         A 3d rgb vector or hex string that can be converted to rgb.
@@ -134,7 +137,8 @@ def draw_line(
     -------
     A view is updated with lines connecting contacting residues
 
-    #TODO speed it up - difficult to speed up because you have to make a call to shape for each line.
+    #TODO speed it up - difficult to speed up because you have to make a call to
+    #  shape for each line.
     """
     # get the atom indices for specifying the end of each line.
     atom_indices = get_contact_indices(contact, u)
@@ -182,13 +186,16 @@ class Visualizer:
 
     cont : ContactFrequencies
 
-    Calling Visualizer.view will reset the custom shapes (lines connecting contacting residues), so call
-    Visualizer.view first and then show_chacras and the existing representation will be updated.
+    Calling Visualizer.view will reset the custom shapes (lines connecting 
+    contacting residues), so call Visualizer.view first and then show_chacras 
+    and the existing representation will be updated.
 
     """
 
     def __init__(
-        self, structure, cpca, cont, protein_color="silver", bkgrnd="black"
+        self, structure:str | mda.Universe, cpca:ContactPCA, 
+        cont:ContactFrequencies, 
+        protein_color:str="silver", bkgrnd:str="black"
     ):
         if type(structure) == mda.core.universe.Universe:
             self.u = structure
@@ -209,32 +216,34 @@ class Visualizer:
 
     def show_chacras(
         self,
-        pc_range,
-        cutoff=0.6,
-        ca_spheres=True,
-        arrows=True,
-        sphere_scale=0.8,
-        variable_line_width=False,
-        line_width=0.3,
-        clear_representation=False,
+        pc_range:tuple[int, int],
+        cutoff:float=0.6,
+        ca_spheres:bool=True,
+        arrows:bool=True,
+        sphere_scale:float=0.8,
+        variable_line_width:bool=False,
+        line_width:float=0.3,
+        clear_representation:bool=False,
     ):
         """
         pc_range : tuple of int
-            PC/chacra range to depict top contacts for (inclusive) e.g. (1,7) to see all chacras between 1 and 7.
+            PC/chacra range to depict top contacts for (inclusive) e.g. (1,7) 
+            to see all chacras between 1 and 7.
 
         variable_line_width : bool
-            Whether or not to have the lines connecting contacts vary in width based on the loading score
+            Whether or not to have the lines connecting contacts vary in width 
+            based on the loading score
 
         line_width : float
             The width of the contact lines.
-            If variable_line_width == True, this is a coefficient to multiply the normalized loading score against
-            to determine each line's width.
-
-            TODO: make exponential function - not enough difference in linewidth as is
+            If variable_line_width == True, this is a coefficient to multiply 
+            the normalized loading score againstto determine each line's width.
         """
-        # contact_data will be in order of the highest loading score last.  That should
-        # be the color of sphere that is depicted.  Dictionary of resindex keys (unique) and color values
-        # sort the dictionary and take a list of all the ones with the same color before calling the 'spacefill' representation
+        # contact_data will be in order of the highest loading score last.  
+        # That should be the color of sphere that is depicted.  Dictionary of 
+        # resindex keys (unique) and color values sort the dictionary and take a
+        #  list of all the ones with the same color before calling the 
+        # 'spacefill' representation
         if clear_representation == True:
             self.view.clear_representations()
             self.view.add_representation(
@@ -265,7 +274,8 @@ class Visualizer:
         for contact in contact_data:
             if ca_spheres == True:
                 # get the atom indices and corresponding top scoring pc color
-                # collecting them in the order they occur in contact_data will make the last color chosen correspond to
+                # collecting them in the order they occur in contact_data will 
+                # make the last color chosen correspond to
                 # the highest scoring pc for that residue
                 atom_indices = get_contact_indices(contact, self.u)
                 ca_colors[atom_indices[0]] = chacra_colors[
@@ -309,4 +319,4 @@ class Visualizer:
                     radius_scale=sphere_scale,
                 )
 
-    # TODO add network visualization
+

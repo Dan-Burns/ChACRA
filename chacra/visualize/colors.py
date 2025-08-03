@@ -1,7 +1,5 @@
 import numpy as np
 
-# TODO add option to globally define chacra color scheme
-# and import into the plot and pymol modules
 chacra_colors = [
     "#ff0000ff",
     "#00bfffff",
@@ -14,14 +12,15 @@ chacra_colors = [
     "#b2a8b1c0",
     "#b3ad45c0",
 ]
-# TODO offer dark/light variants to color different signs of loading scores
+
 cherenkov_blue = "#00bfff"
 legacy_blue = "#02a8f8ff"
 orange = "#ff831dff"
 
 
-# adopted next two functions from https://medium.com/@BrendanArtley/matplotlib-color-gradients-21374910584b
-def hex_to_RGB(hex_str, alpha=False):
+# adopted next two functions from 
+# https://medium.com/@BrendanArtley/matplotlib-color-gradients-21374910584b
+def hex_to_RGB(hex_str:str, alpha:bool=False) -> list[int]:
     """#FFFFFF -> [255,255,255]"""
     # Pass 16 to the integer function for change of base
     if alpha == True:
@@ -35,10 +34,26 @@ def hex_to_RGB(hex_str, alpha=False):
         return [int(hex_str[i : i + 2], 16) for i in range(1, 6, 2)]
 
 
-def get_color_gradient(c1, c2, n, return_rgb=False, alpha=True):
+def get_color_gradient(c1:str, 
+                       c2:str, 
+                       n:int, 
+                       return_rgb:bool=False, 
+                       alpha:bool=True) -> list[str]:
     """
     Given two hex colors, returns a color gradient
     with n colors.
+    Parameters
+    ---------
+    c1: str - first hex color (e.g. '#ff0000ff')
+    c2: str - second hex color (e.g. '#00bfff00')
+    n: int - number of colors in the gradient
+    return_rgb: bool - if True, returns RGB values instead of hex colors
+    alpha: bool - if True, includes alpha channel in the output
+    
+    Returns
+    ---------
+    list[str] or list[list[int]] - a list of hex colors or RGB values
+    depending on return_rgb parameter.
     """
     assert n > 1
     c1_rgb = np.array(hex_to_RGB(c1, alpha=alpha)) / 255
@@ -56,7 +71,7 @@ def get_color_gradient(c1, c2, n, return_rgb=False, alpha=True):
         ]
 
 
-def rgb_to_hex(rgb):
+def rgb_to_hex(rgb:list[int]) -> str:
     return "#" + "".join([format(int(round(val)), "02x") for val in rgb])
 
 
@@ -87,7 +102,7 @@ class ANSI:
     credit: https://www.geeksforgeeks.org/how-to-add-colour-to-text-python/
 
     example_ansi = ANSI.background(
-    97) + ANSI.color_text(35) + ANSI.style_text(4) + " TESTE ANSI ESCAPE CODE"
+    97) + ANSI.color_text(35) + ANSI.style_text(4) + " TEST ANSI ESCAPE CODE"
     print(example_ansi)
     """
 

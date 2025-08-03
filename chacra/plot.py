@@ -1,14 +1,17 @@
 from itertools import combinations
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
 from chacra.visualize.colors import *
+from chacra.ContactFrequencies import ContactFrequencies, ContactPCA
 
 
 def plot_difference_of_roots(
-    cpca, n_pcs=None, filename=None, dot_color=cherenkov_blue, cutoff_color="r"
+    cpca:ContactPCA, n_pcs:int, filename:str|os.PathLike|None=None, 
+    dot_color:str=cherenkov_blue, cutoff_color:str="r"
 ):
     """
     Plot the difference of roots test results
@@ -59,14 +62,14 @@ def plot_difference_of_roots(
 
 
 def plot_chacras(
-    cpca,
-    n_pcs=4,
-    contacts=None,
-    temps=None,
-    colors=chacra_colors,
-    spacing="geometric",
-    temp_scale=None,
-    filename=None,
+    cpca:ContactPCA,
+    n_pcs:int=4,
+    contacts:pd.DataFrame|None=None,
+    temps:list|None=None,
+    colors:list=chacra_colors,
+    spacing:str="geometric",
+    temp_scale:str|None=None,
+    filename:str|os.PathLike=None,
 ):
     """
     cpca : ContactPCA
@@ -147,11 +150,11 @@ def plot_chacras(
 
 
 def biplots(
-    cpca,
-    pcs=list(range(1, 5)),
-    label_top=None,
-    colors=chacra_colors,
-    filename=None,
+    cpca:ContactPCA,
+    pcs:tuple|list=(1, 5),
+    label_top:int=None,
+    colors:list=chacra_colors,
+    filename:str|os.PathLike=None,
 ):
     """
     NOT IMPLEMENTED
@@ -174,6 +177,7 @@ def biplots(
     # (probably because of "constrained_layout")
     # if pcs is list of int, make all the combos
     if type(pcs[0]) == int:
+        pcs = list(range(pcs))
         combos = list(combinations(pcs, 2))
 
     # if it's a list of tuples, plot just the tuple combos
@@ -276,7 +280,8 @@ fig.tight_layout()
 """
 
 
-def plot_energies(energies, filename=None, n_bins=20):
+def plot_energies(energies:np.ndarray, filename:str|os.PathLike|None=None, 
+                  n_bins:int=20):
     """'
     energies : np.array
         The n_cycles x n_states array of energies from the replica exchange

@@ -44,11 +44,11 @@ def make_contact_frequency_dictionary(freq_files: list) -> pd.DataFrame:
     return contact_dictionary
 
 
-def sort_dictionary_values(dictionary):
+def sort_dictionary_values(dictionary:dict) -> dict:
     return dict(sorted(dictionary.items(), key=lambda item: -item[1]))
 
 
-def parse_id(contact):
+def parse_id(contact:str) -> dict:
     """
     take the contact name (column id) and return a dictionary of
     the residue A descriptors and residue B descriptors
@@ -77,7 +77,7 @@ def parse_id(contact):
     }
 
 
-def split_id(contact):
+def split_id(contact:str) -> dict:
     """
     take the contact name and split it into its two residue parts
     returns a dictionary where 'resa' will contain 'CH:RES:NUM'
@@ -86,7 +86,8 @@ def split_id(contact):
     return {"resa": resa, "resb": resb}
 
 
-def multi_intersection(lists, cutoff=None, verbose=False):
+def multi_intersection(lists:list[list], cutoff:float|int|None=None, 
+                       verbose:bool=False)-> list:
     """
     Return the intersection of the values in lists.
     Parameters
@@ -126,7 +127,7 @@ def multi_intersection(lists, cutoff=None, verbose=False):
     return sorted(list(set1.intersection(*setlist)))
 
 
-def sort_nested_dict(d):
+def sort_nested_dict(d: dict) -> dict:
     """
     Sort the split sum dictionary. This is expecting the keys of the nested dictionary to be
     in the form of "A:ALA:5".

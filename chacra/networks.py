@@ -11,11 +11,12 @@ from networkx import edge_betweenness_centrality as betweenness
 from networkx.algorithms import community
 
 from chacra.utils import sort_dictionary_values
+from chacra.ContactFrequencies import ContactFrequencies, ContactPCA
 
 
 def make_network(
-    contacts,
-    temp,
+    contacts:ContactFrequencies,
+    temp:int|float,
 ):
     """
 
@@ -24,6 +25,7 @@ def make_network(
         to compose the network from.
 
     temp : the temperature corresponding to the data row to take your contact
+        TODO: the temp/row indexing needs to be consistent....
 
     selection : list
         list of selected contacts to construct the graph from.
@@ -46,7 +48,8 @@ def make_network(
     return G
 
 
-def edge_to_contact(edge_data, contact_data):
+def edge_to_contact(edge_data:tuple|list, 
+                    contact_data:ContactFrequencies|ContactPCA) -> str|list[str]:
     """
     Convert networkx edge back to original contact name.
     edge : tuple or list of tuples
@@ -153,7 +156,8 @@ def get_betweenness_centrality(G: nx.Graph, weight: str = "inverse"):
     return sorted_edges
 
 
-def make_minimum_graph(contact_data, return_contacts=True):
+def make_minimum_graph(contact_data:ContactFrequencies|ContactPCA, 
+                       return_contacts:bool=True) -> nx.Graph|list[str]:
     """
     Not Implemented
 
@@ -186,11 +190,11 @@ def make_minimum_graph(contact_data, return_contacts=True):
 
 def pc_network(
     start_contact: str,
-    contact_data,
+    contact_data: ContactPCA,
     n_contacts: int = 100,
     end_contact: str | None = None,
     max_pc: int | None = None,
-):
+) -> list:
     """
     Given a starting contact, find the next contact that involves either residue that has the highest
     loading score on any of the top principal components and continue until you reach n_contacts or a specified contact.

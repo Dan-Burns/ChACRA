@@ -237,9 +237,9 @@ class ContactFrequencies:
 
     def get_contact_partners(
         self,
-        resid1,
-        resid2=None,
-    ):
+        resid1:int|tuple[str, str, int],
+        resid2:int|None=None,
+    ) -> pd.DataFrame:
         """
         Filter the dataframe to only return contacts involving the
         provided residue(s).
@@ -293,7 +293,7 @@ class ContactFrequencies:
             regex = rf"{regex1}|{regex2}"
         return self.freqs.filter(regex=regex, axis=1)
 
-    def find_correlated_contacts(self, contact, inverse=True):
+    def find_correlated_contacts(self, contact:str, inverse:bool=True) -> list:
         """
         Returns a list of n_contacts involving one member of the input contact
         with the highest correlation values.
@@ -327,8 +327,9 @@ class ContactFrequencies:
         return out.index.tolist()
 
     def get_edges(
-        self, weights=True, inverse=True, temp=0, index=None, as_dict=False
-    ):
+        self, weights:bool=True, inverse:bool=True, temp:int=0, 
+        index: int | None=None, as_dict:bool=False
+    ) -> list[tuple] | dict[tuple]:
         """
         returns list of contact id tuples for network analysis input
         inverse inverts the edge weight so something with a high contact
@@ -392,7 +393,7 @@ class ContactFrequencies:
         else:
             return all_contacts
 
-    def get_all_residues(self):
+    def get_all_residues(self) -> list:
         """
         Returns a list of all the residues
         Not used.
@@ -407,7 +408,7 @@ class ContactFrequencies:
             )
         )
 
-    def exclude_neighbors(self, n_neighbors=1):
+    def exclude_neighbors(self, n_neighbors:int=1) -> list[str]:
         """
         Reduce the contact dataframe contacts to those separated by at least
         n_neighbors. Returns a list of contact ids.
@@ -455,7 +456,8 @@ class ContactFrequencies:
     #                     str(int(split_ids['residb'])+starting_residue_number-1)
     #     # TODO return the renumbered dataframe in place.
 
-    def exclude_below(self, min_frequency=0.05, row_range=None):
+    def exclude_below(self, min_frequency:float=0.05, 
+                      row_range:tuple|None=None) -> pd.DataFrame:
         """
         If the maximum frequency for a contact is below min_frequency,
         remove it from the dataset.
@@ -492,7 +494,7 @@ class ContactFrequencies:
                 ]
             ]
 
-    def exclude_above(self, max_frequency=0.98):
+    def exclude_above(self, max_frequency:float=0.98) -> pd.DataFrame:
         """
         If the minimum frequency for a contact is above max_frequency,
         remove it from the dataset.
@@ -503,7 +505,8 @@ class ContactFrequencies:
             ]
         ]
 
-    def to_heatmap(self, output_format="mean", pc=None, row=None):
+    def to_heatmap(self, output_format:str="mean", pc:int|None=None, 
+                   row:int|float=None) -> pd.DataFrame:
         """
         Convert the data into a symmetric matrix with residues mirrored on x
         and y axis. The residues will be named as "chainResid" e.g. A100.
@@ -615,7 +618,7 @@ class ContactFrequencies:
         return pd.DataFrame(data, columns=all_resis, index=all_resis)
 
 
-def de_correlate(a):
+def de_correlate(a:np.ndarray) -> np.ndarray:
     """
     randomize the rows within array columns
     """
@@ -626,11 +629,13 @@ def de_correlate(a):
     return out
 
 
-def run_permuted_pca(vals, n_permutations):
+def run_permuted_pca(vals:np.ndarray, n_permutations:int) -> list:
     """
-    df_values: np.ndarray of shape (n_samples, n_features)
-    original_components: np.ndarray or None
-    get_loading_pvals: bool
+    vals: np.ndarray
+        contact frequency dataframe values
+    n_permutations: int
+        The number of times to permute the data and perform PCA for the
+        significance test.
     """
     # with parallel_backend('threading', n_jobs=1):
     pca = PCA()
@@ -641,7 +646,7 @@ def run_permuted_pca(vals, n_permutations):
     return xvrs
 
 
-def _normalize(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
+def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normalize the loading score dataframe
     """
@@ -669,16 +674,16 @@ class ContactPCA:
         The number of times to randomize the data and perform PCA for the
         signficance test.
 
-    #TODO exclude contact (or regions) that have slopes that exceed the PC1
-    slope at high temperature (indicating major melting)
+    structure : str | None
+        Path to the structure file that the contact data is based on.
     """
 
     def __init__(
         self,
-        contact_df,
-        significance_test=True,
-        N_permutations=500,
-        structure=None,
+        contact_df:pd.DataFrame,
+        significance_test:bool=True,
+        N_permutations:int=500,
+        structure:str|os.PathLike|None=None,
     ):
         # TODO allow for ContactFrequencies input
         pca = PCA()
@@ -718,10 +723,10 @@ class ContactPCA:
             self.top_chacras = None
             self.score_sums = None
         if structure is not None:
-            self.structure = structure
+            self.structure = str(structure)
         self.freqs = contact_df
 
-    def sorted_loadings(self, pc=1):
+    def sorted_loadings(self, pc:int=1) -> pd.DataFrame:
         """
         Sort the original loadings in descending absolute value.
 
@@ -739,7 +744,7 @@ class ContactPCA:
             (-self.loadings["PC" + str(pc)].abs()).argsort()
         ]
 
-    def sorted_norm_loadings(self, pc=1):
+    def sorted_norm_loadings(self, pc:int=1) -> pd.DataFrame:
         """
         Sort the normalized (positive 0 to 1) loading scores in descending
         order.
@@ -757,7 +762,8 @@ class ContactPCA:
             (-self.norm_loadings["PC" + str(pc)].abs()).argsort()
         ]
 
-    def get_edges(self, pcs=None, inverse=True, as_dict=False):
+    def get_edges(self, pcs:list[int]|None=None, inverse:bool=True, 
+                  as_dict:bool=False) -> list | dict:
         """
         Generate networkx input for a network based on contact sensitivities.
         Network weights are top loading scores from pcs.
@@ -814,7 +820,7 @@ class ContactPCA:
         else:
             return edges
 
-    def get_top_score(self, contact, pc_range=None):
+    def get_top_score(self, contact:str, pc_range:tuple[int]|None=None) -> dict:
         """
         Retrieve the contact's highest loading scores among the pcs in pc_range
         (inclusive).
@@ -855,7 +861,8 @@ class ContactPCA:
 
         return data
 
-    def get_chacra_center(self, pc, cutoff=0.6, absolute=True):
+    def get_chacra_center(self, pc:int, cutoff:float=0.6, 
+                          absolute:bool=True)->pd.DataFrame:
         """
         Return the loading score dataframe containing only the contacts with
         loading scores above the cutoff on specified pc.
@@ -889,7 +896,7 @@ class ContactPCA:
         else:
             return self.loadings.loc[chacra_centers]
 
-    def permuted_pca(self, N_permutations=500, n_jobs=None):
+    def permuted_pca(self, N_permutations:int=500, n_jobs:int|None=None):
         """
         Perform PCA on permutations of the contact frequency data in parallel.
         The contact columns have their rows reordered independently.
@@ -899,6 +906,8 @@ class ContactPCA:
         ----------
         N_permutations : int
             Total number of permutations to run across all processes.
+        n_jobs : int or None
+            The number of parallel processes to run. If None, use all cores.
         """
         print("This can take a moment. Dhairya rakho.")
 
@@ -983,15 +992,15 @@ class ContactPCA:
 
     def to_pymol(
         self,
-        pcs=None,
-        cutoff=0.6,
-        output="chacra_selections.pml",
-        group_pcs=True,
-        scale_spheres=False,
-        sphere_scale_range=(0.6, 1.5),
-        reconstruct_from_averaged=False,
-        original_contacts=None,
-        representative_chains=None,
+        pcs:list|None=None,
+        cutoff:float=0.6,
+        output:str|os.PathLike="chacra_selections.pml",
+        group_pcs:bool=True,
+        scale_spheres:bool=False,
+        sphere_scale_range:tuple[float]=(0.6, 1.5),
+        reconstruct_from_averaged:bool=False,
+        original_contacts:pd.DataFrame|None=None,
+        representative_chains:list[str]|None=None,
     ):
         """
         Write a .pml file to visualize chacras on the structure.
@@ -1112,7 +1121,7 @@ class CombinedChacra:
 
     """
 
-    def __init__(self, data_dict):
+    def __init__(self, data_dict:dict[str, pd.DataFrame]):
 
         self.original_data = data_dict
         self.names = list(data_dict.keys())
@@ -1177,7 +1186,9 @@ class CombinedChacra:
         print("Getting the chacras of the contact frequency differences.")
         self.differences = ContactFrequencies(pd.DataFrame(difference_data))
 
-    def get_top_changes(self, cutoff, min_loading_dif=0.2, pc_range=None):
+    def get_top_changes(self, cutoff:float, 
+                        min_loading_dif:float=0.2, 
+                        pc_range:tuple[int]|None=None):
         """
         Get the contacts from the combined chacras that are present above the
         loading score cutoff in one ensemble but not the other
@@ -1249,7 +1260,7 @@ class CombinedChacra:
 
         return different
 
-    def get_flipped_contacts(self, cutoff, pc_range=None, plot=False):
+    def get_flipped_contacts(self, cutoff:float, pc_range:tuple[int]|None=None):
         """
         Get contacts that have flipped loading scores on the same combined PC.
 
@@ -1319,7 +1330,8 @@ class CombinedChacra:
 
         return list(different_signs)
 
-    def get_changes(self, stdev_min=0.0, stdev_max=0.02, mean_dif=0.2):
+    def get_changes(self, stdev_min:float=0.0, stdev_max:float=0.02, 
+                    mean_dif:float=0.2):
         """
         Identify contacts with significantly different frequencies between the
         two ensembles based on each contact's standard deviation and mean.
@@ -1370,7 +1382,7 @@ class CombinedChacra:
 
         return different
 
-    def get_real_unique_contacts(self, cutoff=0.05, criteria="mean"):
+    def get_real_unique_contacts(self, cutoff:float=0.05, criteria:str="mean"):
         """
         Contacts that only occur in one ensemble or the other and have
         a mean value above the cutoff will be returned.
