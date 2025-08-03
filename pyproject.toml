@@ -5,7 +5,7 @@ requires = ["setuptools",
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ChACRA"
+name = "chacra"
 version = "0.7.0"
 
 description = """
@@ -22,9 +22,8 @@ dependencies = [
 
 
 [tool.setuptools.packages.find]
-where = ["chacra"]  
+where = ["."]  
 include = ["*"]  # ["*"] by default
-exclude = ["examples.tetramer","examples.trimer"] 
 namespaces = false 
 
 [tool.setuptools.package-data]
