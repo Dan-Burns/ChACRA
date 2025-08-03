@@ -2,6 +2,7 @@
 import argparse
 
 import femto.md.utils.mpi
+femto.md.utils.mpi.divide_gpus()
 import MDAnalysis as mda
 import mdtop
 import numpy as np
@@ -9,7 +10,7 @@ import openmm
 from openmm import LangevinMiddleIntegrator, XmlSerializer, unit
 from openmm.app import PDBFile, Simulation
 
-femto.md.utils.mpi.divide_gpus()
+
 import pathlib
 from datetime import datetime
 
