@@ -4,11 +4,10 @@ channels:
   - defaults
 
 dependencies:
-  - python=3.11
-  - openmm>=8.0.0
-  - cudatoolkit
+  - femto
+  - openmm=8.1.2 # try 8.3 with openmpi pinned
+  - mpi=1.0=openmpi
   - mdanalysis>=2.9.0
-  - numpy
   - pandas
   - scipy
   - tqdm
@@ -17,8 +16,7 @@ dependencies:
   - networkx
   - nglview
   - pre-commit
-  - ipykernel
   - vmd-python
   - prolif
-  - femto
+  
     
