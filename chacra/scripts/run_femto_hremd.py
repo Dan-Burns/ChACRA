@@ -1,23 +1,20 @@
 
 def main():
+    
     import argparse
 
     import femto.md.utils.mpi
-    femto.md.utils.mpi.divide_gpus()
-    import MDAnalysis as mda
-    import mdtop
-    import numpy as np
     import openmm
-    platform = openmm.Platform.getPlatformByName("CUDA")
-    print(f"GPUs visible: {platform.getDeviceCount()}")
-
     from openmm import LangevinMiddleIntegrator, XmlSerializer, unit
     from openmm.app import PDBFile, Simulation
 
+    import MDAnalysis as mda
+    import mdtop
+    import numpy as np
 
     import pathlib
     from datetime import datetime
-
+    import os
     import femto.md.config
     import femto.md.constants
     import femto.md.hremd
@@ -25,7 +22,8 @@ def main():
     import femto.md.simulate
     import femto.md.utils.openmm
     import openmm.unit
-
+    femto.md.utils.mpi.divide_gpus()
+    
     parser = argparse.ArgumentParser(description="Run HREMD simulation.")
 
     # Add arguments for system file and structure
