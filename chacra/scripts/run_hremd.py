@@ -176,6 +176,7 @@ def main():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=True,  # Raises CalledProcessError for non-zero exit codes
+            env=os.environ.copy()
         )
 
         # Print the output
@@ -199,8 +200,7 @@ def main():
 
         # Call Processing/ Analysis script here
         analysis_command = [
-            "python",
-            "process_hremd_output.py",
+            "process-output",
             "--run",
             str(current_run),
             "--n_jobs",
