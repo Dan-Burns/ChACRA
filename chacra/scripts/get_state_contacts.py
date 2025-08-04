@@ -13,7 +13,7 @@ def main():
 
     structure, trajectory, contacts_folder, state, n_jobs = sys.argv[1:]
 
-    contacts_folder = Path(contacts_folder)
+    contacts_folder = str(Path(contacts_folder))
     contacts_folder.mkdir(parents=True, exist_ok=True)
     (contacts_folder / "contacts").mkdir(exist_ok=True)
     (contacts_folder / "freqs").mkdir(exist_ok=True)
