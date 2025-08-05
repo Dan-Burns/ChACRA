@@ -1,3 +1,3 @@
-[submodule "chacra/external/getcontacts"]
-	path = chacra/external/getcontacts
+[submodule "external/getcontacts"]
+	path = external/getcontacts
 	url = https://github.com/Dan-Burns/getcontacts.git
