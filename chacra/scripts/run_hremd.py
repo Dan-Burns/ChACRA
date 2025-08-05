@@ -13,72 +13,72 @@ def main():
 
     # Add arguments for system file and structure
     parser.add_argument(
-        "--system_file",
+        "-p", "--system_file",
         type=str,
         required=True,
         help="Path to the system XML file.",
     )
     parser.add_argument(
-        "--structure_file",
+        "-s", "--structure_file",
         type=str,
         required=True,
         help="Path to the structure PDB file.",
     )
     parser.add_argument(
-        "--n_cycles",
+        "-c", "--n_cycles",
         type=int,
         default=10000,
         help="The number of replica_exchange attempts for this run.",
     )
     parser.add_argument(
-        "--n_jobs",
+        "-j", "--n_jobs",
         type=int,
         required=True,
         help="The number of mpi processes to start.",
     )
     parser.add_argument(
-        "--steps_per_cycle",
+        "-d", "--steps_per_cycle",
         type=int,
         default=1000,
         help="The number of timesteps between replica exchange attempts.",
     )
     parser.add_argument(
-        "--min_temp",
+        "-l", "--min_temp",
         type=float,
         default=290,
         help="The minimum effective temperature (in kelvin) of the replica exchange ensemble.\
                         This is the same as the solvent temperature for all replicas",
     )
     parser.add_argument(
-        "--max_temp",
+        "-x", "--max_temp",
         type=float,
         default=450,
         help="The maximum effective temperature (in kelvin) of the replica exchange ensemble.",
     )
     parser.add_argument(
-        "--n_systems", type=int, default=None, help="The number of replicas."
+        "-n", "--n_systems", type=int, default=None, help="The number of replicas."
     )
     parser.add_argument(
-        "--save_interval",
+        "-i", "--save_interval",
         type=int,
         default=10,
         help="Save trajectory data at this cycle interval.",
     )
     parser.add_argument(
-        "--checkpoint_interval",
+        "-k", "--checkpoint_interval",
         type=int,
         default=500,
         help="Save checkpoints at this cycle interval.",
     )
     parser.add_argument(
-        "--warmup_steps",
+        "-w", "--warmup_steps",
         type=int,
         default=0,
         help="The number of warmup steps to run before starting replica exchange attempts.\
                         Only necessary on the first run.",
     )
     parser.add_argument(
-        "--lambda_selection",
+        "-b", "--lambda_selection",
         type=str,
         default="protein",
         help="The MDAnalysis selection to which the lambda scaling will be applied.",
