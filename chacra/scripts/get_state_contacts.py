@@ -13,7 +13,7 @@ def main():
 
     structure, trajectory, contacts_folder, state, n_jobs = sys.argv[1:]
 
-    contacts_folder = str(Path(contacts_folder))
+    contacts_folder = Path(contacts_folder)
     contacts_folder.mkdir(parents=True, exist_ok=True)
     (contacts_folder / "contacts").mkdir(exist_ok=True)
     (contacts_folder / "freqs").mkdir(exist_ok=True)
@@ -29,7 +29,7 @@ def main():
             "--trajectory",
             trajectory,
             "--output",
-            contacts_out,
+            str(contacts_out),
             "--cores",
             str(n_jobs),
             "--itypes",
@@ -47,9 +47,9 @@ def main():
         [
             "get-contact-frequencies",
             "--input_files",
-            contacts_out,
+            str(contacts_out),
             "--output_file",
-            freqs_out,
+            str(freqs_out),
         ],
         check=True,
     )
