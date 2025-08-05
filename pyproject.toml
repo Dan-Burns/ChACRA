@@ -20,7 +20,6 @@ dependencies = [
         
             ]
 
-
 [tool.setuptools.packages.find]
 where = ["."]  
 include = ["*"]  # ["*"] by default
@@ -36,16 +35,16 @@ run-hremd = "chacra.scripts.run_hremd:main"
 run-femto = "chacra.scripts.run_femto_hremd:main"
 get-state-contacts = "chacra.scripts.get_state_contacts:main"
 
-get-contact-bridges = "contact_analysis.scripts:get_contact_bridges"
-get-contact-fingerprints = "contact_analysis.scripts:get_contact_fingerprints"
-get-contact-flare = "contact_analysis.scripts:get_contact_flare"
-get-contact-frequencies = "contact_analysis.scripts:get_contact_frequencies"
-get-contact-singleframe = "contact_analysis.scripts:get_contact_singleframe"
-get-contact-ticc = "contact_analysis.scripts:get_contact_ticc"
-get-contact-trace = "contact_analysis.scripts:get_contact_trace"
-get-dynamic-contacts = "contact_analysis.scripts:get_dynamic_contacts"
-get-resilabels = "contact_analysis.scripts:get_resilabels"
-get-static-contacts = "contact_analysis.scripts:get_static_contacts"
+get-contact-bridges = "chacra.contact_analysis.getcontacts_scripts:get_contact_bridges"
+get-contact-fingerprints = "chacra.contact_analysis.getcontacts_scripts:get_contact_fingerprints"
+get-contact-flare = "chacra.contact_analysis.getcontacts_scripts:get_contact_flare"
+get-contact-frequencies = "chacra.contact_analysis.getcontacts_scripts:get_contact_frequencies"
+get-contact-singleframe = "chacra.contact_analysis.getcontacts_scripts:get_contact_singleframe"
+get-contact-ticc = "chacra.contact_analysis.getcontacts_scripts:get_contact_ticc"
+get-contact-trace = "chacra.contact_analysis.getcontacts_scripts:get_contact_trace"
+get-dynamic-contacts = "chacra.contact_analysis.getcontacts_scripts:get_dynamic_contacts"
+get-resilabels = "chacra.contact_analysis.getcontacts_scripts:get_resilabels"
+get-static-contacts = "chacra.contact_analysis.getcontacts_scripts:get_static_contacts"
 
 [tool.ruff]
 # Match Black's default line length
