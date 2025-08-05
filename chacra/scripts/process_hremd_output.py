@@ -70,7 +70,7 @@ def main():
     u = mda.Universe(structure_file)
     sel = u.select_atoms(args.output_selection)
 
-    selection_file = "./structures/state_trajectory_selection.pdb"
+    selection_file = f"./structures/{structure_name}_protein.pdb"
 
     sel.write(selection_file)
 
