@@ -34,6 +34,7 @@ chacra-project = "chacra.scripts.project_setup:main"
 run-hremd = "chacra.scripts.run_hremd:main"
 run-femto = "chacra.scripts.run_femto_hremd:main"
 get-state-contacts = "chacra.scripts.get_state_contacts:main"
+make-simulation = "chacra.scripts.make_simulation:main"
 
 get-contact-bridges = "chacra.contact_analysis.getcontacts_scripts:get_contact_bridges"
 get-contact-fingerprints = "chacra.contact_analysis.getcontacts_scripts:get_contact_fingerprints"
