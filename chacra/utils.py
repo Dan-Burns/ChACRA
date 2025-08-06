@@ -3,6 +3,13 @@ import re
 import pandas as pd
 import psutil
 
+from pdbfixer import PDBFixer
+from openmm.app import PDBFile, Modeller, ForceField, Simulation, XmlSerializer
+from openmm import LangevinMiddleIntegrator, MonteCarloBarostat
+from openmm.unit import nanometer, bar, picosecond, femtoseconds
+from openmm.app import PME, HBonds
+import os
+
 
 def make_contact_frequency_dictionary(freq_files: list) -> pd.DataFrame:
     """
@@ -152,3 +159,116 @@ def get_resources():
         "available_ram_mb": psutil.virtual_memory().available / 1e6,
     }
     return resources
+
+
+##################### Simulation Prep ######################
+def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_resis=True):
+    '''
+    PDBFixer convenience function 
+    
+    '''
+    # https://htmlpreview.github.io/?https://github.com/openmm/pdbfixer/blob/master/Manual.html
+    fixer = PDBFixer(filename=input_pdb)
+    fixer.findMissingResidues()
+    fixer.findNonstandardResidues()
+    if replace_nonstandard_resis:
+        fixer.replaceNonstandardResidues()
+    fixer.removeHeterogens(keep_water)
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(pH)
+    PDBFile.writeFile(fixer.topology, fixer.positions, open(output_pdb, 'w'))
+
+def top_pos_from_sim(simulation):
+    state = simulation.context.getState(getPositions=True)
+    return simulation.topology, state.getPositions()
+
+class OMMSetup:
+    '''
+    Class to piece together an openmm simulation object
+    '''
+
+    def __init__(self, 
+                 structures,
+                 nonbonded_cutoff=1,
+                 forcefields=['amber14-all.xml', 'amber14/tip3pfb.xml'],
+                 temperature=None,
+                 pressure=1,
+                 box_shape='dodecahedron',
+                 padding=1,
+                 name='system'
+                 ):
+        self.structures = structures
+        self.nonbonded_cutoff = nonbonded_cutoff*nanometer
+        self.integrator_type = LangevinMiddleIntegrator
+        self.forcefields = forcefields
+        self.temperature = temperature
+        self.pressure = pressure*bar
+        self.box_shape = box_shape
+        self.padding = padding*nanometer
+        self.name = name
+        # add padding or box vectors, ions, concentration, water model
+
+    '''
+    structures : dict
+        dict of keys of user supplied names and values of paths to prepared PDB 
+        files for each component of the system.
+        Example
+        -------
+        structures = ['lysozyme':'./253L.pdb']
+
+    '''
+    def model(self):
+        # modeler components
+        pdb_file = self.structures[0]
+        pdb = PDBFile(pdb_file)
+        modeller = Modeller(pdb.topology, pdb.positions)
+        if len(self.structures) > 1:
+            for structure in self.structures[1:]:
+                pdb_file = structure
+                pdb = PDBFile(pdb_file)
+                modeller.add(pdb.topology, pdb.positions)
+        self.modeller = modeller
+            
+    
+    def make_system(self):
+        # create system object
+        system = self.forcefield.createSystem(self.modeller.topology, 
+                                         nonbondedMethod=PME,
+                                         nonbondedCutoff=self.nonbonded_cutoff, 
+                                         constraints=HBonds)
+        # Add pressure control
+        system.addForce(MonteCarloBarostat(self.pressure, self.temperature))
+        self.system=system
+
+
+    def make_simulation(self):
+        integrator = self.integrator_type(self.temperature, 
+                                          1/picosecond, 
+                                          2*femtoseconds)
+        simulation = Simulation(self.modeller.topology, self.system, integrator)
+        simulation.context.setPositions(self.modeller.positions)
+        simulation.minimizeEnergy()
+        self.simulation = simulation
+
+
+    def save(self, output,):
+        '''
+        save gromacs files and openmm system files
+
+        output : str
+            Path to output. Directory will be created if none exists.
+        '''
+        # create folders within the output directory 
+        os.makedirs(f'{output}',exist_ok=True)
+        directories = ['system', 'structures']
+        for directory in directories:
+            os.makedirs(f'{output}/{directory}', exist_ok=True)
+
+        # save the system and minimized structure
+        topology, positions = top_pos_from_sim(self.simulation)
+        with open(f'{output}/system/{self.name}_system.xml', 'w') as outfile:
+            outfile.write(XmlSerializer.serialize(self.system))
+        #os.chmod(file, stat.S_IREAD) #set to read only to prevent deletion
+        with open(f'{output}/structures/{self.name}_minimized.pdb', 'w') as f:
+            PDBFile.writeFile(topology, positions, f)
