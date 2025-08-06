@@ -8,6 +8,7 @@ dependencies:
   - openmm=8.1.2 # try 8.3 with openmpi pinned
   - mpi=1.0=openmpi
   - mdanalysis>=2.9.0
+  - pdbfixer
   - pandas
   - scipy
   - tqdm
