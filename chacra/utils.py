@@ -4,9 +4,9 @@ import pandas as pd
 import psutil
 
 from pdbfixer import PDBFixer
-from openmm.app import PDBFile, Modeller, ForceField, Simulation, XmlSerializer
-from openmm import LangevinMiddleIntegrator, MonteCarloBarostat
-from openmm.unit import nanometer, bar, picosecond, femtoseconds
+from openmm.app import PDBFile, Modeller, ForceField, Simulation
+from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, XmlSerializer
+from openmm.unit import nanometer, bar, picosecond, femtoseconds, molar
 from openmm.app import PME, HBonds
 import os
 
@@ -192,10 +192,10 @@ class OMMSetup:
                  structures,
                  nonbonded_cutoff=1,
                  forcefields=['amber14-all.xml', 'amber14/tip3pfb.xml'],
-                 temperature=None,
+                 temperature=310.0,
                  pressure=1,
                  box_shape='dodecahedron',
-                 padding=1,
+                 padding=1.0,
                  name='system'
                  ):
         self.structures = structures
@@ -207,8 +207,7 @@ class OMMSetup:
         self.box_shape = box_shape
         self.padding = padding*nanometer
         self.name = name
-        # add padding or box vectors, ions, concentration, water model
-
+        
     '''
     structures : dict
         dict of keys of user supplied names and values of paths to prepared PDB 
@@ -229,7 +228,11 @@ class OMMSetup:
                 pdb = PDBFile(pdb_file)
                 modeller.add(pdb.topology, pdb.positions)
         self.modeller = modeller
-            
+        self.forcefield = ForceField(*self.forcefields)
+        self.modeller.addSolvent(self.forcefield, padding=self.padding,
+                            ionicStrength=0.1*molar, model='tip3p',
+                            boxShape=self.box_shape)
+    
     
     def make_system(self):
         # create system object
