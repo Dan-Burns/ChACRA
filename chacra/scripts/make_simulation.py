@@ -16,7 +16,8 @@ def main():
         help="The structure to simulate."
     )
     parser.add_argument(
-        "-f", "--fix", type=str, required=False, default="False",
+        "-f", "--fix", required=False, default="False",
+        action="store_true",
         help="""
         Allow pdbfixer to fix the structure. Protonation state will be 
         set to pH 7.0 and non-standard residues will be replaced. Check the 
@@ -32,7 +33,7 @@ def main():
         default="./"
     )
     parser.add_argument(
-        "-t", "--temperature", type=float|int, required=False,
+        "-t", "--temperature", type=float, required=False,
         help="""
         The temperature that the replica exchange solvent will be run at
         in Kelvin.
@@ -47,7 +48,7 @@ def main():
         default="chacra_simulation"
     )
     parser.add_argument(
-        "-p", "--pressure", type=int | float, required=False,
+        "-p", "--pressure", type=float, required=False,
         help="""
         Pressure to simulate the system at in bar."
         """,
@@ -58,7 +59,7 @@ def main():
     pressure = float(args.pressure)
     temperature = float(args.temperature)
 
-    if args.fix != "False":
+    if args.fix:
         os.makedirs(f"{args.output}/structures", exist_ok=True)
         fix_pdb(args.structure, f"{args.output}/structures/{args.name}_fixed.pdb")
         structure = f"{args.output}/structures/{args.name}_fixed.pdb"
@@ -69,10 +70,12 @@ def main():
         structures=[structure],
         temperature=temperature,
         name=args.name,
-        output=args.output,
         pressure=pressure,
     )
     setup.model()
     setup.make_system()
     setup.make_simulation()
     setup.save(args.output)
+
+if __name__ == "__main__":
+    main()
