@@ -2,6 +2,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,macos
 
 chacra/__pycache__/
+.vscode/
 
 ### macOS ###
 # General

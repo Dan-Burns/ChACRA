@@ -152,6 +152,8 @@ def main():
         # Sum the DataFrames row-wise, for shared columns only
         result = combined.groupby(combined.index).sum().reset_index(drop=True)
         result.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
+    
+    
 
 
 if __name__ == "__main__":
