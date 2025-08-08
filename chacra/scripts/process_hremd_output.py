@@ -5,8 +5,11 @@ import subprocess
 
 import pandas as pd
 
-from chacra.ContactFrequencies import make_contact_dataframe
+from chacra.ContactFrequencies import make_contact_dataframe, ContactFrequencies
 from chacra.trajectories.process_hremd import *
+from chacra.plot import *
+
+from chacra.visualize.pymol import to_pymol
 
 
 def main():
@@ -45,10 +48,32 @@ def main():
         help="MDAnalysis selection of atoms to write for "
         "processing state trajectories.",
     )
+    parser.add_argument(
+        "--min_temp",
+        type=float,
+        default=None,
+        help="The minimum effective temperature (in kelvin)"
+    )
+    parser.add_argument(
+        "--max_temp",
+        type=float,
+        default=None,
+        help="The maximum effective temperature (in kelvin)"
+    )
+    parser.add_argument(
+        "--n_systems",
+        type=int,
+        default=None,
+        help="The number of replicas.",
+    )
 
     args = parser.parse_args()
     run = args.run
     structure_file = args.structure_file
+    temps = np.geomspace(args.min_temp,
+                         args.max_temp,
+                         args.n_systems
+                         ).astype(int)
 
     # save just the protein for reference structure calculations
     structure_name = re.split(r"\/|\.", structure_file)[-2]
@@ -118,9 +143,9 @@ def main():
             if file.endswith(".tsv")
         ]
 
-        df = make_contact_dataframe(contact_files)
-        df.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
-
+        cdf = make_contact_dataframe(contact_files)
+        cdf.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
+        cf = ContactFrequencies(cdf, temps=np.round(temps))
     # Go through previous runs' contact frequency files and generate a
     # dataframe of the current frequencies for all the combined runs.
     if run > 1:
@@ -152,9 +177,41 @@ def main():
         # Sum the DataFrames row-wise, for shared columns only
         result = combined.groupby(combined.index).sum().reset_index(drop=True)
         result.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
-    
-    
 
+        cf = ContactFrequencies(result, temps=np.round(temps))
+
+    top_ten = {pc: cf.cpca.sorted_norm_loadings(pc)[f'PC{pc}'][:10].index
+               for pc in cf.cpca.top_chacras}
+    df_top = pd.DataFrame(top_ten)
+    df_top.to_csv(
+        f"./analysis_output/run_{run}/top_chacra_contacts.csv", index=False
+    )
+    plot_chacras(cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
+                 contacts=cf.freqs, temps=temps,
+                 temp_scale="K",
+                 filename=f"./analysis_output/run_{run}/top_chacra_contacts.png")
+
+    plot_energies(get_state_energies(df),
+                  filename=f"./analysis_output/run_{run}/state_energies.png",
+                  n_bins=50)
+    plot_difference_of_roots(
+        cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
+        filename=f"./analysis_output/run_{run}/difference_of_roots.png",
+    )
+    plot_explained_variance(
+        cf.cpca,
+        filename=f"./analysis_output/run_{run}/explained_variance.png",
+    )
+
+    to_visualize = []
+    for pc in cf.cpca.top_chacras:
+        to_visualize.extend(cf.cpca.get_chacra_center(pc, cutoff=.7).index)
+
+    to_pymol(to_visualize,
+             cf.freqs,
+             cf.cpca,
+             pc_range=(cf.cpca.top_chacras[0],cf.cpca.top_chacras[-1]),
+             variable_sphere_scale=True)
 
 if __name__ == "__main__":
     main()
