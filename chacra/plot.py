@@ -1,6 +1,6 @@
 from itertools import combinations
 import os
-
+import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import make_interp_spline
@@ -29,14 +29,14 @@ def plot_difference_of_roots(
         If saving the file, provide the filename.
     """
 
-    if cpca._permutated_explained_variance is None:
+    if cpca._permuted_explained_variance is None:
         print(
-            "You have to run the ContactPCA.permutated_pca \n method before "
+            "You have to run the ContactPCA.permuted_pca \n method before "
             "you can plot the difference of roots results. "
         )
     else:
         fig, ax = plt.subplots()
-        variance = cpca._permutated_explained_variance
+        variance = cpca._permuted_explained_variance
         original_variance = cpca.pca.explained_variance_ratio_
         if n_pcs == None:
             n_pcs = variance.shape[1]
@@ -57,6 +57,9 @@ def plot_difference_of_roots(
             color=dot_color,
             label="p-value on significance",
         )
+        ax.set_xlabel("Principal Component (chacra)")
+        ax.set_ylabel("p-value")
+        ax.set_title("Difference of Roots Test")
         if filename is not None:
             fig.savefig(filename)
 
@@ -253,6 +256,21 @@ def biplots(
     if filename is not None:
         fig.savefig(filename)
 
+def plot_explained_variance(
+    cpca:ContactPCA,
+    n_pcs:int=None,
+    filename:str|os.PathLike=None,
+    ):
+    explained_variance = cpca.pca.explained_variance_ratio_
+    n_bars = len(explained_variance) if n_pcs is None else n_pcs
+    # Build color list: use chacra_colors, then black for extras
+    bar_colors = (chacra_colors[:n_bars] + ['black'] * n_bars)[:n_bars]
+    plt.bar(range(1, n_bars + 1), explained_variance[:n_bars], color=bar_colors)
+    plt.xlabel("Principal Component (chacra)")
+    plt.ylabel("Explained Variance (%)")
+
+    if filename is not None:
+        plt.savefig(filename)
 
 def plot_loadings():
     """
@@ -294,5 +312,7 @@ def plot_energies(energies:np.ndarray, filename:str|os.PathLike|None=None,
     for i, rep in enumerate(range(energies.shape[1])):
         plt.hist(energies[:, rep], label=i, bins=n_bins)
         # plt.legend(loc='upper left')
+        plt.xlabel("Energy (kJ/mol)")
+        plt.ylabel("Counts")
     if filename is not None:
         plt.savefig(filename)
