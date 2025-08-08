@@ -83,6 +83,12 @@ def main():
         default="protein",
         help="The MDAnalysis selection to which the lambda scaling will be applied.",
     )
+    parser.add_argument(
+        "--output_selection",
+        type=str,
+        default="protein",
+        help="MDAnalysis selection of atoms to write for state trajectories."
+        )
     args = parser.parse_args()
 
     current_run = (
@@ -127,6 +133,7 @@ def main():
         else:
             n_systems = args.n_systems
 
+    
     # Get the number of cycles run thus far
     # Get the number of cycles run thus far
     if current_run == 1:
@@ -209,6 +216,14 @@ def main():
             args.structure_file,
             "--save_interval",
             str(args.save_interval),
+            "--output_selection",
+            args.output_selection,
+            "--min_temp",
+            str(args.min_temp),
+            "--max_temp",
+            str(args.max_temp),
+            "--n_systems",
+            str(n_systems),
         ]
         subprocess.run(analysis_command)
 
