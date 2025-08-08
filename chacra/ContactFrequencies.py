@@ -6,7 +6,9 @@ import os
 import pathlib
 import re
 import warnings
+from Bio import BiopythonDeprecationWarning
 from multiprocessing import cpu_count
+warnings.filterwarnings("ignore", category=BiopythonDeprecationWarning)
 
 import MDAnalysis as mda
 import numpy as np
@@ -26,7 +28,6 @@ from chacra.visualize.pymol import (
 
 from .utils import *
 
-warnings.filterwarnings("ignore", message="Biopython*")
 
 
 def load_contact_file(path: str) -> pd.DataFrame:
@@ -909,7 +910,7 @@ class ContactPCA:
         n_jobs : int or None
             The number of parallel processes to run. If None, use all cores.
         """
-        print("This can take a moment. Dhairya rakho.")
+        #print("Dhairya rakho.")
 
         df_values = self.freqs.values
         self._N_permutations = N_permutations
