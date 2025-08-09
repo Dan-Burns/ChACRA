@@ -21,7 +21,7 @@ Clone and enter the repository.
 git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChACRA
 ```
 
-Create the conda environment. It's recommended to use (mamba)[https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html] or (micromamba)[https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html]
+Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 ```
 micromamba env create -f environment.yaml 
 ```
@@ -50,13 +50,13 @@ chacra-project --example
 ```
 The "--example" flag just copies the 1tnf.pdb into structures/. 
 
-Solvate the structure and create an (OpenMM)[https://github.com/openmm] system to simulate with replica exchange.
+Solvate the structure and create an [OpenMM](https://github.com/openmm) system to simulate with replica exchange.
 ```
 make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
 ```
 The "--fix" flag will use OpenMM's pdbfixer to automatically protonate the structure and can insert missing residues if a .cif file is provided with the full sequence. Always check the output structure. Missing residues are placed naively and can make the termini extend out, creating a overly large simulation box. You'll see that a 1tnf_example_minimized.pdb is in the structures/ directory and 1tnf_example_system.xml is in the system/ directory.
 
-Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with (femto)[https://github.com/Psivant/femto].
+Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [femto](https://github.com/Psivant/femto).
 
 ```
 run-hremd --system_file system/1tnf_example_system.xml \
