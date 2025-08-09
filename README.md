@@ -56,7 +56,7 @@ make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
 ```
 The "--fix" flag will use OpenMM's pdbfixer to automatically protonate the structure and can insert missing residues if a .cif file is provided with the full sequence. Always check the output structure. Missing residues are placed naively and can make the termini extend out, creating a overly large simulation box. You'll see that a 1tnf_example_minimized.pdb is in the structures/ directory and 1tnf_example_system.xml is in the system/ directory.
 
-Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [femto](https://github.com/Psivant/femto).
+Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [Femto](https://github.com/Psivant/femto). Femto will spread the systems out between the available GPUs on the node. This works great on a single node but I don't know at the moment how this will work across multiple nodes.
 
 ```
 run-hremd --system_file system/1tnf_example_system.xml \
@@ -67,7 +67,7 @@ run-hremd --system_file system/1tnf_example_system.xml \
 ```
 This command will run 1000 replica exchange cycles with 1000 timesteps per cycle (default), saving coordinates every 10 cycles (default). You can add warmup steps before the replica exchange begins to allow for equilibration and decorrelation of the systems at the different Hamiltonian scalings. "run-hremd --help" details the available options.
 
-16 replicas were specified for the small example system. For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities.
+16 replicas were specified for the small example system. For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. -j specifies the number of jobs. You don't necessarily need a job for each system but your number of jobs should be a multiple of the number of available GPUs.
 
 If you encounter errors here it could be due to starting coordinates that aren't adequately minimized or equilibrated. 
 Another common error is related to CUDA driver version incompatibility with OpenMM dependencies.
