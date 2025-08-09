@@ -5,8 +5,14 @@ channels:
 
 dependencies:
   - femto
-  - openmm=8.1.2 # try 8.3 with openmpi pinned
+  - openmm=8.1.2 
   - mpi=1.0=openmpi
+  - openmpi>=4.1         
+  - mpi4py                
+  - cuda-cudart>=12       
+  - ucx>=1.15
+  - ucx-proc=*=gpu        
+  - nccl                  
   - mdanalysis>=2.9.0
   - pdbfixer
   - pandas
