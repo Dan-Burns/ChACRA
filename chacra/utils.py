@@ -180,7 +180,8 @@ def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_
     PDBFile.writeFile(fixer.topology, fixer.positions, open(output_pdb, 'w'))
 
 def top_pos_from_sim(simulation):
-    state = simulation.context.getState(getPositions=True)
+    state = simulation.context.getState(getPositions=True,
+                                        enforcePeriodicBox=True)
     return simulation.topology, state.getPositions()
 
 class OMMSetup:
