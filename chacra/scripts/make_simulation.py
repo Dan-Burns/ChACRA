@@ -60,6 +60,7 @@ def main():
     temperature = float(args.temperature)
 
     if args.fix:
+        print("Running pdbfixer.")
         os.makedirs(f"{args.output}/structures", exist_ok=True)
         fix_pdb(args.structure, f"{args.output}/structures/{args.name}_fixed.pdb")
         structure = f"{args.output}/structures/{args.name}_fixed.pdb"
@@ -73,7 +74,9 @@ def main():
         pressure=pressure,
     )
     setup.model()
+    print(f"Adding solvent.")
     setup.make_system()
+    print("Minimizing the system.")
     setup.make_simulation()
     setup.save(args.output)
 
