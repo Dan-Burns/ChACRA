@@ -1,4 +1,4 @@
-name: chacra-dev
+name: chacra-env
 channels:
   - conda-forge
   - defaults
