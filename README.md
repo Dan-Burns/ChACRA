@@ -21,7 +21,7 @@ Clone and enter the repository.
 git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChACRA
 ```
 
-Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
 ```
 micromamba env create -f environment.yaml 
 ```
@@ -74,19 +74,21 @@ Another common error is related to CUDA driver version incompatibility with Open
 
 run-hremd also calls process-output to automatically generate the state trajectories, run the contact calculations, and write some ChACRA output. These outputs are found in state_trajectories/run_{i}, contact_output/run_{i}, and analysis_output/run_{i}. 
 
-A .pml file and a .csv is write to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd is the accumulated contact frequency data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. 
+A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd reflects the  accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good mutagenesis targets for structure-activity investigations.
+
+To continue running, just execute the above command again and a new run/ folder will be created in each of the directories. You'll find the extended run output there when the script exits.
 
 The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. 
 
 ![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/00a98056-bd79-4a3f-95ec-656688838301)
+*Projections of the contact frequency principal components (chacras). You can see how the red mode (pc1) captures a melting trend of decreasing probability with increasing temperature.*
 
 Drop your pdb file and the .pml file into PyMol to see the most sensitive contacts on the structure. They will be colored according to the response pattern they exhibit.
 
 ![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/a8eb2448-26e5-48e6-a421-6b4cc798ac33)
+*The most sensitive interactions on the chacras of the allosterically activated enzyme IGPS. The fifth chacra (orange) captures the allosterically coupled active site and effector binding site. The second chacra (blue) captures interactions critical for activity.*
 
-Further, the example structure is a homotrimer and the contact data can be averaged to make the results more statistically robust and easier to visualize.
-
-An interactive analysis notebook is available in examples/example_notebook.ipynb that should make the ChACRA output clear.
+Further, the example structure is a homotrimer and the contact data can be averaged to make the results more statistically robust and easier to visualize. An interactive analysis notebook is available in examples/example_notebook.ipynb that demonstrates this.
 
 
 1. Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)
