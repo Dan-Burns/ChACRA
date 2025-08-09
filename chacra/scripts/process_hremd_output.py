@@ -189,7 +189,7 @@ def main():
     plot_chacras(cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
                  contacts=cf.freqs, temps=temps,
                  temp_scale="K",
-                 filename=f"./analysis_output/run_{run}/top_chacra_contacts.png")
+                 filename=f"./analysis_output/run_{run}/chacra_modes.png")
 
     plot_energies(get_state_energies(df),
                   filename=f"./analysis_output/run_{run}/state_energies.png",
