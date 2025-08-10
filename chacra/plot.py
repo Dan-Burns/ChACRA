@@ -62,7 +62,7 @@ def plot_difference_of_roots(
         ax.set_title("Difference of Roots Test")
         if filename is not None:
             fig.savefig(filename)
-
+        fig.clf()
 
 def plot_chacras(
     cpca:ContactPCA,
@@ -150,7 +150,7 @@ def plot_chacras(
     )
     if filename:
         fig.savefig(filename)
-
+    fig.clf()
 
 def biplots(
     cpca:ContactPCA,
@@ -256,6 +256,7 @@ def biplots(
     if filename is not None:
         fig.savefig(filename)
 
+
 def plot_explained_variance(
     cpca:ContactPCA,
     n_pcs:int=None,
@@ -271,6 +272,7 @@ def plot_explained_variance(
 
     if filename is not None:
         plt.savefig(filename)
+    plt.clf()
 
 def plot_loadings():
     """
@@ -310,7 +312,11 @@ def plot_energies(energies:np.ndarray, filename:str|os.PathLike|None=None,
     matplotlib.pyplot.plt
     """
     for i, rep in enumerate(range(energies.shape[1])):
-        plt.hist(energies[:, rep], label=i, bins=n_bins)
+        if len(energies) > 5:
+            # skip the first 5 cycles to avoid outliers
+            plt.hist(energies[5:, rep], label=i, bins=n_bins)
+        else:
+            plt.hist(energies[5:, rep], label=i, bins=n_bins)
         # plt.legend(loc='upper left')
         plt.xlabel("Energy (kJ/mol)")
         plt.ylabel("Counts")
