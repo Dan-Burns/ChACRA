@@ -10,6 +10,12 @@ GETCONTACTS_SCRIPTS_DIR = Path(__file__).parent.parent.parent / "external" / "ge
 
 def _create_script_runner(script_name: str) -> Callable[[], None]:
     def runner() -> None:
+        import multiprocessing as mp
+        try:
+            mp.set_start_method("spawn", force=True)
+        except RuntimeError:
+            pass
+
         script_path = GETCONTACTS_SCRIPTS_DIR / f"{script_name}.py"
         subprocess.run([sys.executable, str(script_path), *sys.argv[1:]], check=False)
 
