@@ -9,7 +9,13 @@ dependencies:
   - mpi=1.0=openmpi
   - openmpi>=4.1         
   - mpi4py                
-  - cuda-cudart>=12       
+  - cuda-version>=12.0,<12.5
+  - cuda-cudart=12.4.*
+  - cuda-cudart_linux-64=12.4.*
+  - cuda-nvrtc=12.4.*
+  - cuda-cupti=12.4.*
+  - cuda-libraries=12.4.*
+  - cuda-runtime=12.4.*      
   - ucx>=1.15
   - ucx-proc=*=gpu        
   - nccl                  
