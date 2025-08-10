@@ -97,7 +97,7 @@ def main():
     sel = u.select_atoms(args.output_selection)
 
     selection_file = f"./structures/{structure_name}_protein.pdb"
-
+    print(f"skipping writing states")
     sel.write(selection_file)
 
     replica_handler = ReplicaHandler(
@@ -127,15 +127,42 @@ def main():
 
     # run getcontacts
     for i in range(n_states):
-        command = [
-            "get-state-contacts",
-            selection_file,
-            f"./state_trajectories/run_{run}/state_{i}.xtc",
-            f"./contact_output/run_{run}",
-            str(i),
-            str(args.n_jobs),
-        ]
-        subprocess.run(command)
+
+        contacts_out = f"contact_output/run_{run}/contacts/cont_state_{i}.tsv"
+        freqs_out = f"contact_output/run_{run}/freqs/freqs_state_{i}.tsv"
+
+        subprocess.run(
+            [
+                "get-dynamic-contacts",
+                "--topology",
+                selection_file,
+                "--trajectory",
+                f"./state_trajectories/run_{run}/state_{i}.xtc",
+                "--output",
+                str(contacts_out),
+                "--cores",
+                str(args.n_jobs),
+                "--itypes",
+                "all",
+                "--distout",
+                "--sele",
+                "protein",
+                "--sele2",
+                "protein",
+            ],
+            check=True,
+        )
+
+        subprocess.run(
+            [
+                "get-contact-frequencies",
+                "--input_files",
+                str(contacts_out),
+                "--output_file",
+                str(freqs_out),
+            ],
+            check=True,
+        )
     
     if run == 1:
         contact_files = [
