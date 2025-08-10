@@ -97,7 +97,7 @@ def main():
     sel = u.select_atoms(args.output_selection)
 
     selection_file = f"./structures/{structure_name}_protein.pdb"
-    print(f"skipping writing states")
+
     sel.write(selection_file)
 
     replica_handler = ReplicaHandler(
@@ -124,13 +124,13 @@ def main():
 
     del replica_handler
     gc.collect()
-
+ 
     # run getcontacts
     for i in range(n_states):
 
         contacts_out = f"contact_output/run_{run}/contacts/cont_state_{i}.tsv"
         freqs_out = f"contact_output/run_{run}/freqs/freqs_state_{i}.tsv"
-
+        
         subprocess.run(
             [
                 "get-dynamic-contacts",
@@ -198,7 +198,7 @@ def main():
 
         total_frames = sum(frame_counts.values())
         adjusted_cdfs = {}
-        for i, df in cdfs.items():
+        for i, _ in cdfs.items():
             adjusted_cdfs[i] = cdfs[i] * (frame_counts[i] / total_frames)
 
         combined = pd.concat(
