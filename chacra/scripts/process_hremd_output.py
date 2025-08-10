@@ -241,6 +241,7 @@ def main():
     to_pymol(to_visualize,
              cf.freqs,
              cf.cpca,
+             output_file=f"./analysis_output/run_{run}/top_chacras.pml",
              pc_range=(cf.cpca.top_chacras[0],cf.cpca.top_chacras[-1]),
              variable_sphere_scale=True)
 
