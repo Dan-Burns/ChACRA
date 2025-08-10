@@ -10,6 +10,7 @@ from chacra.trajectories.process_hremd import *
 from chacra.plot import *
 
 from chacra.visualize.pymol import to_pymol
+import gc
 
 
 def main():
@@ -121,6 +122,9 @@ def main():
         for i, prob in enumerate(exchange_probs):
             f.write(f"{i}\n\t{prob}\n")
 
+    del replica_handler
+    gc.collect()
+
     # run getcontacts
     for i in range(n_states):
         command = [
@@ -132,7 +136,7 @@ def main():
             str(args.n_jobs),
         ]
         subprocess.run(command)
-
+    
     if run == 1:
         contact_files = [
             f"./contact_output/run_{run}/freqs/{file}"
