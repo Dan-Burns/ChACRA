@@ -9,6 +9,11 @@ import warnings
 from Bio import BiopythonDeprecationWarning
 from multiprocessing import cpu_count
 warnings.filterwarnings("ignore", category=BiopythonDeprecationWarning)
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+)#pdbfixer
 
 import MDAnalysis as mda
 import numpy as np

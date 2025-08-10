@@ -13,6 +13,11 @@ from MDAnalysis.lib.util import convert_aa_code
 from .utils import *
 
 warnings.filterwarnings("ignore", message="Biopython*")
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+) # pdbfixer 
 
 
 def has_only_identical_subunits(u: mda.Universe) -> bool:
