@@ -12,6 +12,14 @@ from MDAnalysis.analysis import align
 
 from chacra.utils import get_resources
 
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="Reader has no dt information*",
+    category=UserWarning,
+)#MDAnalysis
+
+
 
 def load_femto_data(hremd_data: str | os.PathLike) -> pd.DataFrame:
     """
