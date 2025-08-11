@@ -15,7 +15,7 @@ def _create_script_runner(script_name: str) -> Callable[[], None]:
             mp.set_start_method("spawn", force=True)
         except RuntimeError:
             pass
-
+        print(f"[getcontacts] start_method={mp.get_start_method()}", file=sys.stderr)
         script_path = GETCONTACTS_SCRIPTS_DIR / f"{script_name}.py"
         subprocess.run([sys.executable, str(script_path), *sys.argv[1:]], check=False)
 
