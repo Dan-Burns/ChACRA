@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools",
+            "setuptools_scm",
+            ]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chacra"
+version = "0.7.0"
+
+description = """
+Reveal the energy dependent interaction modes of proteins with  
+replica exchange simulations and contact analysis.
+"""
+
+authors = [{name = "Dan Burns", email = "dnlburns808@gmail.com"}]
+license = {file = "LICENSE"}
+readme = "README.md"
+dependencies = [
+        
+            ]
+
+[tool.setuptools.packages.find]
+where = ["."]  
+include = ["*"]  # ["*"] by default
+namespaces = false 
+
+[tool.setuptools.package-data]
+"contact_analysis" = ["../external/getcontacts/*.py"]
+
+[project.scripts]
+process-output = "chacra.scripts.process_hremd_output:main"
+chacra-project = "chacra.scripts.project_setup:main"
+run-hremd = "chacra.scripts.run_hremd:main"
+run-femto = "chacra.scripts.run_femto_hremd:main"
+get-state-contacts = "chacra.scripts.get_state_contacts:main"
+make-simulation = "chacra.scripts.make_simulation:main"
+
+get-contact-bridges = "chacra.contact_analysis.getcontacts_scripts:get_contact_bridges"
+get-contact-fingerprints = "chacra.contact_analysis.getcontacts_scripts:get_contact_fingerprints"
+get-contact-flare = "chacra.contact_analysis.getcontacts_scripts:get_contact_flare"
+get-contact-frequencies = "chacra.contact_analysis.getcontacts_scripts:get_contact_frequencies"
+get-contact-singleframe = "chacra.contact_analysis.getcontacts_scripts:get_contact_singleframe"
+get-contact-ticc = "chacra.contact_analysis.getcontacts_scripts:get_contact_ticc"
+get-contact-trace = "chacra.contact_analysis.getcontacts_scripts:get_contact_trace"
+get-dynamic-contacts = "chacra.contact_analysis.getcontacts_scripts:get_dynamic_contacts"
+get-resilabels = "chacra.contact_analysis.getcontacts_scripts:get_resilabels"
+get-static-contacts = "chacra.contact_analysis.getcontacts_scripts:get_static_contacts"
+
+[tool.ruff]
+# Match Black's default line length
+line-length = 88
+# Lint rules: E=pycodestyle, F=pyflakes, I=isort, B=bugbear
+select = ["E", "F", "I", "B"]
+exclude = [
+    "tests/data",        # Ignore large test data
+    "dist",              # Build artifacts
+    "build",
+    ".venv",
+]
+# Automatically fix simple issues (when using --fix)
+fix = true
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = "tests/data"

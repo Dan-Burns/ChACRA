@@ -9,114 +9,88 @@ Created by Dan Burns
 https://github.com/Dan-Burns/ChACRA
 
 
-Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD).  The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature.  The chacras can reveal functionally critical residue interactions.
+Tools for identifying energy-sensitive interactions in proteins using contact data from replica exchange molecular dynamics simulations (REMD). The energy-sensitive interaction modes (or chacras) are the principal components of a protein's contact frequencies across temperature. The chacras reveal functionally critical residue interactions through the highest loading score contacts. Allosteric communication is suggested when distinct parts of the structure are characterized by the same chacra.
 
-To start, first generate a set of md trajectories across a temperature range.  This is should done using the Hamiltonian REMD method also known as Replica Exchange with Solute Tempering (REST2)[1] .  The [plumed implementation](https://www.plumed.org/doc-v2.9/user-doc/html/hrex.html) is a good way of going about this. 
+With ChACRA you can run the full pipeline including the replica exchange simulations and contact calculations with a single command. 
 
-Once you have your trajectories, generate your contact data using [getcontacts](https://github.com/getcontacts/getcontacts). It has the benefit of being a very accurate method in that different cutoff distances and angles are used to identify contacts depending on the chemical groups of the residues involved in the contact.  
+### Installation
 
-Both the HREMD simulation setup and contact calculations are being added to ChACRA via [femto](https://github.com/Psivant/femto) and [ProLif](https://prolif.readthedocs.io/en/stable/) as alternatives.
-
-Assuming you have a 32 replica ensemble.
+Clone and enter the repository.
 
 ```
-
-for i in {00..31}
-do
-
-                                 get_dynamic_contacts.py \
-                                 --topology protein_system.pdb \
-                                 --trajectory trajectories/rep_$i.xtc \
-                                 --output contacts/rep_$i.tsv \
-                                 --cores 36 \
-                                 --itypes all --distout
-done
-
-for i in {00..31}
-do
-    get_contact_frequencies.py   --input_files contacts/rep_$i.tsv --output_file freqs/freqs_rep_$i.tsv
-done
-
-``` 
-
-Produce dataframe wrapped by ContactFrequencies 
-
-```
-from ChACRA.chacra.ContactFrequencies import *
-
-# point to the directory containing the contact frequency files
-file_dir = 'path/to/files'
-cont = ContactFrequencies(file_dir)
-
-# you can save the dataframe and generate the cont object alternatively
-cont.freqs.to_pickle('contact_frequencies.pd')
-df = pd.read_pickle('contact_frequencies.pd')
-cont = ContactFrequencies(df)
-
+git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChACRA
 ```
 
-If you're dealing with a homomultimeric protein, you can average the contact frequencies to obtain more robust statistics.
-
+Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
 ```
-from ChACRA.chacra.average import average_multimer
-# return a dataframe of the averaged data
-avg = average_multimer('structure.pdb',denominator=6,df=cont.freqs,representative_chains=['A','G'])
-
+micromamba env create -f environment.yaml 
 ```
 
-Then perform principal component analysis (PCA) to obtain the protein's "chacras". 
-
+```
+conda activate chacra-env
 ```
 
-cpca = ContactPCA(avg)
-
+Then install ChACRA.
+```
+pip install -e .
 ```
 
-The significant PCs can be identified with the difference of roots test[4].
+### Run the example
+
+Create and enter the example directory.
 
 ```
-
-from ChACRA.ContactAnalysis.plot import plot_difference_of_roots
-# perform PCA on 500 scrambled contact data sets
-cpca.permutated_explained_variance(avg, 500)
-# the PCs that fall below the .05 p-value can be considered your baseline set of chacras pending further investigation  
-plot_difference_of_roots(cpca)
-
+mkdir ~/chacra_example && cd ~/chacra_example
 ```
 
-Both the ContactPCA and the difference of roots test are performed automatically by default when creating the ContactFrequencies object and available as attributes of that class.
-
-Project the data onto the principal components to visualize the energy-dependent trends of the chacras.
-The lower eigenvalue modes (e.g. PCs 4 and above) can exhibit a decaying oscillatory pattern.  This is an artifact of the PCA; however, these modes' lowest temperature peak should coincide with the peaks seen in their highest loading score contacts. 
+Setup the working directory.
 
 ```
+chacra-project --example
+```
+The "--example" flag just copies the 1tnf.pdb into structures/. 
 
-from ChACRA.ContactAnalysis.plot import plot_chacras
-# 32 temperatures between 290 and 440 k
-plot_chacras(cpca, temps=[i for i in np.geomspace(290,440,32)])
+Solvate the structure and create an [OpenMM](https://github.com/openmm) system to simulate with replica exchange.
+```
+make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
+```
+The "--fix" flag will use OpenMM's pdbfixer to automatically protonate the structure and can insert missing residues if a .cif file is provided with the full sequence. Always check the output structure. Missing residues are placed naively and can make the termini extend out, creating a overly large simulation box. You'll see that a 1tnf_example_minimized.pdb is in the structures/ directory and 1tnf_example_system.xml is in the system/ directory.
+
+Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [femto](https://github.com/Psivant/femto). femto will spread the systems out between the available GPUs on the node. This works great on a single node but I don't know at the moment how this will work across multiple nodes.
 
 ```
+run-hremd --system_file system/1tnf_example_system.xml \
+          --structure_file structures/1tnf_example_minimized.pdb \
+          --n_cycles 1000 \
+          -j 16 \
+          -n 16          
+```
+This command will run 1000 replica exchange cycles with 1000 timesteps per cycle (default), saving coordinates every 10 cycles (default). You can add warmup steps before the replica exchange begins to allow for equilibration and decorrelation of the systems at the different Hamiltonian scalings. "run-hremd --help" details the available options.
+
+16 replicas were specified for the small example system. For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. -j specifies the number of jobs. You don't necessarily need a job for each system but your number of jobs should be a multiple of the number of available GPUs.
+
+If you encounter errors here it could be due to starting coordinates that aren't adequately minimized or equilibrated. 
+Another common error is related to CUDA driver version incompatibility with OpenMM dependencies.
+
+run-hremd also calls process-output to automatically generate the state trajectories, run the contact calculations, and write some ChACRA output. These outputs are found in state_trajectories/run_{i}, contact_output/run_{i}, and analysis_output/run_{i}. 
+
+A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd reflects the  accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good targets for structure-activity investigations.
+
+To continue running, just execute the above command again and a new run/ folder will be created in each of the directories. You'll find the extended run output there when the script exits.
+
+The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. 
+
 ![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/00a98056-bd79-4a3f-95ec-656688838301)
 
-Now you can explore these PCs/chacras.
+*Figure 1. Projections of the contact frequency principal components (chacras). You can see how the red mode (pc1) captures a melting trend of decreasing probability with increasing temperature.*
 
-Contacts with relatively large absolute loading score values (the PC components) are highly energy-sensitive (within a given chacra).
-These can be easily identified:
-
-```
-
-# find the sensitive contacts in PC1 (first chacra)
-pc=1
-cpca.sorted_norm_loadings(pc)
-
-```
-
-
-The resulting dataframe will have the indices (contacts) sorted in descending order of the absolute normalized value of the loading scores on the first PC.
-
-Chacras can be visualized in pymol using .pml files generated with contacts_to_pymol.to_pymol.
+Drop your pdb file and the .pml file into PyMol to see the most sensitive contacts on the structure. They will be colored according to the response pattern they exhibit.
 
 ![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/a8eb2448-26e5-48e6-a421-6b4cc798ac33)
+
+*Figure 2. The most sensitive interactions on the chacras of the allosterically activated enzyme IGPS. The fifth chacra (orange) captures the allosterically coupled active site and effector binding site. The second chacra (blue) captures interactions critical for activity.*
+
+Further, the example structure is a homotrimer and the contact data can be averaged to make the results more statistically robust and easier to visualize. An interactive analysis notebook is available in examples/example_notebook.ipynb that demonstrates this.
 
 
 1. Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)
