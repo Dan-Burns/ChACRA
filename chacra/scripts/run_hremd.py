@@ -177,17 +177,18 @@ def main():
     times["start"] = datetime.now().strftime("%H:%M")
 
     try:
-        # Run the command
-        result = subprocess.run(
-            mpi_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,  # Raises CalledProcessError for non-zero exit codes
-            env=os.environ.copy()
-        )
+        log_dir = Path(f"./analysis_output/run_{current_run}")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with open(log_dir / "hremd_stdout.log", "wb") as out, open(log_dir / "hremd_stderr.log", "wb") as err:
+            result = subprocess.run(
+                mpi_command,
+                stdout=out,
+                stderr=err,
+                check=True,  # Raises CalledProcessError for non-zero exit codes
+                env=os.environ.copy()
+            )
 
-        # Print the output
-        print("Standard Output:", result.stdout)
+        print("Replica exchange completed:", result.returncode)
         os.makedirs(f"./replica_trajectories/run_{current_run}")
         shutil.move(
             "./hremd-outputs/trajectories/",
