@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import sys
 import subprocess
 
 import pandas as pd
@@ -100,6 +101,10 @@ def main():
 
     sel.write(selection_file)
 
+    plot_energies(get_state_energies(df),
+                  filename=f"./analysis_output/run_{run}/state_energies.png",
+                  n_bins=50)
+
     replica_handler = ReplicaHandler(
         structure=structure_file,
         traj_dir=f"./replica_trajectories/run_{run}/trajectories",
@@ -122,7 +127,7 @@ def main():
         for i, prob in enumerate(exchange_probs):
             f.write(f"{i}\n\t{prob}\n")
 
-    del replica_handler
+    del replica_handler, df
     gc.collect()
  
     # run getcontacts
@@ -133,7 +138,9 @@ def main():
         
         subprocess.run(
             [
-                "get-dynamic-contacts",
+                sys.executable,
+                Path(__file__).parent.parent.parent / "external" / \
+                    "getcontacts" / "get_dynamic_contacts.py",
                 "--topology",
                 selection_file,
                 "--trajectory",
@@ -155,7 +162,9 @@ def main():
 
         subprocess.run(
             [
-                "get-contact-frequencies",
+                sys.executable,
+                Path(__file__).parent.parent.parent / "external" / \
+                    "getcontacts" / "get_contact_frequencies.py",
                 "--input_files",
                 str(contacts_out),
                 "--output_file",
@@ -200,17 +209,19 @@ def main():
         adjusted_cdfs = {}
         for i, _ in cdfs.items():
             adjusted_cdfs[i] = cdfs[i] * (frame_counts[i] / total_frames)
-
+        del cdfs
+        gc.collect()
         combined = pd.concat(
             [cdf for cdf in adjusted_cdfs.values()], axis=0
         ).fillna(0)
-
+        del adjusted_cdfs
+        gc.collect()
         # Sum the DataFrames row-wise, for shared columns only
         result = combined.groupby(combined.index).sum().reset_index(drop=True)
         result.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
 
         cf = ContactFrequencies(result, temps=np.round(temps))
-
+        
     top_ten = {pc: cf.cpca.sorted_norm_loadings(pc)[f'PC{pc}'][:10].index
                for pc in cf.cpca.top_chacras}
     df_top = pd.DataFrame(top_ten)
@@ -222,9 +233,7 @@ def main():
                  temp_scale="K",
                  filename=f"./analysis_output/run_{run}/chacra_modes.png")
 
-    plot_energies(get_state_energies(df),
-                  filename=f"./analysis_output/run_{run}/state_energies.png",
-                  n_bins=50)
+    
     plot_difference_of_roots(
         cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
         filename=f"./analysis_output/run_{run}/difference_of_roots.png",
