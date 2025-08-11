@@ -9,6 +9,12 @@ from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, XmlSerializer
 from openmm.unit import nanometer, bar, picosecond, femtoseconds, molar
 from openmm.app import PME, HBonds
 import os
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+)#pdbfixer
 
 
 def make_contact_frequency_dictionary(freq_files: list) -> pd.DataFrame:
