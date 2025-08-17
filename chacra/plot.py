@@ -62,7 +62,7 @@ def plot_difference_of_roots(
         ax.set_title("Difference of Roots Test")
         if filename is not None:
             fig.savefig(filename)
-        fig.clf()
+    return fig
 
 def plot_chacras(
     cpca:ContactPCA,
@@ -105,10 +105,8 @@ def plot_chacras(
             temps = list(contacts.index)
     elif temps is not None:
         if len(temps) != cpca.pca.components_.shape[0]:
-            print(
-                "The temperature (or x axis) list does not contain the same number of entries "
-                "as there are principal components."
-            )
+            print("The length of the temperature list does not match the "
+                  "number of replicas.")
     elif temps is None:
         temps = list(range(cpca.loadings.shape[1]))
         print(
@@ -150,7 +148,8 @@ def plot_chacras(
     )
     if filename:
         fig.savefig(filename)
-    fig.clf()
+    return fig
+    
 
 def biplots(
     cpca:ContactPCA,
@@ -272,8 +271,7 @@ def plot_explained_variance(
 
     if filename is not None:
         plt.savefig(filename)
-    plt.clf()
-
+    
 def plot_loadings():
     """
     Plot the loading score values on a pc in descending order
