@@ -228,16 +228,18 @@ def main():
     df_top.to_csv(
         f"./analysis_output/run_{run}/top_chacra_contacts.csv", index=False
     )
-    plot_chacras(cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
+    fig = plot_chacras(cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
                  contacts=cf.freqs, temps=temps,
                  temp_scale="K",
                  filename=f"./analysis_output/run_{run}/chacra_modes.png")
-
+    fig.clf()
     
-    plot_difference_of_roots(
+    fig = plot_difference_of_roots(
         cf.cpca, n_pcs=cf.cpca.top_chacras[-1],
         filename=f"./analysis_output/run_{run}/difference_of_roots.png",
     )
+    fig.clf()
+    
     plot_explained_variance(
         cf.cpca,
         filename=f"./analysis_output/run_{run}/explained_variance.png",
