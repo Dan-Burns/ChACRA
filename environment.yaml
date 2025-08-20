@@ -5,7 +5,6 @@ channels:
 
 dependencies:
   - femto
-  - python>=3.10,<3.12
   - openmm=8.1.2 
   - mpi=1.0=openmpi
   - openmpi>=4.1         
@@ -30,9 +29,10 @@ dependencies:
   - networkx
   - nglview
   - pre-commit
-  # most likely later versions of vmd-python 
+  # most likely later versions of vmd-python > 3.1.4 
   # or python>3.11 are causing the memory allocation error with get_dynamic_contacts.py
-  - vmd-python=3.1.4
+  # but can't get multi-gpu to run with < Python 3.12
+  - vmd-python
   - prolif
   
     

@@ -26,6 +26,18 @@ Create the conda environment. It's recommended to use [mamba](https://mamba.read
 micromamba env create -f environment.yaml 
 ```
 
+In order to ensure that replica exchange will run in parallel, you may need to specify use of the local mpi installation. Get your mpi version.
+
+```
+mpirun --version
+```
+
+And replace "4.1.5" with your version number in the following command.
+
+```
+mamba install -c conda-forge femto "openmpi=4.1.5=*external*"
+```
+
 ```
 conda activate chacra-env
 ```
