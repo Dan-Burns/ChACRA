@@ -112,6 +112,7 @@ class ContactFrequencies:
         structure: str | os.PathLike | None = None,
         get_chacras: bool = True,
         N_permutations: int = 1000,
+        n_jobs: int = 4,
         verbose: bool = False,
     ):
         """
@@ -149,6 +150,9 @@ class ContactFrequencies:
         N_permutations : int
             If get_chacras == True, the number of times to permute the data to
             obtain chacra (PC) significance values.
+        
+        n_jobs : int
+            The number of CPU cores to use for the permutation test.
 
         verbose : bool
             For debugging.
@@ -719,8 +723,8 @@ class ContactPCA:
             self.pca.components_ = self.pca.components_ * -1
         self.freqs = contact_df
         if significance_test == True:
-            # TODO Multiprocess
-            self.permuted_pca(N_permutations=N_permutations)
+            
+            self.permuted_pca(N_permutations=N_permutations, n_jobs=4)
             self.score_sums = self.get_score_sums()
         else:
             self._permuted_explained_variance = None
