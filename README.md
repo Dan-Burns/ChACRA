@@ -71,14 +71,14 @@ make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
 ```
 The "--fix" flag will use OpenMM's pdbfixer to automatically protonate the structure and can insert missing residues if a .cif file is provided with the full sequence. Always check the output structure. Missing residues are placed naively and can make the termini extend out, creating a overly large simulation box. You'll see that a 1tnf_example_minimized.pdb is in the structures/ directory and 1tnf_example_system.xml is in the system/ directory.
 
-Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [femto](https://github.com/Psivant/femto). femto will spread the systems out between the available GPUs on the node. This works great on a single node but I don't know at the moment how this will work across multiple nodes.
+Now you can run Hamiltonian replica exchange molecular dynamics (HREMD) which by default will apply the Hamiltonian scaling to all the protein atoms. HREMD is implemented with [femto](https://github.com/Psivant/femto). femto will spread the systems out between the available GPUs on the node. Assuming a node with 4 GPUs and 20 replicas...
 
 ```
 run-hremd --system_file system/1tnf_example_system.xml \
           --structure_file structures/1tnf_example_minimized.pdb \
           --n_cycles 1000 \
-          -j 16 \
-          -n 16          
+          -j 4 \
+          -n 20          
 ```
 This command will run 1000 replica exchange cycles with 1000 timesteps per cycle (default), saving coordinates every 10 cycles (default). You can add warmup steps before the replica exchange begins to allow for equilibration and decorrelation of the systems at the different Hamiltonian scalings. 
 
@@ -90,7 +90,7 @@ run-hremd also calls process-output to automatically generate the state trajecto
 
 A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd reflects the  accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good targets for structure-activity investigations.
 
-The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. You can choose to examine fewer chacras by running your own analysis in a notebook.
+The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. You can choose to examine fewer chacras that the significance test suggests by running your own analysis in a notebook. If you run the simulations long enough, the significance test should report on fewer and fewer chacras and their projection plots should become smooth.
 
 #### Visualization
 
@@ -102,22 +102,21 @@ Drop your pdb file and the .pml file into PyMol to see the most sensitive contac
 
 ![IGPS_chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/a8eb2448-26e5-48e6-a421-6b4cc798ac33)
 
-*Figure 2. The most sensitive interactions on the chacras of the allosterically activated enzyme IGPS. The fifth chacra (orange) captures the allosterically coupled active site and effector binding site. The second chacra (blue) captures interactions critical for activity.*
+*Figure 2. The most sensitive interactions on the chacras of the allosterically activated enzyme IGPS [3] (this is not the example protein). The fifth chacra (orange) captures the allosterically coupled active site and effector binding site. The second chacra (blue) captures interactions critical for activity.*
 
 Further, the example structure is a homotrimer and the contact data can be averaged to make the results more statistically robust and easier to visualize. An interactive analysis notebook is available in examples/example_notebook.ipynb that demonstrates this.
 
 #### Notes
-16 replicas were used in the example which results in an inadequately low exchange rate (but runs faster for example purposes). For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. Determining the number of systems to return an exchange rate of ~15-25% is a trial and error process. 
+20 replicas were used in the example which results in a 10-15% exchange rate. More frequent exchanges require more systems. For systems with 50,000 to 300,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. Determining the number of systems to return an exchange rate of ~15-25% is a trial and error process. 
 
--j specifies the number of jobs. If you don't have enough cores to map a job to each system, then your number of jobs should be a multiple of the number of available GPUs.
+If you set up a system with a ligand, you won't be able to run femto HREMD without editing the femto source code. It's pretty simple though. You just need to add the name of any custom force object that the ligand parameters require to femto.md.rest _SUPPORTED_FORCES list. You'll have to limit the HREMD scaling to only the protein though.
 
 #### Common Errors
-If you encounter errors running HREMD, it could be due to starting coordinates that aren't adequately energy minimized or equilibrated. 
+If you encounter particle NaN errors running HREMD, it's likely due to starting coordinates that aren't adequately energy minimized or equilibrated. 
 
-Another common error is related to CUDA driver version incompatibility with OpenMM dependencies. Check the analysis_output/run_x/ directory for hremd_stderr.log file for more information. Refer to [OpenMM](https://github.com/openmm/openmm) docs and git issues.
+Another common error is related to CUDA driver version incompatibility with OpenMM dependencies. Check the analysis_output/run_x/ directory for hremd_stderr.log file for more information. The error log will show something like "CUDA_ERROR_UNSUPPORTED_PTX_VERSION (222)". Refer to [OpenMM](https://github.com/openmm/openmm) docs and git issues. 
 
-Lastly, the getcontacts calculation get_dynamic_contacts.py can be run in parallel. However, when using lots of cores a memory allocation error keeps popping up where it didn't in the past. Until I figure out how to prevent this, get_dynamic_contacts is restricted to 2 processes. 
-
+Lastly, the getcontacts calculation get_dynamic_contacts.py can be run in parallel. However, when using lots of cores a memory allocation error can pop up. Please note it in a git issue if it happens.
 
 #### Citations
 Please cite the following if you use ChACRA.
