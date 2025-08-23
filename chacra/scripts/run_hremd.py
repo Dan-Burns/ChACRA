@@ -189,6 +189,8 @@ def main():
             )
 
         print("Replica exchange completed:", result.returncode)
+
+        # Make the run output directories and move the output files
         os.makedirs(f"./replica_trajectories/run_{current_run}")
         shutil.move(
             "./hremd-outputs/trajectories/",
@@ -206,7 +208,7 @@ def main():
 
         times["end"] = datetime.now().strftime("%H:%M")
 
-        # Call Processing/ Analysis script here
+        # Process the replicas to state trajectories and run analyses
         analysis_command = [
             "process-output",
             "--run",
