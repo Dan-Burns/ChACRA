@@ -186,7 +186,7 @@ def main():
 
         cdf = make_contact_dataframe(contact_files)
         cdf.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
-        cf = ContactFrequencies(cdf, temps=np.round(temps))
+        cf = ContactFrequencies(cdf, temps=np.round(temps), n_jobs=args.n_jobs)
     # Go through previous runs' contact frequency files and generate a
     # dataframe of the current frequencies for all the combined runs.
     if run > 1:
@@ -221,7 +221,7 @@ def main():
         result = combined.groupby(combined.index).sum().reset_index(drop=True)
         result.to_pickle(f"./analysis_output/run_{run}/total_contacts.pd")
 
-        cf = ContactFrequencies(result, temps=np.round(temps))
+        cf = ContactFrequencies(result, temps=np.round(temps), n_jobs=args.n_jobs)
         
     top_ten = {pc: cf.cpca.sorted_norm_loadings(pc)[f'PC{pc}'][:10].index
                for pc in cf.cpca.top_chacras}
