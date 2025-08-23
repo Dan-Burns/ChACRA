@@ -3,22 +3,14 @@ channels:
   - conda-forge
   - defaults
 
-dependencies:
+dependencies: 
+  ##### EDIT THIS LINE ######
+  - openmpi=4.1.6=*external*
+  ###########################
   - femto
-  - openmm=8.1.2 
-  - mpi=1.0=openmpi
-  - openmpi>=4.1         
-  - mpi4py                
-  - cuda-version>=12.0,<12.5
-  - cuda-cudart=12.4.*
-  - cuda-cudart_linux-64=12.4.*
-  - cuda-nvrtc=12.4.*
-  - cuda-cupti=12.4.*
-  - cuda-libraries=12.4.*
-  - cuda-runtime=12.4.*      
-  - ucx>=1.15
-  - ucx-proc=*=gpu        
-  - nccl                  
+  #### You may need to edit the openmm version to match your CUDA driver ####
+  - openmm=8.1.2    
+  ###########################################################################              
   - mdanalysis>=2.9.0
   - pdbfixer
   - pandas
@@ -29,10 +21,8 @@ dependencies:
   - networkx
   - nglview
   - pre-commit
-  # most likely later versions of vmd-python > 3.1.4 
-  # or python>3.11 are causing the memory allocation error with get_dynamic_contacts.py
-  # but can't get multi-gpu to run with < Python 3.12
   - vmd-python
   - prolif
+  
   
     
