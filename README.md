@@ -18,7 +18,8 @@ With ChACRA you can run the full pipeline including the replica exchange simulat
 Clone and enter the repository.
 
 ```
-git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChACRA
+git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git \
+&& cd ChACRA
 ```
 
 Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
@@ -109,14 +110,14 @@ Further, the example structure is a homotrimer and the contact data can be avera
 #### Notes
 20 replicas were used in the example which results in a 10-15% exchange rate. More frequent exchanges require more systems. For systems with 50,000 to 300,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. Determining the number of systems to return an exchange rate of ~15-25% is a trial and error process. 
 
-If you set up a system with a ligand, you won't be able to run femto HREMD without editing the femto source code. It's pretty simple though. You just need to add the name of any custom force object that the ligand parameters require to femto.md.rest _SUPPORTED_FORCES list. You'll have to limit the HREMD scaling to only the protein though.
+If you set up a system with a ligand, you may not be able to run femto HREMD without editing the femto source code. It's pretty simple though. You just need to add the name of any custom force object that the ligand parameters require to femto/md/rest.py's _SUPPORTED_FORCES list. The HREMD scaling will be limited to the protein though.
 
 #### Common Errors
 If you encounter particle NaN errors running HREMD, it's likely due to starting coordinates that aren't adequately energy minimized or equilibrated. 
 
 Another common error is related to CUDA driver version incompatibility with OpenMM dependencies. Check the analysis_output/run_x/ directory for hremd_stderr.log file for more information. The error log will show something like "CUDA_ERROR_UNSUPPORTED_PTX_VERSION (222)". Refer to [OpenMM](https://github.com/openmm/openmm) docs and git issues. 
 
-Lastly, the getcontacts calculation get_dynamic_contacts.py can be run in parallel. However, when using lots of cores a memory allocation error can pop up. Please note it in a git issue if it happens.
+Lastly, the getcontacts calculation get_dynamic_contacts.py can be run in parallel. However, when using lots of cores a memory allocation error can pop up. This might be resolved with the pinned python<3.12 in the environment.yaml. Please note it in a git issue if it happens.
 
 #### Citations
 Please cite the following if you use ChACRA.
