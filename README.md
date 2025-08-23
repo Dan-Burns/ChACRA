@@ -22,32 +22,35 @@ git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git && cd ChA
 ```
 
 Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
-```
-micromamba env create -f environment.yaml 
-```
 
-In order to ensure that replica exchange will run in parallel, you may need to specify use of the local mpi installation. Get your mpi version.
+To ensure that replica exchange will run in parallel, you need to specify a local mpi installation in the environment.yaml file. Get your mpi version.
 
 ```
 mpirun --version
 ```
 
-And replace "4.1.5" with your version number in the following command.
+And then edit the following line in the environment.yaml to reflect what the previous command returned.
 
 ```
-mamba install -c conda-forge femto "openmpi=4.1.5=*external*"
+- openmpi=4.1.6=*external*
 ```
 
+Then create the environment.
+
+```
+micromamba env create -f environment.yaml 
+```
+And activate it.
 ```
 conda activate chacra-env
 ```
 
-Then install ChACRA.
+Then install ChACRA (while inside the ChACRA repository).
 ```
 pip install -e .
 ```
-
-### Run the example
+### Usage
+#### Run an example
 
 Create and enter the example directory.
 
@@ -77,20 +80,19 @@ run-hremd --system_file system/1tnf_example_system.xml \
           -j 16 \
           -n 16          
 ```
-This command will run 1000 replica exchange cycles with 1000 timesteps per cycle (default), saving coordinates every 10 cycles (default). You can add warmup steps before the replica exchange begins to allow for equilibration and decorrelation of the systems at the different Hamiltonian scalings. "run-hremd --help" details the available options.
+This command will run 1000 replica exchange cycles with 1000 timesteps per cycle (default), saving coordinates every 10 cycles (default). You can add warmup steps before the replica exchange begins to allow for equilibration and decorrelation of the systems at the different Hamiltonian scalings. 
 
-16 replicas were specified for the small example system. For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. -j specifies the number of jobs. You don't necessarily need a job for each system but your number of jobs should be a multiple of the number of available GPUs.
+#### Restarts
+To continue running, just execute the above command again and a new run/ folder will be created in each of the directories. You'll find the extended run output there when the script exits.
 
-If you encounter errors here it could be due to starting coordinates that aren't adequately minimized or equilibrated. 
-Another common error is related to CUDA driver version incompatibility with OpenMM dependencies.
-
+#### Output
 run-hremd also calls process-output to automatically generate the state trajectories, run the contact calculations, and write some ChACRA output. These outputs are found in state_trajectories/run_{i}, contact_output/run_{i}, and analysis_output/run_{i}. 
 
 A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd reflects the  accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good targets for structure-activity investigations.
 
-To continue running, just execute the above command again and a new run/ folder will be created in each of the directories. You'll find the extended run output there when the script exits.
+The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. You can choose to examine fewer chacras by running your own analysis in a notebook.
 
-The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. 
+#### Visualization
 
 ![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/00a98056-bd79-4a3f-95ec-656688838301)
 
@@ -104,6 +106,21 @@ Drop your pdb file and the .pml file into PyMol to see the most sensitive contac
 
 Further, the example structure is a homotrimer and the contact data can be averaged to make the results more statistically robust and easier to visualize. An interactive analysis notebook is available in examples/example_notebook.ipynb that demonstrates this.
 
+#### Notes
+16 replicas were used in the example which results in an inadequately low exchange rate (but runs faster for example purposes). For systems with 100,000 to 400,000 particles you might need anywhere from 20-40 replicas to obtain adequate exchange probabilities. Determining the number of systems to return an exchange rate of ~15-25% is a trial and error process. 
+
+-j specifies the number of jobs. If you don't have enough cores to map a job to each system, then your number of jobs should be a multiple of the number of available GPUs.
+
+#### Common Errors
+If you encounter errors running HREMD, it could be due to starting coordinates that aren't adequately energy minimized or equilibrated. 
+
+Another common error is related to CUDA driver version incompatibility with OpenMM dependencies. Check the analysis_output/run_x/ directory for hremd_stderr.log file for more information. Refer to [OpenMM](https://github.com/openmm/openmm) docs and git issues.
+
+Lastly, the getcontacts calculation get_dynamic_contacts.py can be run in parallel. However, when using lots of cores a memory allocation error keeps popping up where it didn't in the past. Until I figure out how to prevent this, get_dynamic_contacts is restricted to 2 processes. 
+
+
+#### Citations
+Please cite the following if you use ChACRA.
 
 1. Burns, D., Singh, A., Venditti, V. & Potoyan, D. A. Temperature-sensitive contacts in disordered loops tune enzyme I activity. Proc. Natl. Acad. Sci. U. S. A. 119, e2210537119 (2022)
 
