@@ -240,7 +240,7 @@ class ContactFrequencies:
         # give access to the ContactPCA
         if get_chacras == True:
             self.cpca = ContactPCA(
-                self.freqs, N_permutations=N_permutations, structure=structure
+                self.freqs, N_permutations=N_permutations, n_jobs=n_jobs, structure=structure
             )
         else:
             self.cpca = None
@@ -693,6 +693,7 @@ class ContactPCA:
         contact_df:pd.DataFrame,
         significance_test:bool=True,
         N_permutations:int=500,
+        n_jobs:int=4,
         structure:str|os.PathLike|None=None,
     ):
         # TODO allow for ContactFrequencies input
@@ -724,7 +725,7 @@ class ContactPCA:
         self.freqs = contact_df
         if significance_test == True:
             
-            self.permuted_pca(N_permutations=N_permutations, n_jobs=4)
+            self.permuted_pca(N_permutations=N_permutations, n_jobs=n_jobs)
             self.score_sums = self.get_score_sums()
         else:
             self._permuted_explained_variance = None
