@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import traceback
 from datetime import datetime
-
 from chacra.trajectories.process_hremd import *
 
 
@@ -102,6 +101,10 @@ def main():
         )
         + 1
     )
+    
+    os.environ.setdefault("TQDM_DISABLE", "1")
+    os.environ.setdefault("TQDM_MININTERVAL", "600")  # once every 10 minutes if enabled
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
 
     # check that default output fold does not exist or is empty
     # if current_run is 1:
@@ -173,7 +176,10 @@ def main():
         "--lambda_selection",
         args.lambda_selection,
     ]
+    
+    
     times = {}
+    
     times["start"] = datetime.now().strftime("%H:%M")
 
     try:
@@ -205,7 +211,7 @@ def main():
             "./hremd-outputs/checkpoint.pkl",
             f"./replica_trajectories/run_{current_run}/checkpoint.pkl",
         )
-
+        
         times["end"] = datetime.now().strftime("%H:%M")
 
         # Process the replicas to state trajectories and run analyses
