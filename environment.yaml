@@ -4,6 +4,7 @@ channels:
   - defaults
 
 dependencies: 
+  - python<3.12
   ##### EDIT THIS LINE ######
   - openmpi=4.1.6=*external*
   ###########################
@@ -21,7 +22,7 @@ dependencies:
   - networkx
   - nglview
   - pre-commit
-  - vmd-python
+  - vmd-python=3.1.4
   - prolif
   
   
