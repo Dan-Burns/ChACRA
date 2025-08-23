@@ -22,8 +22,6 @@ git clone --recurse-submodules https://github.com/Dan-Burns/ChACRA.git \
 && cd ChACRA
 ```
 
-Create the conda environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
-
 To ensure that replica exchange will run in parallel, you need to specify a local mpi installation in the environment.yaml file. Get your mpi version.
 
 ```
@@ -36,7 +34,7 @@ And then edit the following line in the environment.yaml to reflect what the pre
 - openmpi=4.1.6=*external*
 ```
 
-Then create the environment.
+Then create the environment. It's recommended to use [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
 
 ```
 micromamba env create -f environment.yaml 
@@ -89,15 +87,15 @@ To continue running, just execute the above command again and a new run/ folder 
 #### Output
 run-hremd also calls process-output to automatically generate the state trajectories, run the contact calculations, and write some ChACRA output. These outputs are found in state_trajectories/run_{i}, contact_output/run_{i}, and analysis_output/run_{i}. 
 
-A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd reflects the  accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good targets for structure-activity investigations.
+A .pml file and a .csv is written to the analysis_output/run_{i} directory so you can visualize the chacras and know which contacts are most sensitive on each chacra. The total_contacts.pd pandas dataframe reflects the accumulated data for all the runs and the .pml and .csv file reflects all of the combined runs as well. You should keep running until these outputs converge. The .csv file provides the names of the most sensitive interactions on each chacra. The residues in the first couple contacts in each column can be good targets for structure-activity investigations.
 
-The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. You can choose to examine fewer chacras that the significance test suggests by running your own analysis in a notebook. If you run the simulations long enough, the significance test should report on fewer and fewer chacras and their projection plots should become smooth.
+The output will report on any chacra (principal component) that passes a significance test. The energy-dependent response patterns (pc projections) can be seen with the chacra_modes.png plot. You can choose to examine fewer chacras than the significance test suggests by running your own analysis in a notebook (see the analysis.ipynb in the examples directory). If you run the simulations long enough, the significance test should identify fewer significant chacras and their projection plots should become smooth.
 
 #### Visualization
 
 ![chacras](https://github.com/Dan-Burns/ChACRA/assets/58605062/00a98056-bd79-4a3f-95ec-656688838301)
 
-*Figure 1. Projections of the contact frequency principal components (chacras). You can see how the red mode (pc1) captures a melting trend of decreasing probability with increasing temperature.*
+*Figure 1. Projections of the contact frequency principal components (chacras). You can see how the red mode (1st chacra / PC1) captures a melting trend of decreasing probability with increasing temperature. The blue mode (2nd chacra) captures a trend of increasing contact probaility with increasing temperature. This tendency towards increased order at increased energy and at the expense of the increasing disorder of the 1st chacra often reveals functionaly critical interactions among residues involved in the highest loading score contacts on PC2.*
 
 Drop your pdb file and the .pml file into PyMol to see the most sensitive contacts on the structure. They will be colored according to the response pattern they exhibit.
 
