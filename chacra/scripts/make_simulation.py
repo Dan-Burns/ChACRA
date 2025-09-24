@@ -55,6 +55,21 @@ def main():
         default=1
     )
 
+    parser.add_argument(
+        "-d", "--timestep", type=int, required=False,
+        help="""
+        Timestep in femtoseconds."
+        """,
+        default=4
+    )
+
+    parser.add_argument(
+        "-m", "--hmass", type=float, required=False,
+        help="""
+        Hydrogen mass. A larger hydrogen mass allows a longer timestep."
+        """,
+        default=2
+    )
     args = parser.parse_args()
     pressure = float(args.pressure)
     temperature = float(args.temperature)
@@ -72,6 +87,8 @@ def main():
         temperature=temperature,
         name=args.name,
         pressure=pressure,
+        Hmass=args.hmass,
+        timestep=args.timestep,
     )
     setup.model()
     print(f"Adding solvent.")
