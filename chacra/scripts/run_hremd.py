@@ -88,6 +88,14 @@ def main():
         default="protein",
         help="MDAnalysis selection of atoms to write for state trajectories."
         )
+    parser.add_argument(
+        "--timestep", type=int, required=False,
+        default=2,
+        help="""
+        Timestep in femtoseconds. Hydrogen mass repartitioning is recoommended 
+        for timesteps larger than 2 fs.
+        """,
+    )
     args = parser.parse_args()
 
     current_run = (
@@ -175,6 +183,8 @@ def main():
         str(args.warmup_steps),
         "--lambda_selection",
         args.lambda_selection,
+        "--timestep",
+        args.timestep
     ]
     
     

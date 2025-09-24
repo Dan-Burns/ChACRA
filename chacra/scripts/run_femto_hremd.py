@@ -102,6 +102,14 @@ def main():
         The MDAnalysis selection to which the lambda scaling will be applied.
         """,
     )
+
+    parser.add_argument(
+        "-d", "--timestep", type=int, required=False,
+        help="""
+        Timestep in femtoseconds.
+        """,
+        default=2
+    )
     args = parser.parse_args()
     system_file = args.system_file
     with open(system_file, "r") as file:
@@ -122,6 +130,7 @@ def main():
     cycles = args.n_cycles
     save_interval = args.save_interval
     checkpoint_interval = args.checkpoint_interval
+    timestep = args.timestep
 
     rest_config = femto.md.config.REST(
         scale_torsions=True, scale_nonbonded=True
@@ -130,7 +139,7 @@ def main():
     pdb = PDBFile(structure_file)
     structure = mdtop.Topology.from_file(structure_file)
     integrator = LangevinMiddleIntegrator(
-        290, 1 / unit.picosecond, 2 * unit.femtosecond
+        temp_min, 1 / unit.picosecond, timestep * unit.femtosecond
     )
     simulation = Simulation(pdb.topology, system, integrator)
     simulation.context.setPositions(pdb.positions)
@@ -166,7 +175,7 @@ def main():
 
     # create the OpenMM simulation object
     intergrator_config = femto.md.config.LangevinIntegrator(
-        timestep=2.0 * openmm.unit.femtosecond,
+        timestep=timestep * openmm.unit.femtosecond,
     )
     integrator = femto.md.utils.openmm.create_integrator(
         intergrator_config, rest_temperatures[0]
