@@ -1,12 +1,12 @@
 import re
-
+import json
 import pandas as pd
 import psutil
 
 from pdbfixer import PDBFixer
 from openmm.app import PDBFile, Modeller, ForceField, Simulation
 from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, XmlSerializer
-from openmm.unit import nanometer, bar, picosecond, femtoseconds, molar
+from openmm.unit import nanometer, bar, picosecond, femtoseconds, molar, atomic_mass_unit
 from openmm.app import PME, HBonds
 import os
 import warnings
@@ -203,7 +203,9 @@ class OMMSetup:
                  pressure=1,
                  box_shape='dodecahedron',
                  padding=1.0,
-                 name='system'
+                 name='system',
+                 Hmass=2.0,
+                 timestep=2,
                  ):
         self.structures = structures
         self.nonbonded_cutoff = nonbonded_cutoff*nanometer
@@ -214,6 +216,8 @@ class OMMSetup:
         self.box_shape = box_shape
         self.padding = padding*nanometer
         self.name = name
+        self.Hmass = Hmass*atomic_mass_unit
+        self.timestep = timestep*femtoseconds
         
     '''
     structures : dict
@@ -246,7 +250,8 @@ class OMMSetup:
         system = self.forcefield.createSystem(self.modeller.topology, 
                                          nonbondedMethod=PME,
                                          nonbondedCutoff=self.nonbonded_cutoff, 
-                                         constraints=HBonds)
+                                         constraints=HBonds,
+                                         hydrogenMass=self.Hmass)
         # Add pressure control
         system.addForce(MonteCarloBarostat(self.pressure, self.temperature))
         self.system=system
@@ -255,7 +260,7 @@ class OMMSetup:
     def make_simulation(self):
         integrator = self.integrator_type(self.temperature, 
                                           1/picosecond, 
-                                          2*femtoseconds)
+                                          self.timestep*femtoseconds)
         simulation = Simulation(self.modeller.topology, self.system, integrator)
         simulation.context.setPositions(self.modeller.positions)
         simulation.minimizeEnergy()
@@ -282,3 +287,69 @@ class OMMSetup:
         #os.chmod(file, stat.S_IREAD) #set to read only to prevent deletion
         with open(f'{output}/structures/{self.name}_minimized.pdb', 'w') as f:
             PDBFile.writeFile(topology, positions, f)
+
+class RunConfig():
+    '''
+    NOT IMPLEMENTED YET
+    Class to hold configuration for running simulations.
+    On the first remd run, a json parameter file will be created in the 
+    project root directory. On subusequent runs, you can just provide the 
+    parameter file and change the number of cycles with the command line 
+    argument if desired.
+
+    '''
+    def __init__(self,
+                 configFile=None
+                 ):
+        self.configFile = configFile
+        self.defaults = {
+        "n_jobs":None,
+        "n_cycles":1000,
+        "n_systems":None,
+        "min_temp":290,
+        "max_temp":450,
+        "structure_file":None,
+        "system_file":None,
+        "steps_per_cycle":1000,
+        "save_interval":10,
+        "checkpoint_interval":1000,
+        "warmup_steps":100_000,
+        "lambda_selection":'protein',
+        "output_selection":'protein',
+        "timestep":2,
+        }
+        if self.configFile is None:
+            print("No config file provided.")
+        
+        else:
+            if os.path.exists(self.configFile):
+                fileType = self.configFile.split(".")[-1]
+                if fileType == "json":
+                    
+                    with open(self.configFile, 'r') as f:
+                        self.config = json.load(f)
+                else: # option for simple key=value text file
+                    try:
+                        with open(self.configFile, 'r') as f:
+                            lines = f.readlines()
+                            self.config = {}
+                            for line in lines:
+                                if "=" in line:
+                                    key, value = line.split("=")
+                                    key = key.strip()
+                                    value = value.strip()
+                                    if key in ["min_temp", "max_temp", 
+                                               "timestep"]:
+                                        value = float(value)
+                                    elif value.isdigit():
+                                        value = int(value)
+                    
+                                    self.config[key] = value
+                
+                    except:
+                        print("Could not read config file.")
+                
+                for key, val in self.config:
+                    if val == "None":
+                        print(f"{key} not specified")
+                        return
