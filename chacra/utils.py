@@ -168,7 +168,7 @@ def get_resources():
 
 
 ##################### Simulation Prep ######################
-def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=True, replace_nonstandard_resis=True):
+def fix_pdb(input_pdb, output_pdb, pH=7.0, keep_water=False, replace_nonstandard_resis=True):
     '''
     PDBFixer convenience function 
     
@@ -217,7 +217,7 @@ class OMMSetup:
         self.padding = padding*nanometer
         self.name = name
         self.Hmass = Hmass*atomic_mass_unit
-        self.timestep = timestep*femtoseconds
+        self.timestep = timestep
         
     '''
     structures : dict

@@ -184,7 +184,7 @@ def main():
         "--lambda_selection",
         args.lambda_selection,
         "--timestep",
-        args.timestep
+        str(args.timestep)
     ]
     
     
