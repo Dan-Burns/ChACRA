@@ -53,11 +53,11 @@ Setup the working directory.
 ```
 chacra project --example
 ```
-The "--example" flag just copies the 1tnf.pdb into structures/. 
+The "--example" flag just copies the 1tnf_truncated.pdb into structures/. 
 
 Solvate the structure and create an [OpenMM](https://github.com/openmm) system to simulate with replica exchange.
 ```
-chacra make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
+chacra make-simulation -s structures/1tnf_truncated.pdb --fix --name 1tnf_example
 ```
 The "--fix" flag will use OpenMM's pdbfixer to automatically protonate the structure and can insert missing residues if a .cif file is provided with the full sequence. Always check the output structure. Missing residues are placed naively and can make the termini extend out, creating a overly large simulation box. You'll see that a 1tnf_example_minimized.pdb is in the structures/ directory and 1tnf_example_system.xml is in the system/ directory.
 

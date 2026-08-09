@@ -51,7 +51,7 @@ from chacra.convergence import (
     plot_exchange_diagnostics,
 )
 from chacra.visualize.pymol import to_pymol
-from chacra.utils import RunConfig
+from chacra.run_config import RunConfig
 
 import MDAnalysis as mda
 

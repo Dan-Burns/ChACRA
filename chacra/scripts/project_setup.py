@@ -27,8 +27,8 @@ def main():
     for directory in dirs:
         os.makedirs(directory, exist_ok=True)
     if args.example:
-        EXAMPLE_PDB = Path(__file__).parent.parent / "examples" / "1tnf.pdb"
-        shutil.copy(EXAMPLE_PDB, "structures/1tnf.pdb")
+        EXAMPLE_PDB = Path(__file__).parent.parent / "examples" / "1tnf_truncated.pdb"
+        shutil.copy(EXAMPLE_PDB, "structures/1tnf_truncated.pdb")
 
 if __name__ == "__main__":
     main()
