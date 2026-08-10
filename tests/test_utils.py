@@ -11,7 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from chacra.utils import parse_id, split_id, multi_intersection, RunConfig
+from chacra.utils import parse_id, split_id, multi_intersection
+from chacra.run_config import RunConfig
 
 
 # ------------------------------------------------------------------ #

@@ -1,4 +1,4 @@
-from chacra.utils import OMMSetup, fix_pdb
+from chacra.simulation import OMMSetup, fix_pdb
 import argparse
 import os
 

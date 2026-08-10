@@ -1,0 +1,54 @@
+name: chacra-env
+channels:
+  - conda-forge  # single channel = no cross-channel ABI conflicts, fast solve
+
+dependencies:
+  - python>=3.10,<3.13  # 3.12 OK now (getcontacts forkserver fix); 3.13 lacks builds for many sci-stack pkgs
+
+  # ── VMD (required by getcontacts) ────────────────────────────────────────
+  - vmd-python
+
+  # ── MPI ──────────────────────────────────────────────────────────────────
+  # No conda openmpi — mpi4py is pip-installed in install.sh and builds
+  # directly against the system MPI (mpicc must be on PATH).
+  # This avoids conda compiler_compat/ld conflicts and ensures all GPUs
+  # are engaged for HREMD.
+
+  # ── Core simulation ───────────────────────────────────────────────────────
+  - openmm>=8.1
+  - openmmforcefields>=0.15.1   # pulls openff-units>=0.3 → pint>=0.24 (numpy 2.x safe)
+  - pdbfixer
+
+  # ── femto dependencies (conda-only) ───────────────────────────────────────
+  # femto itself is pip-installed in install.sh (Dan-Burns fork).
+  - mdtop
+  - pydantic-units
+  - tensorboardx               # runtime dep of femto (logging), not in its pyproject
+
+  # ── Scientific stack ──────────────────────────────────────────────────────
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - networkx
+  - polars
+  - pyarrow
+  - sympy
+  - pymbar>=4
+
+  - rdkit
+  - mdtraj
+  - mdanalysis>=2.9.0
+
+  # ── Utilities ─────────────────────────────────────────────────────────────
+  - pydantic>=2
+  - click
+  - cloup
+  - tqdm
+  - pyyaml
+  - omegaconf
+  - gputil
+  - nglview
+  - pre-commit
+  - cuda-version=12.6

@@ -10,7 +10,7 @@ import pandas as pd
 import pyarrow
 from MDAnalysis.analysis import align
 
-from chacra.utils import get_resources
+from chacra.run_config import get_resources
 
 import warnings
 warnings.filterwarnings(

@@ -8,7 +8,7 @@ from datetime import datetime
 import numpy as np
 
 from chacra.trajectories.process_hremd import *
-from chacra.utils import RunConfig
+from chacra.run_config import RunConfig
 
 
 def _find_mpirun() -> str | None:
