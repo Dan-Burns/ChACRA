@@ -7,7 +7,7 @@
 #   bash install.sh --reinstall   # remove existing env and reinstall from scratch
 #
 # Fast path (no solving): uses conda/explicit-cuda{12,13}.txt if present.
-# Fallback: sequential group solves (slower, for machines without spec files).
+# Fallback: single-stage solve from conda/environment.yaml.
 #
 # To regenerate spec files after updating environment.yaml:
 #   bash tools/generate_locks.sh
@@ -110,7 +110,7 @@ else
     # Priority order:
     #   1. @EXPLICIT spec file  (fastest — no solving, no extra tools)
     #   2. conda-lock YAML      (no solving, but needs conda-lock installed)
-    #   3. Sequential group installs (slowest — full solver, high RAM)
+    #   3. Single-stage env create from environment.yaml
 
     EXPLICIT_FILE=""
     LOCK_FILE=""
@@ -152,11 +152,10 @@ else
         conda-lock install -n "$ENV_NAME" "$LOCK_FILE"
 
     else
-        # ── No lock file: sequential group installs ────────────────────────
-        # Solving 30+ CUDA-aware packages simultaneously can exhaust RAM.
-        # Installing in small anchored groups keeps each solve small.
+        # ── Single-stage solve from environment.yaml ───────────────────────
         echo ""
-        echo "No lock or explicit spec files found. Installing in sequential groups..."
+        echo "No lock or explicit spec files found."
+        echo "Creating environment from conda/environment.yaml (single solve)..."
         echo "(To generate spec files for faster installs on other machines:"
         echo "  bash tools/generate_locks.sh)"
         echo ""
@@ -171,67 +170,108 @@ else
             echo "CONDA_OVERRIDE_CUDA=$CONDA_OVERRIDE_CUDA"
         fi
 
-        C="-c conda-forge -n $ENV_NAME -y"
-
-        echo "  Group 1/5: Python + OpenMM CUDA kernel..."
-        $CONDA_CMD create -n "$ENV_NAME" -y -c conda-forge \
-            "python>=3.10,<3.13" \
-            "openmm>=8.1" \
-            "openmmforcefields>=0.15.1" \
-            "vmd-python" \
-            "pdbfixer"
-
-        echo "  Group 2/5: MD packages..."
-        $CONDA_CMD install $C \
-            "rdkit" \
-            "mdanalysis>=2.9.0" \
-            "mdtraj"
-
-        echo "  Group 3/5: femto dependencies..."
-        $CONDA_CMD install $C \
-            "mdtop" \
-            "pydantic-units" \
-            "tensorboardx" \
-            "pymbar>=4"
-
-        echo "  Group 4/5: Scientific stack..."
-        $CONDA_CMD install $C \
-            "numpy" "scipy" "pandas" "matplotlib" \
-            "scikit-learn" "networkx" \
-            "polars" "pyarrow" "sympy"
-
-        echo "  Group 5/5: Utilities..."
-        $CONDA_CMD install $C \
-            "pydantic>=2" "click" "cloup" "tqdm" \
-            "pyyaml" "omegaconf" "gputil" "nglview" "pre-commit"
+        $CONDA_CMD env create -f conda/environment.yaml -y
     fi
 fi
 
 # ── 5. Pip post-install ───────────────────────────────────────────────────────
 
-# Ensure pip is available (lock/explicit files generated before pip was added
-# to environment.yaml won't have it)
-$CONDA_CMD run -n "$ENV_NAME" python -m ensurepip --upgrade 2>/dev/null || \
-    $CONDA_CMD install -n "$ENV_NAME" -y pip 2>/dev/null || true
-
 echo ""
-echo "Installing $CUPY_PKG, mpi4py, femto, getcontacts, ultracontacts, chacra..."
+echo "Installing pip packages: $CUPY_PKG, mpi4py, femto, getcontacts, ultracontacts, chacra..."
 
-cat <<EOF > _post_install.sh
-#!/bin/bash
-set -e
-echo "  mpi4py (against system MPI: \$(which mpicc))"
-python -m pip install --no-cache-dir $CUPY_PKG
-python -m pip install --no-cache-dir mpi4py
-python -m pip install --no-cache-dir "git+https://github.com/Dan-Burns/femto.git"
-python -m pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/getcontacts.git"
-python -m pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/ultracontacts.git"
-python -m pip install --no-cache-dir -e "\$(pwd)"
-EOF
+# --------------------------------------------------------------------------
+# We need to activate the environment so pip installs into the RIGHT
+# site-packages.  `$CONDA_CMD run` does NOT reliably set PATH / PYTHONPATH
+# on all HPC setups (especially when mamba is loaded via `module load`).
+#
+# Instead, we source the conda/mamba/micromamba shell init and activate
+# properly inside a subshell.
+# --------------------------------------------------------------------------
 
-chmod +x _post_install.sh
-$CONDA_CMD run -n "$ENV_NAME" bash _post_install.sh
-rm _post_install.sh
+# Locate the conda init script
+_find_conda_init() {
+    # micromamba: shell hook
+    if [ "$CONDA_CMD" = "micromamba" ]; then
+        echo "micromamba"
+        return
+    fi
+    # mamba/conda: look for the shell init script
+    local conda_base
+    conda_base="$(conda info --base 2>/dev/null || mamba info --base 2>/dev/null || true)"
+    if [ -n "$conda_base" ] && [ -f "$conda_base/etc/profile.d/conda.sh" ]; then
+        echo "$conda_base/etc/profile.d/conda.sh"
+        return
+    fi
+    # Check CONDA_EXE parent
+    if [ -n "$CONDA_EXE" ]; then
+        local d
+        d="$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh"
+        [ -f "$d" ] && echo "$d" && return
+    fi
+    echo ""
+}
+
+CONDA_INIT=$(_find_conda_init)
+
+(
+    # Subshell: activate the environment and run pip installs
+    set -e
+
+    if [ "$CONDA_CMD" = "micromamba" ]; then
+        eval "$(micromamba shell hook --shell bash)"
+        micromamba activate "$ENV_NAME"
+    elif [ -n "$CONDA_INIT" ]; then
+        # shellcheck disable=SC1090
+        source "$CONDA_INIT"
+        # Also source mamba init if available (for `mamba activate`)
+        local_mamba_init="$(dirname "$CONDA_INIT")/mamba.sh"
+        [ -f "$local_mamba_init" ] && source "$local_mamba_init"
+        conda activate "$ENV_NAME"
+    else
+        echo "Warning: Could not find conda init script."
+        echo "Falling back to '$CONDA_CMD run' (may mis-target pip installs on some HPC systems)."
+        # Fall back to CONDA_CMD run — set a flag so the commands below
+        # invoke pip via $CONDA_CMD run instead of directly
+        export _USE_CONDA_RUN=1
+    fi
+
+    _pip() {
+        if [ "${_USE_CONDA_RUN:-0}" = "1" ]; then
+            $CONDA_CMD run -n "$ENV_NAME" python -m pip "$@"
+        else
+            python -m pip "$@"
+        fi
+    }
+
+    # Verify pip is targeting the correct environment
+    PIP_TARGET=$(_pip show pip 2>/dev/null | grep "^Location:" | awk '{print $2}' || true)
+    if [ -n "$PIP_TARGET" ]; then
+        echo "  pip site-packages: $PIP_TARGET"
+        if ! echo "$PIP_TARGET" | grep -q "$ENV_NAME"; then
+            echo "WARNING: pip target does not contain '$ENV_NAME'."
+            echo "         Packages may install into the wrong environment."
+            echo "         Consider using: bash install.sh --reinstall"
+        fi
+    fi
+
+    echo "  Installing $CUPY_PKG..."
+    _pip install --no-cache-dir "$CUPY_PKG"
+
+    echo "  Installing mpi4py (against system MPI: $(which mpicc))..."
+    _pip install --no-cache-dir mpi4py
+
+    echo "  Installing femto (Dan-Burns fork)..."
+    _pip install --no-cache-dir "git+https://github.com/Dan-Burns/femto.git"
+
+    echo "  Installing getcontacts (Dan-Burns fork)..."
+    _pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/getcontacts.git"
+
+    echo "  Installing ultracontacts (Dan-Burns fork)..."
+    _pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/ultracontacts.git"
+
+    echo "  Installing chacra (editable)..."
+    _pip install --no-cache-dir -e "$(pwd)"
+)
 
 echo ""
 echo "=== Installation Complete ==="
