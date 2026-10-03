@@ -75,7 +75,7 @@ class RunConfig:
         "output_selection": "protein",
         "timestep": 2,
         "current_run": 0,
-        "oversubscribe": 1,
+        "mps_replicas": 1,
     }
 
     def __init__(self, config_file: str | None = None):

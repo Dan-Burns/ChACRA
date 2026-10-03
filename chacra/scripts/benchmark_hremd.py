@@ -19,9 +19,7 @@ import sys
 import time
 from datetime import datetime
 
-
-def _find_mpirun() -> str | None:
-    return shutil.which("mpirun") or shutil.which("mpiexec")
+from chacra.mpi import build_mpi_command
 
 
 def _run_worker(args):
@@ -154,8 +152,8 @@ def _run_worker(args):
             print(f"Start Time         : {datetime.now().strftime('%H:%M:%S')}")
             print(f"Replicas           : {args.n_systems}")
             print(f"GPUs               : {args.n_jobs}")
-            print(f"Oversubscribe      : {args.oversubscribe}×")
-            print(f"Total MPI ranks    : {args.n_jobs * args.oversubscribe}")
+            print(f"MPS replicas/GPU   : {args.mps_replicas}×")
+            print(f"Total MPI ranks    : {args.n_jobs * args.mps_replicas}")
             print(f"Cycles             : {args.n_cycles}")
             print(f"Steps/Cycle        : {args.steps_per_cycle}")
             print(f"Timestep           : {args.timestep} fs")
@@ -262,8 +260,14 @@ def main():
         help="MD steps between exchange attempts.",
     )
     parser.add_argument(
-        "-o", "--oversubscribe", type=int, default=1,
-        help="Number of replicas to run simultaneously per GPU.",
+        "-r", "--mps-replicas", type=int, default=1, dest="mps_replicas",
+        help="Number of replicas to run simultaneously per GPU using CUDA MPS.",
+    )
+    # Keep the old name as a hidden alias for backward compatibility
+    parser.add_argument(
+        "-o", "--oversubscribe", type=int, default=None,
+        dest="_oversubscribe_compat",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--min_temp", type=float, default=290,
@@ -303,35 +307,36 @@ def main():
     )
     args = parser.parse_args()
 
+    # Backward compat: honour the old --oversubscribe / -o flag
+    if args._oversubscribe_compat is not None:
+        args.mps_replicas = args._oversubscribe_compat
+
     if args.is_mpi_worker:
         _run_worker(args)
         return
 
     # ── Launcher process ──
-    n_total_ranks = args.n_jobs * args.oversubscribe
-    mpirun = args.mpi_command or _find_mpirun()
-    if mpirun is None:
-        raise RuntimeError(
-            "Cannot find mpirun or mpiexec on PATH. "
-            "Install OpenMPI or add it to PATH."
-        )
+    n_total_ranks = args.n_jobs * args.mps_replicas
 
     # Build MPI command that calls back into this console script
-    cmd = [
-        mpirun, "-np", str(n_total_ranks), "--oversubscribe",
+    mpi_prefix = build_mpi_command(
+        n_total_ranks,
+        mpi_command=args.mpi_command,
+    )
+    cmd = mpi_prefix + [
         "chacra", "benchmark-hremd", "--is-mpi-worker",
     ]
     # Forward all original args (except --is-mpi-worker which we just added)
     cmd.extend(sys.argv[1:])
 
     run_env = os.environ.copy()
-    if args.oversubscribe > 1:
+    if args.mps_replicas > 1:
         import femto.md.utils.mpi as _fmpi
 
-        thread_pct = max(1, 200 // args.oversubscribe)
+        thread_pct = max(1, 200 // args.mps_replicas)
         run_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(thread_pct)
         print(
-            f"MPS oversubscribe={args.oversubscribe}: "
+            f"CUDA MPS: {args.mps_replicas} replicas/GPU, "
             f"CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={thread_pct}%"
         )
         if not _fmpi.is_mps_running():

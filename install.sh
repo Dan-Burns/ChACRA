@@ -260,6 +260,34 @@ CONDA_INIT=$(_find_conda_init)
     echo "  Installing mpi4py (against system MPI: $(which mpicc))..."
     _pip install --no-cache-dir mpi4py
 
+    # ── Validate MPI ABI ──────────────────────────────────────────────────
+    echo ""
+    echo "  Validating mpi4py installation..."
+    MPI_CHECK=$(python -c "
+try:
+    from mpi4py import MPI
+    ver = MPI.Get_library_version().strip().split(chr(10))[0]
+    print('OK: ' + ver)
+except Exception as e:
+    print('FAIL: ' + str(e))
+" 2>&1 || true)
+    echo "  $MPI_CHECK"
+    if echo "$MPI_CHECK" | grep -q "^FAIL"; then
+        echo ""
+        echo "  ╔══════════════════════════════════════════════════════════════╗"
+        echo "  ║  WARNING: mpi4py cannot initialise MPI.                     ║"
+        echo "  ║                                                              ║"
+        echo "  ║  This usually means mpi4py was built against a different     ║"
+        echo "  ║  MPI library than what is currently loaded.                  ║"
+        echo "  ║                                                              ║"
+        echo "  ║  Fix: load the same MPI module that was active during        ║"
+        echo "  ║  install, or reinstall:                                      ║"
+        echo "  ║    module load openmpi                                       ║"
+        echo "  ║    pip install --no-cache-dir --force-reinstall mpi4py       ║"
+        echo "  ╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+    fi
+
     echo "  Installing femto (Dan-Burns fork)..."
     _pip install --no-cache-dir "git+https://github.com/Dan-Burns/femto.git"
 
@@ -276,6 +304,13 @@ CONDA_INIT=$(_find_conda_init)
 echo ""
 echo "=== Installation Complete ==="
 echo "Activate with:  conda activate $ENV_NAME"
+echo ""
+echo "Notes:"
+echo "  • OpenMPI is the recommended MPI implementation for multi-node runs."
+echo "    On HPC systems:  module load openmpi"
+echo "  • mpi4py is built against whichever MPI was active during install."
+echo "    If you switch MPI modules, reinstall mpi4py:"
+echo "      pip install --no-cache-dir --force-reinstall mpi4py"
 echo ""
 echo "Tip: generate a lock file for faster installs on other machines:"
 echo "     bash tools/generate_locks.sh"

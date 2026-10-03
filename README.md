@@ -17,12 +17,20 @@ With ChACRA you can run the full pipeline — simulation, contact calculation, a
 
 ### Prerequisites
 - **NVIDIA GPU(s)** with drivers installed (`nvidia-smi`)
-- **OpenMPI** (`sudo apt install libopenmpi-dev openmpi-bin`)
+- **OpenMPI** — the recommended MPI implementation for ChACRA
+  - Ubuntu/Debian: `sudo apt install libopenmpi-dev openmpi-bin`
+  - HPC systems: `module load openmpi` (ensure this is loaded **before** running the install script)
+  - Other MPI implementations (MPICH, Intel MPI) may work but are not tested. Cray MPICH (`cray-mpich`) is **not** recommended — use the OpenMPI module instead.
 - **Conda**, **Mamba**, or **Micromamba**
+
+> **Important (HPC users):** `mpi4py` is compiled against whichever MPI is active during installation. If you switch MPI modules later, you must reinstall mpi4py: `pip install --no-cache-dir --force-reinstall mpi4py`
 
 ### Install
 
 ```bash
+# On HPC systems, load your MPI module first:
+module load openmpi    # or your site's equivalent
+
 git clone https://github.com/Dan-Burns/ChACRA.git
 cd ChACRA
 ./install.sh
@@ -32,7 +40,7 @@ conda activate chacra-env
 The install script will:
 1. Detect your CUDA version and select the correct `cupy` wheel
 2. Create the `chacra-env` conda environment
-3. Build `mpi4py` against your system MPI
+3. Build `mpi4py` against your system MPI (and validate the ABI)
 4. Install `femto`, `ultracontacts`, and `getcontacts` via pip
 
 Use `./install.sh --reinstall` to remove and recreate the environment from scratch.
@@ -117,7 +125,8 @@ All commands are accessed via `chacra <command>`. Run `chacra <command> --help` 
 ## Notes
 
 - **Replica count**: 20–40 replicas are typical for systems with 50k–300k particles, targeting ~15–25% exchange rates. This requires trial and error.
-- **GPU oversubscription**: Use `--oversubscribe 2` to run multiple replicas per GPU simultaneously via NVIDIA MPS.
+- **CUDA MPS (multiple replicas per GPU)**: Use `--mps-replicas 2` (or `-r 2`) to run multiple replicas per GPU simultaneously via NVIDIA CUDA MPS. This increases throughput (up to a point) when you have more replicas than GPUs. benchmark-hremd will help you find the optimal number of simultaneous replicas per GPU for your system. Each GPU will process n mps-replicas simultaneously for a cycle and then consume the next n until all replicas are processed.
+- **Multi-node runs**: ChACRA supports multi-node MPI out of the box. Set `--n_jobs` to the total GPU count across all nodes and submit via your scheduler (e.g., SLURM). The MPI runtime distributes ranks across nodes automatically. Use `--mpi-command "srun --mpi=pmix"` if your cluster requires a specific launcher.
 - **Ligands**: Systems with ligands may require adding custom force names to femto's `_SUPPORTED_FORCES` list in `femto/md/rest.py`. HREMD scaling is limited to the protein.
 - **NaN errors**: Usually caused by inadequately minimized starting coordinates.
 - **CUDA PTX errors**: `CUDA_ERROR_UNSUPPORTED_PTX_VERSION` means conda's CUDA toolkit is newer than your driver supports. The install script handles this automatically.
