@@ -52,11 +52,11 @@ Use `./install.sh --reinstall` to remove and recreate the environment from scrat
 ```bash
 mkdir ~/chacra_example && cd ~/chacra_example
 
-# Set up project directory with example structure (1tnf.pdb)
+# Set up project directory with example structure (1tnf_truncated.pdb)
 chacra project --example
 
 # Solvate and create OpenMM system (--fix auto-protonates with pdbfixer)
-chacra make-simulation -s structures/1tnf.pdb --fix --name 1tnf_example
+chacra make-simulation -s structures/1tnf_truncated.pdb --fix --name 1tnf_example
 
 # Run HREMD (4 GPUs, 20 replicas, 1000 exchange cycles)
 chacra run-hremd \
@@ -119,6 +119,7 @@ All commands are accessed via `chacra <command>`. Run `chacra <command> --help` 
 | `chacra windowed-freqs` | Compute contact frequencies for frame subsets (convergence analysis) |
 | `chacra check-convergence` | Run convergence diagnostics on contact data |
 | `chacra benchmark-hremd` | Benchmark HREMD throughput and exchange statistics |
+| `chacra sweep-benchmark` | Adaptively find the replica count and `--mps-replicas` value for target exchange rates and best throughput |
 
 ---
 
