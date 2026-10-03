@@ -418,6 +418,8 @@ def main():
         print(f"CUDA MPS: {args.mps_replicas} replicas/GPU, "
               f"CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={thread_pct}%")
         if not _fmpi.is_mps_running():
+            from chacra.mpi import configure_mps_env
+            configure_mps_env()
             print("Starting CUDA MPS daemon...")
             _fmpi.start_mps()
 
