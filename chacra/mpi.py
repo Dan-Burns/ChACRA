@@ -101,6 +101,27 @@ def build_mpi_command(
     return cmd
 
 
+def configure_mps_env() -> None:
+    """Point the CUDA MPS daemon's log directory somewhere user-writable.
+
+    ``nvidia-cuda-mps-control`` logs to ``/var/log/nvidia-mps`` by default,
+    which non-root users can't write to (harmless, but it prints a warning
+    and loses the daemon logs).  Call this before starting MPS.  An existing
+    ``CUDA_MPS_LOG_DIR`` is respected.
+    """
+    if "CUDA_MPS_LOG_DIR" in os.environ:
+        return
+    default = "/var/log/nvidia-mps"
+    if os.path.isdir(default) and os.access(default, os.W_OK):
+        return
+    user = os.environ.get("USER") or str(os.getuid())
+    log_dir = os.path.join(
+        os.environ.get("TMPDIR", "/tmp"), f"nvidia-mps-log-{user}"
+    )
+    os.makedirs(log_dir, exist_ok=True)
+    os.environ["CUDA_MPS_LOG_DIR"] = log_dir
+
+
 def validate_mpi_install() -> dict:
     """Validate that mpi4py can load and report which MPI library it uses.
 
