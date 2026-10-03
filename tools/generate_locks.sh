@@ -26,14 +26,8 @@ fi
 
 echo "Generating lock file for CUDA ${CUDA_VER} ..."
 
-# Round down to the latest conda-forge build for that major version
 CUDA_MAJOR=$(echo "$CUDA_VER" | cut -d. -f1)
-if [ "$CUDA_MAJOR" -ge 13 ] 2>/dev/null; then
-    LOCK_CUDA="12.8"
-    echo "  (CUDA ${CUDA_VER} driver is forward-compatible with 12.8 builds)"
-else
-    LOCK_CUDA="$CUDA_VER"
-fi
+LOCK_CUDA="$CUDA_VER"
 
 # Install conda-lock into base if not present
 if ! command -v conda-lock &>/dev/null; then
@@ -51,13 +45,18 @@ VPEOF
 
 LOCK_FILE="conda/conda-lock.cuda${CUDA_MAJOR}.yml"
 
+# The __cuda virtual package alone doesn't stop conda-forge from picking
+# newer cuda-nvrtc / cuda-version builds, so cap cuda-version explicitly.
+sed "s/^dependencies:\$/dependencies:\n  - \"cuda-version>=${CUDA_MAJOR},<=${LOCK_CUDA}\"/" \
+    conda/environment.yaml > _env_tmp.yml
+
 conda-lock \
-    -f conda/environment.yaml \
+    -f _env_tmp.yml \
     --virtual-package-spec _vp_tmp.yml \
     --lockfile "$LOCK_FILE" \
     -p linux-64
 
-rm _vp_tmp.yml
+rm _vp_tmp.yml _env_tmp.yml
 
 # Convert to @EXPLICIT spec file (no conda-lock needed on target machines)
 EXPLICIT_FILE="conda/explicit-cuda${CUDA_MAJOR}.txt"

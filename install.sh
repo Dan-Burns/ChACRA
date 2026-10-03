@@ -27,7 +27,19 @@ echo "=== ChACRA Automated Installation ==="
 
 # ── 1. System checks ──────────────────────────────────────────────────────────
 
-if ! command -v conda &>/dev/null && ! command -v mamba &>/dev/null && ! command -v micromamba &>/dev/null; then
+# Auto-detect micromamba if not directly on PATH (e.g. defined via MAMBA_EXE or in ~/micromamba)
+MICROMAMBA_BIN=""
+if command -v micromamba &>/dev/null; then
+    MICROMAMBA_BIN="micromamba"
+elif [ -n "$MAMBA_EXE" ] && [ -x "$MAMBA_EXE" ]; then
+    MICROMAMBA_BIN="$MAMBA_EXE"
+elif [ -x "$HOME/micromamba/bin/micromamba" ]; then
+    MICROMAMBA_BIN="$HOME/micromamba/bin/micromamba"
+elif [ -x "$HOME/.local/bin/micromamba" ]; then
+    MICROMAMBA_BIN="$HOME/.local/bin/micromamba"
+fi
+
+if ! command -v conda &>/dev/null && ! command -v mamba &>/dev/null && [ -z "$MICROMAMBA_BIN" ]; then
     echo "Error: conda, mamba, or micromamba must be installed."
     exit 1
 fi
@@ -62,20 +74,45 @@ else
 fi
 echo "Will install: $CUPY_PKG"
 
+# The driver's "CUDA Version" is the newest CUDA runtime it can execute.
+# conda-forge happily installs newer CUDA packages (e.g. cuda-nvrtc 13.x on a
+# 12.6 driver), which then fail at runtime with
+# CUDA_ERROR_UNSUPPORTED_PTX_VERSION.  Cap cuda-version at the driver version.
+CUDA_PIN=""
+if [ -n "$CUDA_VER" ]; then
+    CUDA_PIN="cuda-version<=${CUDA_VER}"
+    echo "Will constrain: $CUDA_PIN"
+fi
+
+# ver_gt A B  →  true if version A > version B
+ver_gt() {
+    [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
+}
+
+# cuda-version recorded in an explicit spec or conda-lock file (empty if none)
+_spec_cuda_ver() {
+    case "$1" in
+        *.txt) grep -Eo '/cuda-version-[0-9]+\.[0-9]+' "$1" | head -1 | grep -Eo '[0-9]+\.[0-9]+' ;;
+        *)     awk '/name: cuda-version$/ {f=1; next} f && /version:/ {gsub(/[^0-9.]/, "", $2); print $2; exit}' "$1" ;;
+    esac
+}
+
+# true if the spec file was built for a CUDA newer than this driver supports
+_spec_too_new() {
+    local v
+    [ -z "$CUDA_VER" ] && return 1
+    v=$(_spec_cuda_ver "$1")
+    [ -n "$v" ] && ver_gt "$v" "$CUDA_VER"
+}
+
 # ── 3. Pick conda frontend ────────────────────────────────────────────────────
 
-if command -v micromamba &>/dev/null; then
-    CONDA_CMD="micromamba"
+if [ -n "$MICROMAMBA_BIN" ]; then
+    CONDA_CMD="$MICROMAMBA_BIN"
 elif command -v mamba &>/dev/null; then
     CONDA_CMD="mamba"
 else
     CONDA_CMD="conda"
-    # Enable libmamba solver — the classic solver OOMs on complex environments
-    if ! conda config --show solver 2>/dev/null | grep -q "libmamba"; then
-        echo "Enabling libmamba solver..."
-        conda install -n base -y conda-libmamba-solver 2>/dev/null || true
-        conda config --set solver libmamba 2>/dev/null || true
-    fi
 fi
 echo "Using: $CONDA_CMD"
 
@@ -129,6 +166,17 @@ else
         LOCK_FILE="conda/conda-lock.yml"
     fi
 
+    # Reject spec files that pin a CUDA newer than this driver can run
+    for _var in EXPLICIT_FILE LOCK_FILE; do
+        _f="${!_var}"
+        if [ -n "$_f" ] && _spec_too_new "$_f"; then
+            echo "Skipping $_f: built for cuda-version $(_spec_cuda_ver "$_f")," \
+                 "but this driver supports CUDA $CUDA_VER."
+            echo "  (Regenerate with: bash tools/generate_locks.sh)"
+            printf -v "$_var" '%s' ""
+        fi
+    done
+
     if [ -n "$EXPLICIT_FILE" ]; then
         # ── Explicit spec path (fastest) ───────────────────────────────────
         echo ""
@@ -160,17 +208,39 @@ else
         echo "  bash tools/generate_locks.sh)"
         echo ""
 
-        # CONDA_OVERRIDE_CUDA helps the solver pick the right CUDA builds
+        # CONDA_OVERRIDE_CUDA tells the solver which driver it's solving for
         if [ -n "$CUDA_VER" ]; then
-            if [ "$CUDA_MAJOR" -ge 13 ] 2>/dev/null; then
-                export CONDA_OVERRIDE_CUDA="12.8"
-            else
-                export CONDA_OVERRIDE_CUDA="$CUDA_VER"
-            fi
+            export CONDA_OVERRIDE_CUDA="$CUDA_VER"
             echo "CONDA_OVERRIDE_CUDA=$CONDA_OVERRIDE_CUDA"
         fi
 
-        $CONDA_CMD env create -f conda/environment.yaml -y
+        # environment.yaml is driver-agnostic; add the cuda-version cap for
+        # this machine via a temporary copy.
+        ENV_FILE="conda/environment.yaml"
+        if [ -n "$CUDA_PIN" ]; then
+            ENV_FILE=$(mktemp --suffix=.yaml)
+            sed "s/^dependencies:\$/dependencies:\n  - \"${CUDA_PIN}\"/" \
+                conda/environment.yaml > "$ENV_FILE"
+        fi
+
+        $CONDA_CMD env create -n "$ENV_NAME" -f "$ENV_FILE" -y
+        [ "$ENV_FILE" != "conda/environment.yaml" ] && rm -f "$ENV_FILE"
+    fi
+fi
+
+# ── 4b. Enforce the driver's CUDA cap ──────────────────────────────────────────────────────
+# Catches every path above (explicit spec, lock file, env update, solve)
+# and existing envs that were built before this check existed.
+if [ -n "$CUDA_PIN" ]; then
+    INSTALLED_CUDA=$($CONDA_CMD list -n "$ENV_NAME" 2>/dev/null \
+        | awk '$1=="cuda-version" {print $2; exit}')
+    if [ -n "$INSTALLED_CUDA" ] && ver_gt "$INSTALLED_CUDA" "$CUDA_VER"; then
+        echo ""
+        echo "cuda-version $INSTALLED_CUDA is newer than this driver supports (CUDA $CUDA_VER)."
+        echo "Downgrading CUDA packages: $CUDA_PIN ..."
+        CONDA_OVERRIDE_CUDA="$CUDA_VER" $CONDA_CMD install -n "$ENV_NAME" -y "$CUDA_PIN"
+    elif [ -n "$INSTALLED_CUDA" ]; then
+        echo "cuda-version $INSTALLED_CUDA is compatible with driver CUDA $CUDA_VER."
     fi
 fi
 
@@ -191,7 +261,7 @@ echo "Installing pip packages: $CUPY_PKG, mpi4py, femto, getcontacts, ultraconta
 # Locate the conda init script
 _find_conda_init() {
     # micromamba: shell hook
-    if [ "$CONDA_CMD" = "micromamba" ]; then
+    if [ "$CONDA_CMD" = "micromamba" ] || [[ "$CONDA_CMD" == *"micromamba"* ]]; then
         echo "micromamba"
         return
     fi
@@ -217,8 +287,8 @@ CONDA_INIT=$(_find_conda_init)
     # Subshell: activate the environment and run pip installs
     set -e
 
-    if [ "$CONDA_CMD" = "micromamba" ]; then
-        eval "$(micromamba shell hook --shell bash)"
+    if [ "$CONDA_CMD" = "micromamba" ] || [[ "$CONDA_CMD" == *"micromamba"* ]]; then
+        eval "$("$CONDA_CMD" shell hook --shell bash)"
         micromamba activate "$ENV_NAME"
     elif [ -n "$CONDA_INIT" ]; then
         # shellcheck disable=SC1090
@@ -299,6 +369,28 @@ except Exception as e:
 
     echo "  Installing chacra (editable)..."
     _pip install --no-cache-dir -e "$(pwd)"
+
+    # ── Smoke-test OpenMM on CUDA ─────────────────────────────────────────────────
+    # Creating a Context forces kernel compilation, so this catches driver /
+    # NVRTC mismatches that merely importing openmm would not.
+    echo ""
+    echo "  Testing OpenMM CUDA platform..."
+    CUDA_CHECK=$(python -c "
+import openmm
+try:
+    s = openmm.System(); s.addParticle(1.0)
+    openmm.Context(s, openmm.VerletIntegrator(0.001),
+                   openmm.Platform.getPlatformByName('CUDA'))
+    print('OK')
+except Exception as e:
+    print('FAIL: ' + str(e).splitlines()[0])
+" 2>&1 | tail -1 || true)
+    echo "  $CUDA_CHECK"
+    if echo "$CUDA_CHECK" | grep -q "^FAIL"; then
+        echo "  WARNING: OpenMM cannot use CUDA on this machine."
+        echo "  (Expected on a GPU-less login node; otherwise check the driver"
+        echo "   vs. 'conda list cuda-version' in $ENV_NAME.)"
+    fi
 )
 
 echo ""
