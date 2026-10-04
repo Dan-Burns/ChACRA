@@ -7,7 +7,7 @@ statistics to help users decide on replica counts and oversubscription levels.
 Usage::
 
     chacra benchmark-hremd -p system.xml -s structure.pdb -n 8 -j 2
-    chacra benchmark-hremd -p system.xml -s structure.pdb -n 8 -j 2 -o 2
+    chacra benchmark-hremd -p system.xml -s structure.pdb -n 8 -j 2 -r 2
 """
 
 import argparse
@@ -44,35 +44,13 @@ def _run_worker(args):
 
     femto.md.utils.mpi.divide_gpus()
 
-    # Load system
-    with open(args.system_file) as f:
-        system = XmlSerializer.deserialize(f.read())
-
-    u = mda.Universe(args.structure_file)
-    solute_idxs = set(u.select_atoms(args.lambda_selection).atoms.ix)
-
-    # REST setup
-    rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
-    femto.md.rest.apply_rest(system, solute_idxs, rest_config)
-
-    pdb = PDBFile(args.structure_file)
-    structure = mdtop.Topology.from_file(args.structure_file)
-
-    # Initial simulation to extract base state
-    integrator = LangevinMiddleIntegrator(
-        args.min_temp, 1 / unit.picosecond, args.timestep * unit.femtosecond
-    )
-    integrator.setRandomNumberSeed(12345)
-    simulation = Simulation(pdb.topology, system, integrator)
-    simulation.context.setPositions(pdb.positions)
-    simulation.context.setVelocitiesToTemperature(args.min_temp, 12345)
-
-    base_state = simulation.context.getState(
-        getPositions=True,
-        getVelocities=True,
-        getForces=True,
-        getEnergy=True,
-        enforcePeriodicBox=True,
+    from chacra.simulation import build_hremd_base_state
+    system, structure, base_state = build_hremd_base_state(
+        system_file=args.system_file,
+        structure_file=args.structure_file,
+        lambda_selection=args.lambda_selection,
+        temperature=args.min_temp,
+        timestep=args.timestep,
     )
 
     output_dir = pathlib.Path("benchmark-hremd-outputs")

@@ -175,3 +175,79 @@ class OMMSetup:
             outfile.write(XmlSerializer.serialize(self.system))
         with open(f'{output}/structures/{self.name}_minimized.pdb', 'w') as f:
             PDBFile.writeFile(topology, positions, f)
+
+def build_hremd_base_state(
+    system_file: str,
+    structure_file: str,
+    lambda_selection: str,
+    temperature: float,
+    timestep: float,
+):
+    """
+    Builds the base simulation state and REST-scaled system for HREMD.
+
+    This function reads a system XML and structure PDB, applies femto REST2
+    scaling to the specified lambda selection, and generates a thermalized base
+    state (positions, velocities, forces). 
+    
+    It abstracts away the boilerplate required to initialize a `femto.md.hremd`
+    compatible system.
+
+    Parameters
+    ----------
+    system_file : str
+        Path to the OpenMM system XML file.
+    structure_file : str
+        Path to the structure PDB file.
+    lambda_selection : str
+        MDAnalysis selection string for the atoms to undergo REST2 scaling.
+    temperature : float
+        The base temperature (K) to thermalize the state to.
+    timestep : float
+        The integration timestep in femtoseconds.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - system (openmm.System): The REST2-scaled OpenMM system.
+        - structure (mdtop.Topology): The system topology.
+        - base_state (openmm.State): The fully initialized and thermalized 
+          base OpenMM state.
+    """
+    import femto.md.config
+    import femto.md.rest
+    import MDAnalysis as mda
+    import mdtop
+    from openmm import LangevinMiddleIntegrator, XmlSerializer, unit
+    from openmm.app import PDBFile, Simulation
+
+    with open(system_file) as f:
+        system = XmlSerializer.deserialize(f.read())
+
+    u = mda.Universe(structure_file)
+    solute_idxs = set(u.select_atoms(lambda_selection).atoms.ix)
+
+    rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
+    femto.md.rest.apply_rest(system, solute_idxs, rest_config)
+
+    pdb = PDBFile(structure_file)
+    structure = mdtop.Topology.from_file(structure_file)
+
+    integrator = LangevinMiddleIntegrator(
+        temperature, 1 / unit.picosecond, timestep * unit.femtosecond
+    )
+    integrator.setRandomNumberSeed(12345)
+    
+    simulation = Simulation(pdb.topology, system, integrator)
+    simulation.context.setPositions(pdb.positions)
+    simulation.context.setVelocitiesToTemperature(temperature, 12345)
+
+    base_state = simulation.context.getState(
+        getPositions=True,
+        getVelocities=True,
+        getForces=True,
+        getEnergy=True,
+        enforcePeriodicBox=True,
+    )
+    return system, structure, base_state
