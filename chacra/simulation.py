@@ -77,6 +77,8 @@ class OMMSetup:
         Hydrogen mass in atomic mass units (>2 enables longer timesteps via HMR).
     timestep : int
         Integration timestep in femtoseconds.
+    forcefield : str
+        Forcefield(s) (comma separated) to use for the simulation.
     """
 
     def __init__(self,
@@ -251,3 +253,99 @@ def build_hremd_base_state(
         enforcePeriodicBox=True,
     )
     return system, structure, base_state
+
+
+def _run_sim_worker(builder_func, steps, kwargs):
+    """Worker process that builds and runs the simulation."""
+    import openmm.unit
+    
+    # Build the simulation fresh inside this process
+    simulation = builder_func(**kwargs)
+    
+    # Run the simulation
+    simulation.step(steps)
+    
+    # Return the final state potential energy
+    state = simulation.context.getState(getEnergy=True)
+    return state.getPotentialEnergy().value_in_unit_system(openmm.unit.md_unit_system)
+
+
+def run_concurrently_with_mps(builder_func, configs, steps=1000):
+    """
+    Run multiple OpenMM simulations concurrently on a single GPU using CUDA MPS.
+    
+    This function delegates the OpenMM initialization to child processes to bypass
+    OpenMM's inability to pickle and share Simulation objects across processes. 
+    It automatically configures the MPS environment for the workers.
+    
+    Parameters
+    ----------
+    builder_func : callable
+        A function that takes **kwargs and returns an openmm.app.Simulation object.
+        This function will be executed in the child processes.
+    configs : list of dict
+        A list of kwargs dictionaries to pass to builder_func for each replica.
+    steps : int
+        Number of steps to run for each simulation.
+        
+    Returns
+    -------
+    list of float
+        The final potential energy of each simulation.
+
+    Example
+    -------
+    >>> def my_sim_builder(temperature):
+    ...     # This runs inside the child process!
+    ...     from chacra.simulation import build_hremd_base_state
+    ...     from openmm.app import Simulation
+    ...     from openmm import LangevinMiddleIntegrator, unit
+    ...     
+    ...     system, structure, base_state = build_hremd_base_state(
+    ...         system_file="system.xml", structure_file="structure.pdb", 
+    ...         lambda_selection="protein", temperature=290.0, timestep=2.0
+    ...     )
+    ...     
+    ...     integrator = LangevinMiddleIntegrator(
+    ...         temperature * unit.kelvin, 1/unit.picosecond, 2.0*unit.femtosecond
+    ...     )
+    ...     sim = Simulation(structure.topology, system, integrator)
+    ...     sim.context.setState(base_state)
+    ...     return sim
+    ...
+    >>> configs = [
+    ...     {"temperature": 290.0},
+    ...     {"temperature": 310.0},
+    ... ]
+    >>> energies = run_concurrently_with_mps(my_sim_builder, configs, steps=5000)
+    """
+    import multiprocessing as mp
+    import os
+    import time
+    
+    num_replicas = len(configs)
+    
+    # 1. Configure the environment for MPS
+    # Tell MPS to evenly divide the GPU threads among the replicas
+    thread_pct = max(1, 200 // num_replicas)
+    os.environ["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(thread_pct)
+    
+    print(f"Starting {num_replicas} concurrent simulations (MPS thread %: {thread_pct})")
+    
+    # 2. Use multiprocessing "spawn" to ensure completely clean CUDA contexts
+    ctx = mp.get_context("spawn")
+    
+    start_time = time.time()
+    
+    # 3. Launch the workers
+    with ctx.Pool(processes=num_replicas) as pool:
+        # We pass the builder_func, the number of steps, and the specific config dict
+        results = pool.starmap(
+            _run_sim_worker, 
+            [(builder_func, steps, cfg) for cfg in configs]
+        )
+        
+    wall_time = time.time() - start_time
+    print(f"All simulations finished in {wall_time:.2f} seconds.")
+    
+    return results

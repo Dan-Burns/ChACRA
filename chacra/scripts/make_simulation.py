@@ -68,8 +68,17 @@ def main():
         help="""
         Hydrogen mass. A larger hydrogen mass allows a longer timestep."
         """,
-        default=2
+        default=1.5
     )
+
+    parser.add_argument(
+        "--forcefield", type=str, required=False,
+        help="""
+        The forcefield to use for the simulation.
+        """,
+        default="amber14-all.xml"
+    )
+
     args = parser.parse_args()
     pressure = float(args.pressure)
     temperature = float(args.temperature)
@@ -89,6 +98,7 @@ def main():
         pressure=pressure,
         Hmass=args.hmass,
         timestep=args.timestep,
+        forcefields=[f for f in args.forcefield.split(",")]
     )
     setup.model()
     print(f"Adding solvent.")
