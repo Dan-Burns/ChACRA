@@ -393,9 +393,10 @@ except Exception as e:
     fi
 )
 
+ACTIVATE_CMD="$(basename "$CONDA_CMD")"
 echo ""
 echo "=== Installation Complete ==="
-echo "Activate with:  conda activate $ENV_NAME"
+echo "Activate with:  $ACTIVATE_CMD activate $ENV_NAME"
 echo ""
 echo "Notes:"
 echo "  • OpenMPI is the recommended MPI implementation for multi-node runs."
