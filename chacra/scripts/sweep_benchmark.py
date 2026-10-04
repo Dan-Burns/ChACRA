@@ -1,44 +1,38 @@
 """
-Adaptive sweep benchmark: find the replica count and CUDA MPS setting that
-give good exchange rates and the best throughput.
+Sweep benchmark: single-GPU MPS throughput + static exchange-rate sweep.
 
-Algorithm
----------
-Phase 1 — exchange-rate search (small probes, run in parallel)
-    Each probe is a tiny HREMD ladder (default 4 replicas) at the *cold end*
-    of the temperature range, spaced geometrically by a ratio
-    ``r = T[i+1] / T[i]``.  The cold end is the bottleneck for geometric
-    ladders, so if exchange is acceptable there it is acceptable everywhere.
+Gives you the two numbers needed to plan an HREMD run on *any* amount of
+hardware — how many replicas you need, and how many replicas to pack onto
+each GPU — without committing to a particular GPU count up front.
 
-    On a single node, one probe runs per GPU at the same time (each probe's
-    replicas share its GPU via CUDA MPS), so every round tests ``n_gpus``
-    different spacings.
+Phase 1 — single-GPU MPS throughput
+    Runs a short OpenMM MD simulation (default 10,000 steps) on one GPU with
+    1, 2, 3, 4 concurrent replicas sharing it via CUDA MPS, and reports ns/day
+    per replica and aggregate ns/day per GPU.  The best row is your ``--mps-replicas``.
 
-    All observed neighbour pairs are pooled and fit to a simple model of
-    replica-exchange acceptance for Gaussian energy distributions::
+Phase 2 — static exchange sweep
+    Runs a 4-replica ladder at the *cold end* of the temperature range with
+    neighbour gap ΔT (default 4, 7, 10 K).  The cold end is the
+    bottleneck for a geometric ladder, so a gap that exchanges well there
+    exchanges at least as well everywhere.
 
-        P_exchange ≈ erfc(k · ln r)
+    The neighbour-pair counts are pooled and the mean acceptance probability
+    is reported. You can choose a gap that produces a suitable acceptance rate.
 
-    where ``k`` is a single system-dependent constant (roughly
-    ∝ sqrt(heat capacity)).  The fit predicts the ratio ``r*`` that gives the
-    target exchange rate, and the next round's probes are centred on it.
-    If a round shows almost no exchanges the spacing shrinks aggressively; if
-    exchanges are near-certain it widens.  Usually converges in 2–3 rounds.
+    Full ladder size for a gap:  ``N = ceil(ln(T_max/T_min) / ln r) + 1``
 
-    Full ladder size: ``N = ceil(ln(T_max/T_min) / ln r*) + 1``
-
-Phase 2 — throughput + validation (full ladder)
-    Runs the predicted N-replica ladder across all GPUs for each MPS value
-    (default 1–4).  This measures ns/day and also validates the exchange
-    prediction on the real ladder (pooled across the runs).
+Optional — full ladder (``--test-full-ladder``)
+    Once you've decided how to distribute replicas, validate the real ladder
+    (``-n`` replicas across ``-j`` GPUs × ``--mps-replicas``).
 
 Usage::
 
-    chacra sweep-benchmark -p system.xml -s structure.pdb -j 4
-    chacra sweep-benchmark -p system.xml -s structure.pdb -j 4 \\
+    chacra sweep-benchmark -p system.xml -s structure.pdb
+    chacra sweep-benchmark -p system.xml -s structure.pdb \\
         --min-temp 290 --max-temp 450 --target-exchange 0.20
-    # Skip the search if you already know the replica count:
-    chacra sweep-benchmark -p system.xml -s structure.pdb -j 4 -n 24
+    # Then validate a concrete layout:
+    chacra sweep-benchmark -p system.xml -s structure.pdb --full-ladder-only \\
+        -n 24 -j 4 --mps-replicas 2
 """
 
 import argparse
@@ -56,12 +50,6 @@ from chacra.mpi import build_mpi_command, configure_mps_env
 
 # Scratch lives in the CWD so it is on a shared filesystem for multi-node runs.
 _SCRATCH = pathlib.Path(".chacra_sweep_scratch")
-
-# Clamp on the searchable ratio range.
-_R_MIN = 1.0005
-_R_MAX = 1.07
-
-_verfc = np.vectorize(math.erfc)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -109,30 +97,14 @@ def _probe_worker(args):
 
     temps = [float(t) for t in args._probe_temps.split(",")]
 
-    with open(args.system_file) as f:
-        system = XmlSerializer.deserialize(f.read())
-
-    u = mda.Universe(args.structure_file)
-    solute_idxs = set(u.select_atoms(args.lambda_selection).atoms.ix)
-
-    rest_config = femto.md.config.REST(scale_torsions=True, scale_nonbonded=True)
-    femto.md.rest.apply_rest(system, solute_idxs, rest_config)
-
-    pdb = PDBFile(args.structure_file)
-    structure = mdtop.Topology.from_file(args.structure_file)
-
-    integrator = LangevinMiddleIntegrator(
-        temps[0], 1 / unit.picosecond, args.timestep * unit.femtosecond
+    from chacra.simulation import build_hremd_base_state
+    system, structure, base_state = build_hremd_base_state(
+        system_file=args.system_file,
+        structure_file=args.structure_file,
+        lambda_selection=args.lambda_selection,
+        temperature=temps[0],
+        timestep=args.timestep,
     )
-    integrator.setRandomNumberSeed(12345)
-    simulation = Simulation(pdb.topology, system, integrator)
-    simulation.context.setPositions(pdb.positions)
-    simulation.context.setVelocitiesToTemperature(temps[0], 12345)
-    base_state = simulation.context.getState(
-        getPositions=True, getVelocities=True, getForces=True,
-        getEnergy=True, enforcePeriodicBox=True,
-    )
-    del simulation
 
     output_dir = pathlib.Path(args._output_dir)
 
@@ -208,6 +180,76 @@ def _probe_worker(args):
         shutil.rmtree(output_dir, ignore_errors=True)
 
 
+def _throughput_worker(args):
+    """Run pure MD simulation on each rank (no HREMD swaps) to measure raw throughput under MPS."""
+    if args._gpu_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args._gpu_id
+
+    import femto.md.config
+    import femto.md.constants
+    import femto.md.rest
+    import femto.md.utils.mpi
+    import femto.md.utils.openmm
+    import MDAnalysis as mda
+    import mdtop
+    import openmm
+    from openmm import XmlSerializer
+    from openmm.app import PDBFile
+
+    if args._gpu_id is None:
+        femto.md.utils.mpi.divide_gpus()
+
+    from chacra.simulation import build_hremd_base_state
+    system, structure, base_state = build_hremd_base_state(
+        system_file=args.system_file,
+        structure_file=args.structure_file,
+        lambda_selection=args.lambda_selection,
+        temperature=args.min_temp,
+        timestep=args.timestep,
+    )
+
+    temp = args.min_temp * openmm.unit.kelvin
+    state = femto.md.utils.openmm.evaluate_ctx_parameters(
+        {femto.md.rest.REST_CTX_PARAM: 1.0}, system
+    )
+
+    integrator_config = femto.md.config.LangevinIntegrator(
+        timestep=args.timestep * openmm.unit.femtosecond,
+    )
+    integrator = femto.md.utils.openmm.create_integrator(integrator_config, temp)
+    integrator.setRandomNumberSeed(12345)
+
+    simulation = femto.md.utils.openmm.create_simulation(
+        system, structure, coords=base_state, integrator=integrator,
+        state=state, platform=femto.md.constants.OpenMMPlatform.CUDA,
+    )
+
+    steps = args._benchmark_steps
+
+    with femto.md.utils.mpi.get_mpi_comm() as mpi_comm:
+        # Warmup a few steps to JIT kernels
+        simulation.step(100)
+        mpi_comm.barrier()
+
+        t0 = time.time()
+        simulation.step(steps)
+        mpi_comm.barrier()
+        wall = time.time() - t0
+
+        if mpi_comm.rank != 0:
+            return
+
+        ns_per_replica = steps * args.timestep / 1e6
+        ns_per_day = ns_per_replica / wall * 86400
+        results = {
+            "wall_time_sec": wall,
+            "steps": steps,
+            "ns_per_day_per_replica": ns_per_day,
+        }
+        with open(args._results_file, "w") as f:
+            json.dump(results, f, indent=2)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Probe launching
 # ═════════════════════════════════════════════════════════════════════════════
@@ -220,6 +262,9 @@ def _launch(
     n_ranks: int,
     gpu_id: str | None,
     opts: argparse.Namespace,
+    cycles: int,
+    warmup_steps: int,
+    n_gpus: int = 1,
 ) -> tuple[subprocess.Popen, pathlib.Path]:
     """Start an MPI HREMD run in the background.  Returns (process, probe_dir)."""
     # More ranks than replicas would leave idle ranks — never do that.
@@ -230,16 +275,16 @@ def _launch(
         shutil.rmtree(probe_dir)
     probe_dir.mkdir(parents=True)
 
+    import sys
     cmd = build_mpi_command(n_ranks, mpi_command=opts.mpi_command) + [
-        "chacra", "sweep-benchmark", "--_is-probe-worker",
+        sys.executable, __file__, "--_is-probe-worker",
         "-p", opts.system_file,
         "-s", opts.structure_file,
-        "-j", "1",
         "--timestep", str(opts.timestep),
         "--lambda_selection", opts.lambda_selection,
-        "--cycles", str(opts.cycles),
+        "--cycles", str(cycles),
         "--steps-per-cycle", str(opts.steps_per_cycle),
-        "--warmup-steps", str(opts.warmup_steps),
+        "--warmup-steps", str(warmup_steps),
         "--_probe-temps", ",".join(f"{t:.4f}" for t in temps),
         "--_results-file", str(probe_dir / "results.json"),
         "--_output-dir", str(probe_dir / "hremd-output"),
@@ -252,15 +297,56 @@ def _launch(
     env.setdefault("OMP_NUM_THREADS", "1")
     if gpu_id is not None:
         env["CUDA_VISIBLE_DEVICES"] = gpu_id
-    if n_ranks > 1:
-        # Ranks sharing a GPU — same convention as run-hremd.
-        ranks_per_gpu = n_ranks if gpu_id is not None else max(1, n_ranks // opts.n_jobs)
-        if ranks_per_gpu > 1:
-            env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 200 // ranks_per_gpu))
+    # Ranks sharing a GPU — same convention as run-hremd.
+    ranks_per_gpu = n_ranks if gpu_id is not None else max(1, n_ranks // n_gpus)
+    if ranks_per_gpu > 1:
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 200 // ranks_per_gpu))
 
     log = open(probe_dir / "mpi.log", "wb")
     proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT)
     proc._chacra_log = log  # keep handle alive; closed in _collect
+    return proc, probe_dir
+
+
+def _launch_throughput(
+    *,
+    n_ranks: int,
+    steps: int,
+    tag: str,
+    gpu_id: str | None,
+    opts: argparse.Namespace,
+) -> tuple[subprocess.Popen, pathlib.Path]:
+    """Start an MPI run to benchmark pure MD throughput on n_ranks sharing a GPU."""
+    probe_dir = _SCRATCH / tag
+    if probe_dir.exists():
+        shutil.rmtree(probe_dir)
+    probe_dir.mkdir(parents=True)
+
+    import sys
+    cmd = build_mpi_command(n_ranks, mpi_command=opts.mpi_command) + [
+        sys.executable, __file__, "--_is-throughput-worker",
+        "-p", opts.system_file,
+        "-s", opts.structure_file,
+        "--min-temp", str(opts.min_temp),
+        "--timestep", str(opts.timestep),
+        "--lambda_selection", opts.lambda_selection,
+        "--_benchmark-steps", str(steps),
+        "--_results-file", str(probe_dir / "results.json"),
+    ]
+    if gpu_id is not None:
+        cmd += ["--_gpu-id", gpu_id]
+
+    env = os.environ.copy()
+    env.setdefault("TQDM_DISABLE", "1")
+    env.setdefault("OMP_NUM_THREADS", "1")
+    if gpu_id is not None:
+        env["CUDA_VISIBLE_DEVICES"] = gpu_id
+    if n_ranks > 1:
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 200 // n_ranks))
+
+    log = open(probe_dir / "mpi.log", "wb")
+    proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT)
+    proc._chacra_log = log
     return proc, probe_dir
 
 
@@ -290,6 +376,14 @@ def _collect(proc: subprocess.Popen, probe_dir: pathlib.Path, timeout: float) ->
     return {"ok": False, "error": err, "log_tail": tail}
 
 
+def _run(temps, *, tag, n_ranks, gpu_id, opts, cycles, warmup_steps, n_gpus=1) -> dict:
+    proc, pdir = _launch(
+        temps, tag=tag, n_ranks=n_ranks, gpu_id=gpu_id, opts=opts,
+        cycles=cycles, warmup_steps=warmup_steps, n_gpus=n_gpus,
+    )
+    return _collect(proc, pdir, opts.timeout)
+
+
 def _error_line(log_tail: str) -> str:
     """Pick the most informative line from a failed probe's log.
 
@@ -306,13 +400,32 @@ def _error_line(log_tail: str) -> str:
     return ""
 
 
-def _gpu_ids(n_gpus: int) -> list[str]:
-    """Physical GPU ids to pin probes to, respecting an existing CUDA_VISIBLE_DEVICES."""
+def _print_failure(prefix: str, res: dict) -> None:
+    print(f"{prefix}FAILED ({res.get('error') or res.get('exchange_error', 'no exchange data')})")
+    if res.get("log_tail"):
+        print("        " + _error_line(res["log_tail"])[:150])
+
+
+def _get_available_gpus(opts) -> list[str]:
+    """List of available physical GPUs."""
+    if opts.gpu is not None:
+        return [str(opts.gpu)]
     visible = os.environ.get("CUDA_VISIBLE_DEVICES")
     if visible:
         ids = [x.strip() for x in visible.split(",") if x.strip()]
-        return ids[:n_gpus]
-    return [str(i) for i in range(n_gpus)]
+        if ids:
+            return ids
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+            text=True
+        )
+        ids = [x.strip() for x in out.splitlines() if x.strip()]
+        if ids:
+            return ids
+    except Exception:
+        pass
+    return ["0"]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -320,34 +433,8 @@ def _gpu_ids(n_gpus: int) -> list[str]:
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def _fit_k(obs: list[tuple[float, float, float]]) -> float | None:
-    """Fit ``P = erfc(k·x)`` to (x=ln r, accepted, proposed) observations."""
-    obs = [o for o in obs if o[2] > 0]
-    if not obs:
-        return None
-    x = np.array([o[0] for o in obs])
-    p = np.array([o[1] / o[2] for o in obs])
-    w = np.array([o[2] for o in obs])
-    ks = np.geomspace(1.0, 5000.0, 3000)
-    pred = _verfc(np.outer(ks, x))
-    err = ((pred - p) ** 2 * w).sum(axis=1)
-    return float(ks[int(np.argmin(err))])
-
-
-def _erfcinv(p: float) -> float:
-    lo, hi = 0.0, 6.0
-    for _ in range(80):
-        mid = 0.5 * (lo + hi)
-        if math.erfc(mid) > p:
-            lo = mid
-        else:
-            hi = mid
-    return 0.5 * (lo + hi)
-
-
-def _ratio_for_target(k: float, target: float) -> float:
-    r = math.exp(_erfcinv(target) / k)
-    return min(max(r, _R_MIN), _R_MAX)
+def _gap_to_ratio(gap: float, t_min: float) -> float:
+    return 1.0 + gap / t_min
 
 
 def _n_replicas(r: float, t_min: float, t_max: float) -> int:
@@ -355,182 +442,92 @@ def _n_replicas(r: float, t_min: float, t_max: float) -> int:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Phase 1 — adaptive search
+# Phase 1 — single-GPU MPS throughput
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def _adaptive_search(opts) -> tuple[float, list[dict]]:
-    gpu_ids = _gpu_ids(opts.n_jobs)
-    parallel = (not opts.serial_probes) and len(gpu_ids) > 1
-    n_par = len(gpu_ids) if parallel else 1
-    m = opts.probe_replicas
-
-    # Round 1: span a broad range of spacings (≈1–20 K gaps near 300 K).
-    if n_par > 1:
-        ratios = list(np.geomspace(1.004, 1.035, n_par))
-    else:
-        ratios = [1.015]
-
-    obs: list[tuple[float, float, float]] = []
-    history: list[dict] = []
-    r_star: float | None = None
+def _mps_sweep(opts, gpu: str) -> list[dict]:
+    mps_values = [int(x) for x in opts.mps_range.split(",") if x.strip()]
+    steps = opts.mps_steps
 
     print(f"\n{'─' * 72}")
-    print(f"  Phase 1: adaptive exchange search  (target P_x ≈ {opts.target_px:.2f})")
-    mode = f"{n_par} probes in parallel (1 per GPU)" if parallel else "serial probes"
-    print(f"  {m} replicas/probe at the cold end ({opts.min_temp:.0f} K), {mode}")
+    print(f"  Phase 1: single-GPU MPS throughput  (GPU {gpu}, {steps} steps/run)")
+    print(f"  Measuring {steps} simulation steps across 1 to {max(mps_values)} concurrent replicas")
     print(f"{'─' * 72}")
-    print(f"  {'Rnd':>3}  {'Ratio':>7}  {'ΔT@Tmin':>8}  {'Mean Px':>8}  {'Min Px':>7}  {'→ N':>5}")
+    print(f"  {'Replicas/GPU':>12}  {'ns/day/replica':>14}  {'ns/day/GPU':>11}  {'Speedup':>8}  {'Wall':>6}")
 
-    for rnd in range(1, opts.max_rounds + 1):
-        launched = []
-        for idx, r in enumerate(ratios):
-            temps = [opts.min_temp * r**i for i in range(m)]
-            if parallel:
-                gpu, n_ranks = gpu_ids[idx], m
-            else:
-                gpu, n_ranks = None, opts.n_jobs
-            proc, pdir = _launch(
-                temps, tag=f"r{rnd}_p{idx}", n_ranks=n_ranks, gpu_id=gpu, opts=opts,
-            )
-            launched.append((r, proc, pdir))
-            if not parallel:
-                # serial: wait before starting the next probe
-                launched[-1] = (r, _collect(proc, pdir, opts.timeout), None)
-
-        results = []
-        for r, proc_or_res, pdir in launched:
-            res = proc_or_res if pdir is None else _collect(proc_or_res, pdir, opts.timeout)
-            results.append((r, res))
-
-        round_px = []
-        for r, res in results:
-            dT = opts.min_temp * (r - 1)
-            if not res.get("ok") or "accepted" not in res:
-                msg = res.get("error") or res.get("exchange_error", "no exchange data")
-                print(f"  {rnd:>3}  {r:7.4f}  {dT:7.2f}K  FAILED ({msg})")
-                if res.get("log_tail"):
-                    print("       " + _error_line(res["log_tail"])[:150])
-                history.append({"round": rnd, "ratio": r, "ok": False, "error": msg})
-                continue
-            acc = np.array(res["accepted"])
-            prop = np.array(res["proposed"])
-            px = np.divide(acc, prop, out=np.zeros_like(acc), where=prop > 0)
-            for a, n in zip(acc, prop):
-                obs.append((math.log(r), float(a), float(n)))
-            round_px.extend(px.tolist())
-            print(
-                f"  {rnd:>3}  {r:7.4f}  {dT:7.2f}K  {px.mean():8.3f}  {px.min():7.3f}"
-                f"  {_n_replicas(r, opts.min_temp, opts.max_temp):>5}"
-            )
-            history.append({
-                "round": rnd, "ratio": r, "ok": True, "temps": res["temps"],
-                "exchange_probs": px.tolist(),
-                "ns_per_day_per_replica": res.get("ns_per_day_per_replica"),
-            })
-
-        if not round_px:
-            # Everything failed — most often too-wide spacing blowing up.
-            ratios = [math.exp(math.log(r) * 0.5) for r in ratios]
-            continue
-
-        # Degenerate rounds: steer explicitly before trusting the fit.
-        lnrs = [math.log(r) for r in ratios]
-        if max(round_px) < 0.02:
-            print("       ↳ almost no exchanges — shrinking spacing")
-            base = min(lnrs)
-            ratios = [math.exp(base * f) for f in np.linspace(0.2, 0.6, n_par)]
-            continue
-        if min(round_px) > 0.90:
-            print("       ↳ exchanges near-certain — widening spacing")
-            base = max(lnrs)
-            ratios = [min(_R_MAX, math.exp(base * f)) for f in np.linspace(1.5, 3.0, n_par)]
-            continue
-
-        k = _fit_k(obs)
-        new_r = _ratio_for_target(k, opts.target_px)
-        print(
-            f"       ↳ fit k={k:.1f} → r*={new_r:.4f} "
-            f"(ΔT@Tmin={opts.min_temp * (new_r - 1):.2f} K, N={_n_replicas(new_r, opts.min_temp, opts.max_temp)})"
+    runs: list[dict] = []
+    base_agg = None
+    for k in mps_values:
+        proc, pdir = _launch_throughput(
+            n_ranks=k, steps=steps, tag=f"mps_{k}", gpu_id=gpu, opts=opts
         )
-
-        converged = (
-            r_star is not None
-            and abs(math.log(new_r) - math.log(r_star)) / math.log(r_star) < 0.05
-        )
-        r_star = new_r
-        if converged:
-            break
-
-        # Next round: bracket r* in ln-space.
-        if n_par > 1:
-            ratios = [math.exp(math.log(r_star) * f) for f in np.linspace(0.75, 1.3, n_par)]
-        else:
-            ratios = [r_star]
-
-    if r_star is None:
-        raise RuntimeError(
-            "Exchange search failed to produce a usable estimate. "
-            "Check the probe logs (rerun with --keep-scratch)."
-        )
-    return r_star, history
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# Phase 2 — throughput + validation on the full ladder
-# ═════════════════════════════════════════════════════════════════════════════
-
-
-def _throughput_sweep(n_replicas: int, opts) -> tuple[list[dict], dict | None]:
-    temps = list(np.geomspace(opts.min_temp, opts.max_temp, n_replicas))
-    mps_range = [int(x) for x in opts.mps_range.split(",")]
-
-    print(f"\n{'─' * 72}")
-    print(f"  Phase 2: throughput + validation  ({n_replicas} replicas, {opts.n_jobs} GPU(s))")
-    print(f"{'─' * 72}")
-    print(f"  {'MPS':>4}  {'Ranks':>5}  {'ns/day/rep':>11}  {'Agg ns/day':>11}  {'Min Px':>7}  {'Wall':>7}")
-
-    runs = []
-    pooled_acc = np.zeros(n_replicas - 1)
-    pooled_prop = np.zeros(n_replicas - 1)
-
-    for mps in mps_range:
-        n_ranks = opts.n_jobs * mps
-        if n_ranks > n_replicas:
-            print(f"  {mps:>4}  {n_ranks:>5}  skipped (more ranks than replicas)")
-            continue
-        proc, pdir = _launch(temps, tag=f"tp_mps{mps}", n_ranks=n_ranks, gpu_id=None, opts=opts)
         res = _collect(proc, pdir, opts.timeout)
         if not res.get("ok"):
-            print(f"  {mps:>4}  {n_ranks:>5}  FAILED ({res.get('error')})")
-            runs.append({"mps_replicas": mps, "ok": False, "error": res.get("error")})
+            _print_failure(f"  {k:>12}  ", res)
+            runs.append({"mps_replicas": k, "ok": False, "error": res.get("error")})
             continue
 
-        ns_day = res["ns_per_day_per_replica"]
-        min_px = None
-        if "accepted" in res:
-            acc, prop = np.array(res["accepted"]), np.array(res["proposed"])
-            pooled_acc += acc
-            pooled_prop += prop
-            px = np.divide(acc, prop, out=np.zeros_like(acc), where=prop > 0)
-            min_px = float(px.min())
-        min_str = f"{min_px:7.3f}" if min_px is not None else "      —"
-        print(
-            f"  {mps:>4}  {n_ranks:>5}  {ns_day:11.2f}  {ns_day * n_replicas:11.2f}"
-            f"  {min_str}  {res['wall_time_sec']:6.0f}s"
-        )
+        per_rep = res["ns_per_day_per_replica"]
+        agg = per_rep * k
+        if base_agg is None and k == 1:
+            base_agg = agg
+        speedup = (agg / base_agg) if base_agg else 1.0
+        print(f"  {k:>12}  {per_rep:14.2f}  {agg:11.2f}  {speedup:7.2f}×  {res['wall_time_sec']:5.0f}s")
         runs.append({
-            "mps_replicas": mps, "ok": True, "ranks": n_ranks,
-            "ns_per_day_per_replica": ns_day,
-            "agg_ns_per_day": ns_day * n_replicas,
-            "wall_time_sec": res["wall_time_sec"],
+            "mps_replicas": k, "ok": True,
+            "ns_per_day_per_replica": per_rep, "ns_per_day_per_gpu": agg,
+            "speedup": speedup, "wall_time_sec": res["wall_time_sec"],
+        })
+    return runs
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Phase 2 — exchange sweep
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+def _exchange_sweep(opts, gpu: str) -> tuple[dict | None, list[dict]]:
+    """Return (best probe, all probes)."""
+    m = opts.probe_replicas
+    t_min = opts.min_temp
+
+    deltas = [float(x.strip()) for x in opts.temp_deltas.split(",")]
+
+    print(f"\n{'─' * 72}")
+    print(f"  Phase 2: static exchange sweep")
+    print(f"  {m} replicas on GPU {gpu} at the cold end ({t_min:.0f} K), "
+          f"{opts.cycles} cycles/probe")
+    print(f"{'─' * 72}")
+    print(f"  {'ΔT':>7}  {'Mean Px':>8}  {'Min Px':>7}  {'Max Px':>7}  {'N':>4}")
+
+    probes: list[dict] = []
+
+    for gap in deltas:
+        r = _gap_to_ratio(gap, t_min)
+        temps = [t_min * r**i for i in range(m)]
+        res = _run(temps, tag=f"x_{gap}K", n_ranks=m, gpu_id=gpu, opts=opts,
+                   cycles=opts.cycles, warmup_steps=opts.warmup_steps)
+
+        if not res.get("ok") or "accepted" not in res:
+            _print_failure(f"  {gap:6.2f}K  ", res)
+            probes.append({"gap": gap, "ok": False, "error": res.get("error")})
+            continue
+
+        acc = np.array(res["accepted"])
+        prop = np.array(res["proposed"])
+        px = np.divide(acc, prop, out=np.zeros_like(acc), where=prop > 0)
+        n_full = _n_replicas(r, t_min, opts.max_temp)
+        print(f"  {gap:6.2f}K  {px.mean():8.3f}  {px.min():7.3f}  {px.max():7.3f}  {n_full:>4}")
+
+        probes.append({
+            "gap": gap, "ratio": r, "ok": True,
+            "exchange_probs": px.tolist(), "accepted": acc.tolist(),
+            "proposed": prop.tolist(), "pooled_px": float(acc.sum() / max(prop.sum(), 1)),
+            "n_replicas_full": n_full,
         })
 
-    validation = None
-    if pooled_prop.sum() > 0:
-        px = np.divide(pooled_acc, pooled_prop, out=np.zeros_like(pooled_acc), where=pooled_prop > 0)
-        validation = {"temps": temps, "exchange_probs": px.tolist()}
-    return runs, validation
+    return probes
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -538,36 +535,39 @@ def _throughput_sweep(n_replicas: int, opts) -> tuple[list[dict], dict | None]:
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def _print_summary(r_star, n_replicas, runs, validation, opts):
+def _print_summary(opts, mps_runs, probes):
+    t_min, t_max = opts.min_temp, opts.max_temp
     print(f"\n{'═' * 72}")
     print("  SWEEP BENCHMARK RESULTS")
     print(f"{'═' * 72}")
-    print(f"  Temperature range : {opts.min_temp:.0f} – {opts.max_temp:.0f} K")
-    if r_star is not None:
-        print(f"  Spacing ratio     : {r_star:.4f}  (ΔT at {opts.min_temp:.0f} K ≈ {opts.min_temp * (r_star - 1):.2f} K)")
-    print(f"  Replicas          : {n_replicas}")
+    if not getattr(opts, "mps_only", False):
+        print(f"  Temperature range : {t_min:.0f} – {t_max:.0f} K")
 
-    if validation:
-        px = np.array(validation["exchange_probs"])
-        temps = validation["temps"]
-        worst = int(px.argmin())
-        print(f"\n  Exchange on full ladder (pooled over Phase 2 runs):")
-        print(f"    mean {px.mean():.3f}   min {px.min():.3f}   max {px.max():.3f}")
-        print(f"    worst pair: {temps[worst]:.1f} K ↔ {temps[worst + 1]:.1f} K")
-        if px.min() < 0.7 * opts.target_px:
-            print(f"    ⚠  Worst pair well below target — consider ~{int(n_replicas * 1.15) + 1} replicas,")
-            print(f"       or rerun with more --cycles for better statistics.")
+    ok_mps = [r for r in mps_runs if r.get("ok")]
+    if ok_mps:
+        print("\n  Single-GPU throughput (CUDA MPS):")
+        print(f"    {'Replicas/GPU':>12}  {'ns/day/replica':>14}  {'ns/day/GPU':>11}  {'Speedup':>8}")
+        for r in ok_mps:
+            print(f"    {r['mps_replicas']:>12}  {r['ns_per_day_per_replica']:14.2f}"
+                  f"  {r['ns_per_day_per_gpu']:11.2f}  {r['speedup']:7.2f}×")
 
-    ok_runs = [r for r in runs if r.get("ok")]
-    if ok_runs:
-        best = max(ok_runs, key=lambda r: r["agg_ns_per_day"])
-        base = next((r for r in ok_runs if r["mps_replicas"] == 1), None)
-        print(f"\n  ★ Recommended:  -n {n_replicas} --mps-replicas {best['mps_replicas']}")
-        print(f"      {best['ns_per_day_per_replica']:.2f} ns/day/replica, "
-              f"{best['agg_ns_per_day']:.1f} ns/day aggregate")
-        if base and best is not base:
-            gain = best["agg_ns_per_day"] / base["agg_ns_per_day"]
-            print(f"      ({gain:.2f}× vs --mps-replicas 1)")
+    ok_probes = sorted((p for p in probes if p.get("ok")), key=lambda p: p["gap"])
+    if ok_probes:
+        print("\n  Measured exchange (cold end):")
+        print(f"    {'ΔT':>7}  {'Pooled Px':>9}  {'Min pair':>8}  {'Max pair':>8}  {'N for range':>11}")
+        for p in ok_probes:
+            print(f"    {p['gap']:6.2f}K  {p['pooled_px']:9.3f}  "
+                  f"  {min(p['exchange_probs']):8.3f}  {max(p['exchange_probs']):8.3f}  {p['n_replicas_full']:>11}")
+
+    if not getattr(opts, "mps_only", False) and not ok_probes:
+        print("\n  ★ Exchange sweep produced no usable data — rerun with --keep-scratch.")
+
+    if ok_mps:
+        top = max(ok_mps, key=lambda r: r["ns_per_day_per_gpu"])
+        print(f"\n  ★ Recommendations:")
+        print(f"    • Best throughput: --mps-replicas {top['mps_replicas']}  "
+              f"({top['ns_per_day_per_gpu']:.1f} ns/day/GPU, {top['speedup']:.2f}× vs 1)")
+
     print(f"{'═' * 72}\n")
 
 
@@ -578,50 +578,56 @@ def _print_summary(r_star, n_replicas, runs, validation, opts):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Adaptively find the HREMD replica count and --mps-replicas "
-                    "setting that give good exchange rates and the best throughput.",
+        description="Measure single-GPU MPS throughput and find the temperature "
+                    "gap that gives the target exchange rate.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("-p", "--system_file", required=True, help="System XML file.")
     parser.add_argument("-s", "--structure_file", required=True, help="Structure PDB file.")
-    parser.add_argument("-j", "--n_jobs", type=int, required=True, help="Number of GPUs.")
     parser.add_argument("--min-temp", type=float, default=290.0, dest="min_temp",
                         help="Minimum effective temperature (K).")
     parser.add_argument("--max-temp", type=float, default=450.0, dest="max_temp",
                         help="Maximum effective temperature (K).")
-    parser.add_argument("--target-exchange", type=float, default=0.20, dest="target_px",
-                        help="Target exchange probability for the worst (coldest) pair.")
-    parser.add_argument("-n", "--n-replicas", type=int, default=None, dest="n_replicas",
-                        help="Skip the exchange search and benchmark this replica count.")
-    parser.add_argument("--probe-replicas", type=int, default=4, dest="probe_replicas",
-                        help="Replicas per Phase-1 probe (2–4 recommended).")
-    parser.add_argument("--max-rounds", type=int, default=4, dest="max_rounds",
-                        help="Maximum Phase-1 search rounds.")
-    parser.add_argument("--mps-range", type=str, default="1,2,3,4", dest="mps_range",
-                        help="Comma-separated --mps-replicas values for Phase 2.")
-    parser.add_argument("--cycles", type=int, default=50,
-                        help="HREMD cycles per probe (more = better statistics).")
-    parser.add_argument("--steps-per-cycle", type=int, default=1000, dest="steps_per_cycle",
-                        help="MD steps per cycle.")
-    parser.add_argument("--warmup-steps", type=int, default=5000, dest="warmup_steps",
-                        help="Equilibration steps before exchanges start in each probe.")
-    parser.add_argument("--timestep", type=int, default=2, help="Timestep (fs).")
-    parser.add_argument("--lambda_selection", type=str, default="protein",
-                        help="MDAnalysis selection for REST2 scaling.")
-    parser.add_argument("--mpi-command", type=str, default=None, dest="mpi_command",
-                        help="MPI launcher (auto-detected if omitted).")
-    parser.add_argument("--serial-probes", action="store_true", dest="serial_probes",
-                        help="Run Phase-1 probes one at a time across all GPUs instead of "
-                             "one probe per GPU in parallel (use if your launcher can't "
-                             "run concurrent jobs, e.g. some srun setups).")
-    parser.add_argument("--timeout", type=float, default=1800,
-                        help="Per-run timeout in seconds.")
-    parser.add_argument("--save-results", type=str, default="sweep_results.json",
-                        dest="save_results", help="Write detailed results to this JSON file.")
-    parser.add_argument("--keep-scratch", action="store_true", dest="keep_scratch",
-                        help="Keep probe logs in .chacra_sweep_scratch/ for debugging.")
+    parser.add_argument("--gpu", type=int, default=None,
+                        help="GPU for the single-GPU phases (default: first visible).")
+
+    g1 = parser.add_argument_group("Phase 1 — MPS throughput")
+    g1.add_argument("--mps-only", "--mps-throughput-only", action="store_true", dest="mps_only",
+                    help="Only measure single-GPU MPS throughput and exit.")
+    g1.add_argument("--mps-range", type=str, default="1,2,3,4", dest="mps_range",
+                    help="Comma-separated replicas-per-GPU values to time.")
+    g1.add_argument("--mps-steps", type=int, default=10000, dest="mps_steps",
+                    help="MD steps per throughput run.")
+
+    g2 = parser.add_argument_group("Phase 2 — exchange sweep")
+    g2.add_argument("--exchange-only", action="store_true", dest="exchange_only",
+                    help="Only run Phase 2 static exchange sweep (skip Phase 1 MPS sweep).")
+    g2.add_argument("--temp-deltas", type=str, default="4,7,10", dest="temp_deltas",
+                    help="Comma-separated neighbour ΔT to test (K).")
+    g2.add_argument("--probe-replicas", type=int, default=4, dest="probe_replicas",
+                    help="Replicas per exchange probe (all on one GPU).")
+    g2.add_argument("--cycles", type=int, default=100,
+                    help="HREMD cycles per exchange probe.")
+    g2.add_argument("--warmup-steps", type=int, default=5000, dest="warmup_steps",
+                    help="Equilibration steps before exchanges start.")
+
+    gc = parser.add_argument_group("Common")
+    gc.add_argument("--steps-per-cycle", type=int, default=1000, dest="steps_per_cycle",
+                    help="MD steps per exchange cycle.")
+    gc.add_argument("--timestep", type=int, default=2, help="Timestep (fs).")
+    gc.add_argument("--lambda_selection", type=str, default="protein",
+                    help="MDAnalysis selection for REST2 scaling.")
+    gc.add_argument("--mpi-command", type=str, default=None, dest="mpi_command",
+                    help="MPI launcher (auto-detected if omitted).")
+    gc.add_argument("--timeout", type=float, default=1800, help="Per-run timeout (s).")
+    gc.add_argument("--save-results", type=str, default="sweep_results.json",
+                    dest="save_results", help="Write detailed results to this JSON file.")
+    gc.add_argument("--keep-scratch", action="store_true", dest="keep_scratch",
+                    help="Keep probe logs in .chacra_sweep_scratch/ for debugging.")
 
     # Internal worker flags
+    parser.add_argument("--_is-throughput-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--_benchmark-steps", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--_is-probe-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--_probe-temps", type=str, help=argparse.SUPPRESS)
     parser.add_argument("--_results-file", type=str, help=argparse.SUPPRESS)
@@ -630,24 +636,35 @@ def main():
 
     opts = parser.parse_args()
 
+    if opts._is_throughput_worker:
+        _throughput_worker(opts)
+        return
     if opts._is_probe_worker:
         _probe_worker(opts)
         return
 
+    if opts.mps_only and opts.exchange_only:
+        parser.error("cannot specify both --mps-only and --exchange-only")
+
+    gpus = _get_available_gpus(opts)
+    gpu = gpus[0]
+    gpu2 = gpus[1] if len(gpus) > 1 else gpus[0]
     print("=" * 72)
     print("  ChACRA HREMD Sweep Benchmark")
     print("=" * 72)
     print(f"  System      : {opts.system_file}")
     print(f"  Structure   : {opts.structure_file}")
-    print(f"  GPUs        : {opts.n_jobs}")
-    print(f"  Temp range  : {opts.min_temp:.0f} – {opts.max_temp:.0f} K")
-    print(f"  Cycles/run  : {opts.cycles} × {opts.steps_per_cycle} steps "
-          f"(+{opts.warmup_steps} warmup)")
+    if opts.mps_only:
+        print("  Mode        : Phase 1 MPS throughput only")
+    elif opts.exchange_only:
+        print("  Mode        : Phase 2 exchange sweep only")
+        print(f"  Temp range  : {opts.min_temp:.0f} – {opts.max_temp:.0f} K")
+    else:
+        print(f"  Temp range  : {opts.min_temp:.0f} – {opts.max_temp:.0f} K")
 
     _SCRATCH.mkdir(exist_ok=True)
 
-    # MPS lets a probe's replicas share one GPU concurrently, and is needed
-    # for Phase 2 runs with --mps-replicas > 1.
+    # MPS lets several ranks share one GPU concurrently.
     mps_started = False
     fmpi = None
     try:
@@ -660,29 +677,41 @@ def main():
         print(f"  Note: CUDA MPS not started ({e}); shared-GPU runs will time-slice.")
 
     t_start = time.time()
+    results: dict = {"min_temp": opts.min_temp, "max_temp": opts.max_temp}
     try:
-        r_star, history = None, []
-        if opts.n_replicas is None:
-            r_star, history = _adaptive_search(opts)
-            n_replicas = _n_replicas(r_star, opts.min_temp, opts.max_temp)
+        mps_runs = []
+        probes = []
+
+        if opts.mps_only:
+            mps_runs = _mps_sweep(opts, gpu)
+            results["mps_scaling"] = mps_runs
+            _print_summary(opts, mps_runs, probes)
+        elif opts.exchange_only:
+            probes = _exchange_sweep(opts, gpu)
+            results.update(exchange_probes=probes)
+            _print_summary(opts, mps_runs, probes)
         else:
-            n_replicas = opts.n_replicas
+            if gpu != gpu2:
+                print(f"  Note: Using GPU {gpu} for MPS sweep and GPU {gpu2} for exchange sweep concurrently.")
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    f1 = executor.submit(_mps_sweep, opts, gpu)
+                    f2 = executor.submit(_exchange_sweep, opts, gpu2)
+                    mps_runs = f1.result()
+                    probes = f2.result()
+            else:
+                mps_runs = _mps_sweep(opts, gpu)
+                probes = _exchange_sweep(opts, gpu)
+            results.update(mps_scaling=mps_runs, exchange_probes=probes)
+            _print_summary(opts, mps_runs, probes)
 
-        runs, validation = _throughput_sweep(n_replicas, opts)
         elapsed = time.time() - t_start
-
-        _print_summary(r_star, n_replicas, runs, validation, opts)
+        results["elapsed_sec"] = elapsed
         print(f"  Total sweep time: {elapsed / 60:.1f} min")
 
         if opts.save_results:
             with open(opts.save_results, "w") as f:
-                json.dump({
-                    "min_temp": opts.min_temp, "max_temp": opts.max_temp,
-                    "target_px": opts.target_px, "ratio": r_star,
-                    "n_replicas": n_replicas, "search_history": history,
-                    "throughput": runs, "validation": validation,
-                    "elapsed_sec": elapsed,
-                }, f, indent=2)
+                json.dump(results, f, indent=2)
             print(f"  Detailed results: {opts.save_results}\n")
     finally:
         if mps_started and fmpi is not None:
