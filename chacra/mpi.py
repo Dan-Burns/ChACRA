@@ -106,10 +106,9 @@ def configure_mps_env() -> None:
 
     ``nvidia-cuda-mps-control`` logs to ``/var/log/nvidia-mps`` by default,
     which non-root users can't write to (harmless, but it prints a warning
-    and loses the daemon logs).  Call this before starting MPS.  An existing
-    ``CUDA_MPS_LOG_DIR`` is respected.
+    and loses the daemon logs).  Call this before starting MPS.
     """
-    if "CUDA_MPS_LOG_DIR" in os.environ:
+    if "CUDA_MPS_LOG_DIRECTORY" in os.environ:
         return
     default = "/var/log/nvidia-mps"
     if os.path.isdir(default) and os.access(default, os.W_OK):
@@ -119,6 +118,7 @@ def configure_mps_env() -> None:
         os.environ.get("TMPDIR", "/tmp"), f"nvidia-mps-log-{user}"
     )
     os.makedirs(log_dir, exist_ok=True)
+    os.environ["CUDA_MPS_LOG_DIRECTORY"] = log_dir
     os.environ["CUDA_MPS_LOG_DIR"] = log_dir
 
 
