@@ -143,3 +143,5 @@ Please cite the following if you use ChACRA:
 2. Burns, D., Venditti, V. & Potoyan, D. A. Temperature sensitive contact modes allosterically gate TRPV3. *PLoS Comput. Biol.* **19**, e1011545 (2023)
 
 3. Burns, D., Venditti, V. & Potoyan, D. A. Illuminating protein allostery by chemically accurate contact response analysis (ChACRA). *J. Chem. Theory Comput.* (2024)
+
+4. A. Singh,D. Burns,S.L. Sedinkin,S. Das,D.A. Potoyan, & V. Venditti, Integrating NMR and contact-response analysis reveals the allosteric network driving domain closure in Enzyme I, *Proc. Natl. Acad. Sci. U.S.A. **123** e2612191123 (2026)
