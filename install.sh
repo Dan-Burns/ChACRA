@@ -70,7 +70,7 @@ fi
 if [ "$CUDA_MAJOR" == "11" ]; then
     CUPY_PKG="cupy-cuda11x"
 else
-    CUPY_PKG="cupy-cuda12x"
+    CUPY_PKG="cupy-cuda12x[ctk]"
 fi
 echo "Will install: $CUPY_PKG"
 
