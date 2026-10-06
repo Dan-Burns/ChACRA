@@ -50,20 +50,25 @@ if ! command -v mpicc &>/dev/null; then
     exit 1
 fi
 
-if ! command -v nvidia-smi &>/dev/null; then
-    echo "Error: nvidia-smi not found. Ensure NVIDIA drivers are installed."
-    exit 1
-fi
-
 # ── 2. Detect CUDA ────────────────────────────────────────────────────────────
 
-CUDA_VER=$(nvidia-smi | grep -Eo 'CUDA Version: [0-9]+\.[0-9]+' | grep -Eo '[0-9]+\.[0-9]+' | head -1)
+if [ -n "$CONDA_OVERRIDE_CUDA" ]; then
+    CUDA_VER="$CONDA_OVERRIDE_CUDA"
+    echo "Using provided CONDA_OVERRIDE_CUDA=$CUDA_VER"
+else
+    if ! command -v nvidia-smi &>/dev/null; then
+        echo "Error: nvidia-smi not found. Ensure NVIDIA drivers are installed or set CONDA_OVERRIDE_CUDA."
+        exit 1
+    fi
+    CUDA_VER=$(nvidia-smi | grep -Eo 'CUDA Version: [0-9]+\.[0-9]+' | grep -Eo '[0-9]+\.[0-9]+' | head -1)
+fi
+
 if [ -z "$CUDA_VER" ]; then
     echo "Warning: Could not detect CUDA version."
     CUDA_MAJOR=""
 else
     CUDA_MAJOR=$(echo "$CUDA_VER" | cut -d. -f1)
-    echo "Detected CUDA: $CUDA_VER (major=$CUDA_MAJOR)"
+    echo "Target CUDA: $CUDA_VER (major=$CUDA_MAJOR)"
 fi
 
 # CuPy wheel selection (12.x and 13.x both use the 12x wheel)
