@@ -446,39 +446,54 @@ def _n_replicas(r: float, t_min: float, t_max: float) -> int:
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def _mps_sweep(opts, gpu: str) -> list[dict]:
+def _mps_sweep(opts, gpus: list[str]) -> list[dict]:
     mps_values = [int(x) for x in opts.mps_range.split(",") if x.strip()]
     steps = opts.mps_steps
 
     print(f"\n{'─' * 72}")
-    print(f"  Phase 1: single-GPU MPS throughput  (GPU {gpu}, {steps} steps/run)")
+    print(f"  Phase 1: single-GPU MPS throughput  (GPUs {','.join(gpus)}, {steps} steps/run)")
     print(f"  Measuring {steps} simulation steps across 1 to {max(mps_values)} concurrent replicas")
     print(f"{'─' * 72}")
     print(f"  {'Replicas/GPU':>12}  {'ns/day/replica':>14}  {'ns/day/GPU':>11}  {'Speedup':>8}  {'Wall':>6}")
 
     runs: list[dict] = []
-    base_agg = None
-    for k in mps_values:
+    
+    import concurrent.futures
+    
+    def run_one(k, gpu_id):
         proc, pdir = _launch_throughput(
-            n_ranks=k, steps=steps, tag=f"mps_{k}", gpu_id=gpu, opts=opts
+            n_ranks=k, steps=steps, tag=f"mps_{k}", gpu_id=gpu_id, opts=opts
         )
         res = _collect(proc, pdir, opts.timeout)
-        if not res.get("ok"):
-            _print_failure(f"  {k:>12}  ", res)
-            runs.append({"mps_replicas": k, "ok": False, "error": res.get("error")})
-            continue
+        return k, res
 
-        per_rep = res["ns_per_day_per_replica"]
-        agg = per_rep * k
-        if base_agg is None and k == 1:
-            base_agg = agg
-        speedup = (agg / base_agg) if base_agg else 1.0
-        print(f"  {k:>12}  {per_rep:14.2f}  {agg:11.2f}  {speedup:7.2f}×  {res['wall_time_sec']:5.0f}s")
-        runs.append({
-            "mps_replicas": k, "ok": True,
-            "ns_per_day_per_replica": per_rep, "ns_per_day_per_gpu": agg,
-            "speedup": speedup, "wall_time_sec": res["wall_time_sec"],
-        })
+    futures = []
+    # Submit tasks across all GPUs
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(gpus)) as executor:
+        for i, k in enumerate(mps_values):
+            gpu_id = gpus[i % len(gpus)]
+            futures.append(executor.submit(run_one, k, gpu_id))
+            
+        base_agg = None
+        # Collect results in order so they print cleanly
+        for f in futures:
+            k, res = f.result()
+            if not res.get("ok"):
+                _print_failure(f"  {k:>12}  ", res)
+                runs.append({"mps_replicas": k, "ok": False, "error": res.get("error")})
+                continue
+    
+            per_rep = res["ns_per_day_per_replica"]
+            agg = per_rep * k
+            if base_agg is None and k == 1:
+                base_agg = agg
+            speedup = (agg / base_agg) if base_agg else 1.0
+            print(f"  {k:>12}  {per_rep:14.2f}  {agg:11.2f}  {speedup:7.2f}×  {res['wall_time_sec']:5.0f}s")
+            runs.append({
+                "mps_replicas": k, "ok": True,
+                "ns_per_day_per_replica": per_rep, "ns_per_day_per_gpu": agg,
+                "speedup": speedup, "wall_time_sec": res["wall_time_sec"],
+            })
     return runs
 
 
@@ -487,8 +502,7 @@ def _mps_sweep(opts, gpu: str) -> list[dict]:
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def _exchange_sweep(opts, gpu: str) -> tuple[dict | None, list[dict]]:
-    """Return (best probe, all probes)."""
+def _exchange_sweep(opts, gpus: list[str]) -> list[dict]:
     m = opts.probe_replicas
     t_min = opts.min_temp
 
@@ -496,36 +510,47 @@ def _exchange_sweep(opts, gpu: str) -> tuple[dict | None, list[dict]]:
 
     print(f"\n{'─' * 72}")
     print(f"  Phase 2: static exchange sweep")
-    print(f"  {m} replicas on GPU {gpu} at the cold end ({t_min:.0f} K), "
+    print(f"  {m} replicas per probe on GPUs {','.join(gpus)} at the cold end ({t_min:.0f} K), "
           f"{opts.cycles} cycles/probe")
     print(f"{'─' * 72}")
     print(f"  {'ΔT':>7}  {'Mean Px':>8}  {'Min Px':>7}  {'Max Px':>7}  {'N':>4}")
 
     probes: list[dict] = []
-
-    for gap in deltas:
+    
+    import concurrent.futures
+    
+    def run_one(gap, gpu_id):
         r = _gap_to_ratio(gap, t_min)
         temps = [t_min * r**i for i in range(m)]
-        res = _run(temps, tag=f"x_{gap}K", n_ranks=m, gpu_id=gpu, opts=opts,
+        res = _run(temps, tag=f"x_{gap}K", n_ranks=m, gpu_id=gpu_id, opts=opts,
                    cycles=opts.cycles, warmup_steps=opts.warmup_steps)
+        return gap, r, res
 
-        if not res.get("ok") or "accepted" not in res:
-            _print_failure(f"  {gap:6.2f}K  ", res)
-            probes.append({"gap": gap, "ok": False, "error": res.get("error")})
-            continue
-
-        acc = np.array(res["accepted"])
-        prop = np.array(res["proposed"])
-        px = np.divide(acc, prop, out=np.zeros_like(acc), where=prop > 0)
-        n_full = _n_replicas(r, t_min, opts.max_temp)
-        print(f"  {gap:6.2f}K  {px.mean():8.3f}  {px.min():7.3f}  {px.max():7.3f}  {n_full:>4}")
-
-        probes.append({
-            "gap": gap, "ratio": r, "ok": True,
-            "exchange_probs": px.tolist(), "accepted": acc.tolist(),
-            "proposed": prop.tolist(), "pooled_px": float(acc.sum() / max(prop.sum(), 1)),
-            "n_replicas_full": n_full,
-        })
+    futures = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(gpus)) as executor:
+        for i, gap in enumerate(deltas):
+            gpu_id = gpus[i % len(gpus)]
+            futures.append(executor.submit(run_one, gap, gpu_id))
+            
+        for f in futures:
+            gap, r, res = f.result()
+            if not res.get("ok") or "accepted" not in res:
+                _print_failure(f"  {gap:6.2f}K  ", res)
+                probes.append({"gap": gap, "ok": False, "error": res.get("error")})
+                continue
+    
+            acc = np.array(res["accepted"])
+            prop = np.array(res["proposed"])
+            px = np.divide(acc, prop, out=np.zeros_like(acc), where=prop > 0)
+            n_full = _n_replicas(r, t_min, opts.max_temp)
+            print(f"  {gap:6.2f}K  {px.mean():8.3f}  {px.min():7.3f}  {px.max():7.3f}  {n_full:>4}")
+    
+            probes.append({
+                "gap": gap, "ratio": r, "ok": True,
+                "exchange_probs": px.tolist(), "accepted": acc.tolist(),
+                "proposed": prop.tolist(), "pooled_px": float(acc.sum() / max(prop.sum(), 1)),
+                "n_replicas_full": n_full,
+            })
 
     return probes
 
@@ -647,8 +672,6 @@ def main():
         parser.error("cannot specify both --mps-only and --exchange-only")
 
     gpus = _get_available_gpus(opts)
-    gpu = gpus[0]
-    gpu2 = gpus[1] if len(gpus) > 1 else gpus[0]
     print("=" * 72)
     print("  ChACRA HREMD Sweep Benchmark")
     print("=" * 72)
@@ -683,25 +706,18 @@ def main():
         probes = []
 
         if opts.mps_only:
-            mps_runs = _mps_sweep(opts, gpu)
+            mps_runs = _mps_sweep(opts, gpus)
             results["mps_scaling"] = mps_runs
             _print_summary(opts, mps_runs, probes)
         elif opts.exchange_only:
-            probes = _exchange_sweep(opts, gpu)
+            probes = _exchange_sweep(opts, gpus)
             results.update(exchange_probes=probes)
             _print_summary(opts, mps_runs, probes)
         else:
-            if gpu != gpu2:
-                print(f"  Note: Using GPU {gpu} for MPS sweep and GPU {gpu2} for exchange sweep concurrently.")
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    f1 = executor.submit(_mps_sweep, opts, gpu)
-                    f2 = executor.submit(_exchange_sweep, opts, gpu2)
-                    mps_runs = f1.result()
-                    probes = f2.result()
-            else:
-                mps_runs = _mps_sweep(opts, gpu)
-                probes = _exchange_sweep(opts, gpu)
+            # Phase 1 uses all available GPUs, then Phase 2 uses all available GPUs
+            mps_runs = _mps_sweep(opts, gpus)
+            probes = _exchange_sweep(opts, gpus)
+            
             results.update(mps_scaling=mps_runs, exchange_probes=probes)
             _print_summary(opts, mps_runs, probes)
 
