@@ -17,21 +17,26 @@ With ChACRA you can run the full pipeline — simulation, contact calculation, a
 
 ### Prerequisites
 - **NVIDIA GPU(s)** with drivers installed (`nvidia-smi`)
-    - If you're installing on an HPC login node, confirm your CUDA version (HPC docs or get an interactive GPU node and run `nvidia-smi`)
-    and set the environment variable `export CONDA_OVERRIDE_CUDA="12.2"` (replace 12.2 with your CUDA version) before installing.
+    - Installing on a node without GPUs (e.g. an HPC login node)? You must set `CONDA_OVERRIDE_CUDA` first — see [Install](#install).
 - **OpenMPI** — the recommended MPI implementation for ChACRA
   - Ubuntu/Debian: `sudo apt install libopenmpi-dev openmpi-bin`
   - HPC systems: `module load openmpi` (ensure this is loaded **before** running the install script)
   - Other MPI implementations (MPICH, Intel MPI) may work but are not tested. Cray MPICH (`cray-mpich`) is **not** recommended — use the OpenMPI module instead.
 - **Conda**, **Mamba**, or **Micromamba**
 
-> **Important (HPC users):** `mpi4py` is compiled against whichever MPI is active during installation. If you switch MPI modules later, you must reinstall mpi4py: `pip install --no-cache-dir --force-reinstall mpi4py`
+> **Important (HPC users):** `mpi4py` is compiled against whichever MPI is active during installation. Load the same MPI module in your job scripts. If you switch MPI modules later, you must reinstall mpi4py: `<env path>/bin/python -m pip install --no-cache-dir --force-reinstall mpi4py`
 
 ### Install
 
 ```bash
-# On HPC systems, load your MPI module first:
+# HPC only: load your MPI module first (don't load a CUDA module)
 module load openmpi    # or your site's equivalent
+module load miniforge # or your site's equivalent (mamba / micromamba)
+
+# HPC login node only (no GPU, so nvidia-smi isn't available):
+# set the CUDA version shown at the top right of `nvidia-smi` on a compute
+# node, e.g. from `srun --gpus=1 nvidia-smi` or your site's docs
+export CONDA_OVERRIDE_CUDA=12.4
 
 git clone https://github.com/Dan-Burns/ChACRA.git
 cd ChACRA
@@ -40,10 +45,13 @@ conda activate chacra-env
 ```
 
 The install script will:
-1. Detect your CUDA version and select the correct `cupy` wheel
+1. Detect your CUDA version (or use `CONDA_OVERRIDE_CUDA`) and select the matching packages and `cupy` wheel
 2. Create the `chacra-env` conda environment
 3. Build `mpi4py` against your system MPI (and validate the ABI)
-4. Install `femto`, `ultracontacts`, and `getcontacts` via pip
+4. Clone `femto`, `ultracontacts`, and `getcontacts` into `deps/` and install them in editable mode
+5. Check that everything imports from the environment
+
+Run it from the `ChACRA` directory on a node with internet access. On a login node the final OpenMM CUDA test prints a warning; that's expected.
 
 Use `./install.sh --reinstall` to remove and recreate the environment from scratch.
 
