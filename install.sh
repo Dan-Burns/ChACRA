@@ -127,9 +127,14 @@ echo "Environment: $ENV_NAME"
 
 # ── 4. Install the conda environment ─────────────────────────────────────────
 
-# Check if environment already exists
+# Absolute path of the named environment (empty if it doesn't exist).
+# conda prints "name [*] path", micromamba "  name [*] path", so match column 1.
+_env_prefix() {
+    $CONDA_CMD env list 2>/dev/null | awk -v n="$ENV_NAME" '$1==n {print $NF; exit}'
+}
+
 ENV_EXISTS=false
-if $CONDA_CMD env list 2>/dev/null | grep -qE "^${ENV_NAME}[[:space:]]"; then
+if [ -n "$(_env_prefix)" ]; then
     ENV_EXISTS=true
 fi
 
@@ -250,95 +255,31 @@ if [ -n "$CUDA_PIN" ]; then
 fi
 
 # ── 5. Pip post-install ───────────────────────────────────────────────────────
-
-echo ""
-echo "Installing pip packages: $CUPY_PKG, mpi4py, femto, getcontacts, ultracontacts, chacra..."
-
-# --------------------------------------------------------------------------
-# We need to activate the environment so pip installs into the RIGHT
-# site-packages.  `$CONDA_CMD run` does NOT reliably set PATH / PYTHONPATH
-# on all HPC setups (especially when mamba is loaded via `module load`).
 #
-# Instead, we source the conda/mamba/micromamba shell init and activate
-# properly inside a subshell.
-# --------------------------------------------------------------------------
+# pip is always run as "$ENV_PREFIX/bin/python -m pip" so packages can't land in
+# the system python or ~/.local, whatever `module load python` or shell
+# activation put first on PATH.
 
-# Locate the conda init script
-_find_conda_init() {
-    # micromamba: shell hook
-    if [ "$CONDA_CMD" = "micromamba" ] || [[ "$CONDA_CMD" == *"micromamba"* ]]; then
-        echo "micromamba"
-        return
-    fi
-    # mamba/conda: look for the shell init script
-    local conda_base
-    conda_base="$(conda info --base 2>/dev/null || mamba info --base 2>/dev/null || true)"
-    if [ -n "$conda_base" ] && [ -f "$conda_base/etc/profile.d/conda.sh" ]; then
-        echo "$conda_base/etc/profile.d/conda.sh"
-        return
-    fi
-    # Check CONDA_EXE parent
-    if [ -n "$CONDA_EXE" ]; then
-        local d
-        d="$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh"
-        [ -f "$d" ] && echo "$d" && return
-    fi
-    echo ""
-}
+ENV_PREFIX=$(_env_prefix)
+PY="$ENV_PREFIX/bin/python"
+if [ -z "$ENV_PREFIX" ] || [ ! -x "$PY" ]; then
+    echo "Error: could not find python for environment '$ENV_NAME' (looked for $PY)."
+    exit 1
+fi
+export PYTHONNOUSERSITE=1
+echo ""
+echo "Installing pip packages with: $PY"
 
-CONDA_INIT=$(_find_conda_init)
+echo "  Installing $CUPY_PKG..."
+"$PY" -m pip install --no-cache-dir "$CUPY_PKG"
 
-(
-    # Subshell: activate the environment and run pip installs
-    set -e
+echo "  Installing mpi4py (against system MPI: $(which mpicc))..."
+"$PY" -m pip install --no-cache-dir mpi4py
 
-    if [ "$CONDA_CMD" = "micromamba" ] || [[ "$CONDA_CMD" == *"micromamba"* ]]; then
-        eval "$("$CONDA_CMD" shell hook --shell bash)"
-        micromamba activate "$ENV_NAME"
-    elif [ -n "$CONDA_INIT" ]; then
-        # shellcheck disable=SC1090
-        source "$CONDA_INIT"
-        # Also source mamba init if available (for `mamba activate`)
-        local_mamba_init="$(dirname "$CONDA_INIT")/mamba.sh"
-        [ -f "$local_mamba_init" ] && source "$local_mamba_init"
-        conda activate "$ENV_NAME"
-    else
-        echo "Warning: Could not find conda init script."
-        echo "Falling back to '$CONDA_CMD run' (may mis-target pip installs on some HPC systems)."
-        # Fall back to CONDA_CMD run — set a flag so the commands below
-        # invoke pip via $CONDA_CMD run instead of directly
-        export _USE_CONDA_RUN=1
-    fi
-
-    _pip() {
-        if [ "${_USE_CONDA_RUN:-0}" = "1" ]; then
-            $CONDA_CMD run -n "$ENV_NAME" python -m pip "$@"
-        else
-            python -m pip "$@"
-        fi
-    }
-
-    # Verify pip is targeting the correct environment
-    PIP_TARGET=$(_pip show pip 2>/dev/null | grep "^Location:" | awk '{print $2}' || true)
-    if [ -n "$PIP_TARGET" ]; then
-        echo "  pip site-packages: $PIP_TARGET"
-        if ! echo "$PIP_TARGET" | grep -q "$ENV_NAME"; then
-            echo "WARNING: pip target does not contain '$ENV_NAME'."
-            echo "         Packages may install into the wrong environment."
-            echo "         Consider using: bash install.sh --reinstall"
-        fi
-    fi
-
-    echo "  Installing $CUPY_PKG..."
-    _pip install --no-cache-dir "$CUPY_PKG"
-
-    echo "  Installing mpi4py (against system MPI: $(which mpicc))..."
-    _pip install --no-cache-dir mpi4py
-
-    # ── Validate MPI ABI ──────────────────────────────────────────────────
-    echo ""
-    echo "  Validating mpi4py installation..."
-    MPI_CHECK=$(python -c "
+# ── Validate MPI ABI ──────────────────────────────────────────────────────
+echo ""
+echo "  Validating mpi4py installation..."
+MPI_CHECK=$("$PY" -c "
 try:
     from mpi4py import MPI
     ver = MPI.Get_library_version().strip().split(chr(10))[0]
@@ -346,41 +287,54 @@ try:
 except Exception as e:
     print('FAIL: ' + str(e))
 " 2>&1 || true)
-    echo "  $MPI_CHECK"
-    if echo "$MPI_CHECK" | grep -q "^FAIL"; then
-        echo ""
-        echo "  ╔══════════════════════════════════════════════════════════════╗"
-        echo "  ║  WARNING: mpi4py cannot initialise MPI.                     ║"
-        echo "  ║                                                              ║"
-        echo "  ║  This usually means mpi4py was built against a different     ║"
-        echo "  ║  MPI library than what is currently loaded.                  ║"
-        echo "  ║                                                              ║"
-        echo "  ║  Fix: load the same MPI module that was active during        ║"
-        echo "  ║  install, or reinstall:                                      ║"
-        echo "  ║    module load openmpi                                       ║"
-        echo "  ║    pip install --no-cache-dir --force-reinstall mpi4py       ║"
-        echo "  ╚══════════════════════════════════════════════════════════════╝"
-        echo ""
-    fi
-
-    echo "  Installing femto (Dan-Burns fork)..."
-    _pip install --no-cache-dir "git+https://github.com/Dan-Burns/femto.git"
-
-    echo "  Installing getcontacts (Dan-Burns fork)..."
-    _pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/getcontacts.git"
-
-    echo "  Installing ultracontacts (Dan-Burns fork)..."
-    _pip install --no-cache-dir --no-deps "git+https://github.com/Dan-Burns/ultracontacts.git"
-
-    echo "  Installing chacra (editable)..."
-    _pip install --no-cache-dir -e "$(pwd)"
-
-    # ── Smoke-test OpenMM on CUDA ─────────────────────────────────────────────────
-    # Creating a Context forces kernel compilation, so this catches driver /
-    # NVRTC mismatches that merely importing openmm would not.
+echo "  $MPI_CHECK"
+if echo "$MPI_CHECK" | grep -q "^FAIL"; then
     echo ""
-    echo "  Testing OpenMM CUDA platform..."
-    CUDA_CHECK=$(python -c "
+    echo "  WARNING: mpi4py cannot initialise MPI."
+    echo "  This usually means mpi4py was built against a different MPI library"
+    echo "  than the one currently loaded.  Load the same MPI module that was"
+    echo "  active during install, or reinstall:"
+    echo "    module load openmpi"
+    echo "    $PY -m pip install --no-cache-dir --force-reinstall mpi4py"
+    echo ""
+fi
+
+# ── Dan-Burns forks: cloned into deps/ and installed in editable mode ────
+mkdir -p deps
+for repo in femto getcontacts ultracontacts; do
+    if [ -d "deps/$repo/.git" ]; then
+        echo "  Updating deps/$repo..."
+        git -C "deps/$repo" pull --ff-only
+    else
+        echo "  Cloning $repo (Dan-Burns fork) into deps/$repo..."
+        git clone "https://github.com/Dan-Burns/$repo.git" "deps/$repo"
+    fi
+done
+
+echo "  Installing femto (editable)..."
+"$PY" -m pip install --no-cache-dir -e deps/femto
+
+echo "  Installing getcontacts and ultracontacts (editable)..."
+"$PY" -m pip install --no-cache-dir --no-deps -e deps/getcontacts -e deps/ultracontacts
+
+echo "  Installing chacra (editable)..."
+"$PY" -m pip install --no-cache-dir -e "$(pwd)"
+
+# ── Verify everything resolves inside the environment ────────────────────
+echo ""
+echo "  Checking imports..."
+if ! "$PY" -c "import chacra, femto, getcontacts, ultracontacts, polars, mpi4py"; then
+    echo "Error: some packages are missing from $ENV_NAME (see the error above)."
+    exit 1
+fi
+echo "  OK"
+
+# ── Smoke-test OpenMM on CUDA ─────────────────────────────────────────────
+# Creating a Context forces kernel compilation, so this catches driver /
+# NVRTC mismatches that merely importing openmm would not.
+echo ""
+echo "  Testing OpenMM CUDA platform..."
+CUDA_CHECK=$("$PY" -c "
 import openmm
 try:
     s = openmm.System(); s.addParticle(1.0)
@@ -390,13 +344,12 @@ try:
 except Exception as e:
     print('FAIL: ' + str(e).splitlines()[0])
 " 2>&1 | tail -1 || true)
-    echo "  $CUDA_CHECK"
-    if echo "$CUDA_CHECK" | grep -q "^FAIL"; then
-        echo "  WARNING: OpenMM cannot use CUDA on this machine."
-        echo "  (Expected on a GPU-less login node; otherwise check the driver"
-        echo "   vs. 'conda list cuda-version' in $ENV_NAME.)"
-    fi
-)
+echo "  $CUDA_CHECK"
+if echo "$CUDA_CHECK" | grep -q "^FAIL"; then
+    echo "  WARNING: OpenMM cannot use CUDA on this machine."
+    echo "  (Expected on a GPU-less login node; otherwise check the driver"
+    echo "   vs. 'conda list cuda-version' in $ENV_NAME.)"
+fi
 
 ACTIVATE_CMD="$(basename "$CONDA_CMD")"
 echo ""
@@ -408,7 +361,9 @@ echo "  • OpenMPI is the recommended MPI implementation for multi-node runs."
 echo "    On HPC systems:  module load openmpi"
 echo "  • mpi4py is built against whichever MPI was active during install."
 echo "    If you switch MPI modules, reinstall mpi4py:"
-echo "      pip install --no-cache-dir --force-reinstall mpi4py"
+echo "      $PY -m pip install --no-cache-dir --force-reinstall mpi4py"
+echo "  • femto, getcontacts and ultracontacts are editable checkouts in deps/."
+echo "    Re-run install.sh (or 'git -C deps/<repo> pull') to update them."
 echo ""
 echo "Tip: generate a lock file for faster installs on other machines:"
 echo "     bash tools/generate_locks.sh"
