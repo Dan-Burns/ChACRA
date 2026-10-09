@@ -68,7 +68,7 @@ class RunConfig:
         "structure_file": None,
         "system_file": None,
         "steps_per_cycle": 1000,
-        "save_interval": 10,
+        "save_interval": None,
         "checkpoint_interval": 500,
         "warmup_steps": 0,
         "lambda_selection": "protein",

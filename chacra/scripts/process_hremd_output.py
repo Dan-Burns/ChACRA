@@ -204,8 +204,9 @@ def main():
     parser.add_argument(
         "--save_interval",
         type=int,
-        default=10,
-        help="Save trajectory data at this cycle interval.",
+        default=None,
+        help="The cycle interval trajectory data was saved at.  Read from "
+             "config if omitted.",
     )
     parser.add_argument(
         "--output_selection",
@@ -250,6 +251,10 @@ def main():
     if structure_file is None:
         parser.error(
             "--structure_file is required (or set 'structure_file' in chacra_run.json)."
+        )
+    if args.save_interval is None:
+        parser.error(
+            "--save_interval is required (or set 'save_interval' in chacra_run.json)."
         )
 
     # Build the temperature array from the stored list or re-derive it
