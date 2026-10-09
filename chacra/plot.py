@@ -132,7 +132,7 @@ def plot_chacras(
 
         # Plotting the Graph
         # plt.ylim((-6,4))
-        ax.plot(X_, 1 * Y_, color=colors[pc - 1])
+        ax.plot(X_, 1 * Y_, color=colors[(pc - 1) % len(colors)])
 
     ax.set_title("ChACRA Modes")
     if temp_scale is not None:

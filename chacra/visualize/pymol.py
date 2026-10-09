@@ -77,7 +77,7 @@ def get_contact_data(
 
         data[contact]["loading_score"] = top_score
 
-        data[contact]["color"] = f"0x{chacra_colors[top_pc-1][1:-2]}"
+        data[contact]["color"] = f"0x{chacra_colors[(top_pc - 1) % len(chacra_colors)][1:-2]}"
 
         # positive slope depicted with solid lines, negative with dashes
         data[contact]["slope"] = get_slope(
@@ -178,7 +178,7 @@ def write_group_selections(contact_data, output_file, ca_only=True):
 
         for group in lines:
             f.write(f"group {group}_line, {lines[group]}\n")
-            f.write(f"color 0x{chacra_colors[group-1][1:-2]}, {group}_line \n")
+            f.write(f"color 0x{chacra_colors[(group - 1) % len(chacra_colors)][1:-2]}, {group}_line \n")
 
 
 def write_selections(contact_data, output_file):
