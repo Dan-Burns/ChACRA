@@ -267,6 +267,13 @@ if [ -z "$ENV_PREFIX" ] || [ ! -x "$PY" ]; then
     exit 1
 fi
 export PYTHONNOUSERSITE=1
+
+# conda-lock leaves pip out of the explicit/lock specs (python doesn't depend on it)
+if ! "$PY" -m pip --version &>/dev/null; then
+    echo "pip is missing from $ENV_NAME — installing it..."
+    $CONDA_CMD install -n "$ENV_NAME" -y -c conda-forge pip
+fi
+
 echo ""
 echo "Installing pip packages with: $PY"
 
@@ -354,7 +361,12 @@ fi
 ACTIVATE_CMD="$(basename "$CONDA_CMD")"
 echo ""
 echo "=== Installation Complete ==="
-echo "Activate with:  $ACTIVATE_CMD activate $ENV_NAME"
+echo "Environment path:  $ENV_PREFIX   (use as CHACRA_ENV in run_hremd.sbatch)"
+echo ""
+echo "To use the 'chacra' command in this shell, either activate the env:"
+echo "    $ACTIVATE_CMD activate $ENV_NAME"
+echo "or put its bin directory on PATH (works without conda init):"
+echo "    export PATH=\"$ENV_PREFIX/bin:\$PATH\""
 echo ""
 echo "Notes:"
 echo "  • OpenMPI is the recommended MPI implementation for multi-node runs."
