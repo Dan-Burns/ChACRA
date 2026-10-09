@@ -266,7 +266,17 @@ if [ -z "$ENV_PREFIX" ] || [ ! -x "$PY" ]; then
     echo "Error: could not find python for environment '$ENV_NAME' (looked for $PY)."
     exit 1
 fi
+# HPC modules often set these, which makes the env's python load another
+# install's stdlib / site-packages (and pip install there).
+unset PYTHONHOME PYTHONPATH
 export PYTHONNOUSERSITE=1
+
+PY_PREFIX=$("$PY" -c "import sys; print(sys.prefix)")
+if [ "$(cd "$PY_PREFIX" && pwd -P)" != "$(cd "$ENV_PREFIX" && pwd -P)" ]; then
+    echo "Error: $PY reports sys.prefix=$PY_PREFIX, not $ENV_PREFIX."
+    echo "  Something in your shell redirects python; check: env | grep -E '^PYTHON|^CONDA'"
+    exit 1
+fi
 
 # conda-lock leaves pip out of the explicit/lock specs (python doesn't depend on it)
 if ! "$PY" -m pip --version &>/dev/null; then
@@ -329,9 +339,16 @@ echo "  Installing chacra (editable)..."
 
 # ── Verify everything resolves inside the environment ────────────────────
 echo ""
-echo "  Checking imports..."
-if ! "$PY" -c "import chacra, femto, getcontacts, ultracontacts, polars, mpi4py"; then
-    echo "Error: some packages are missing from $ENV_NAME (see the error above)."
+# find_spec locates packages without importing them: importing cupy-based
+# packages needs a GPU, which login nodes don't have.
+echo "  Checking packages..."
+MISSING=$("$PY" -c "
+import importlib.util
+names = ['chacra', 'femto', 'getcontacts', 'ultracontacts', 'cupy', 'polars', 'mpi4py']
+print(' '.join(n for n in names if importlib.util.find_spec(n) is None))
+")
+if [ -n "$MISSING" ]; then
+    echo "Error: missing from $ENV_NAME: $MISSING"
     exit 1
 fi
 echo "  OK"

@@ -50,6 +50,7 @@ N_GPUS=$(( N_NODES * GPUS_PER_NODE ))
 
 # Use the env's executables directly; no 'activate' needed in batch jobs.
 export PATH="$CHACRA_ENV/bin:$PATH"
+unset PYTHONHOME PYTHONPATH   # set by some modules; would bypass the env
 export PYTHONNOUSERSITE=1
 
 cd "$PROJECT_DIR"
