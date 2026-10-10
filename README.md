@@ -47,7 +47,7 @@ module load openmpi miniforge      # HPC only, and always before activating
 conda activate chacra-env
 ```
 
-At the end, the installer prints the environment path. Put it in `CHACRA_ENV` in `run_hremd.sbatch`.
+At the end, the installer prints the environment path. Use it in your batch script, e.g. `export PATH="<env path>/bin:$PATH"`.
 
 ### Notes
 1. **`CONDA_OVERRIDE_CUDA`** is only needed where there is no GPU (e.g. a login node). Set it to the "CUDA Version" shown at the top right of `nvidia-smi` on a compute node (`srun --gpus=1 nvidia-smi`).

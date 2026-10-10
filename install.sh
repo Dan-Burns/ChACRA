@@ -399,7 +399,7 @@ fi
 ACTIVATE_CMD="$(basename "$CONDA_CMD")"
 echo ""
 echo "=== Installation Complete ==="
-echo "Environment path:  $ENV_PREFIX   (use as CHACRA_ENV in run_hremd.sbatch)"
+echo "Environment path:  $ENV_PREFIX   (use it in your batch script)"
 echo ""
 echo "Activate with:  $ACTIVATE_CMD activate $ENV_NAME"
 echo "  (load your modules first; a module loaded after activating can put"
