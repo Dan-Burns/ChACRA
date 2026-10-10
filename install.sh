@@ -112,14 +112,25 @@ _spec_too_new() {
 
 # ── 3. Pick conda frontend ────────────────────────────────────────────────────
 
-if [ -n "$MICROMAMBA_BIN" ]; then
-    CONDA_CMD="$MICROMAMBA_BIN"
+# Prefer conda: users activate with it, and mamba/micromamba may keep envs under
+# a different root where `conda activate <name>` won't find them.
+# Override with e.g.  CONDA_CMD=micromamba ./install.sh
+if [ -n "${CONDA_CMD:-}" ]; then
+    :
+elif command -v conda &>/dev/null; then
+    CONDA_CMD="conda"
 elif command -v mamba &>/dev/null; then
     CONDA_CMD="mamba"
 else
-    CONDA_CMD="conda"
+    CONDA_CMD="$MICROMAMBA_BIN"
 fi
 echo "Using: $CONDA_CMD"
+
+# Use the fast libmamba solver even where a site config still selects classic
+if [ "$CONDA_CMD" = "conda" ] && conda list -p "$(conda info --base)" conda-libmamba-solver 2>/dev/null \
+        | grep -q '^conda-libmamba-solver'; then
+    export CONDA_SOLVER=libmamba
+fi
 
 ENV_NAME=$(grep -E "^name:" conda/environment.yaml | awk '{print $2}')
 ENV_NAME="${ENV_NAME:-chacra-env}"
@@ -238,27 +249,10 @@ else
     fi
 fi
 
-# ── 4b. Enforce the driver's CUDA cap ──────────────────────────────────────────────────────
-# Catches every path above (explicit spec, lock file, env update, solve)
-# and existing envs that were built before this check existed.
-if [ -n "$CUDA_PIN" ]; then
-    INSTALLED_CUDA=$($CONDA_CMD list -n "$ENV_NAME" 2>/dev/null \
-        | awk '$1=="cuda-version" {print $2; exit}')
-    if [ -n "$INSTALLED_CUDA" ] && ver_gt "$INSTALLED_CUDA" "$CUDA_VER"; then
-        echo ""
-        echo "cuda-version $INSTALLED_CUDA is newer than this driver supports (CUDA $CUDA_VER)."
-        echo "Downgrading CUDA packages: $CUDA_PIN ..."
-        CONDA_OVERRIDE_CUDA="$CUDA_VER" $CONDA_CMD install -n "$ENV_NAME" -y "$CUDA_PIN"
-    elif [ -n "$INSTALLED_CUDA" ]; then
-        echo "cuda-version $INSTALLED_CUDA is compatible with driver CUDA $CUDA_VER."
-    fi
-fi
-
-# ── 5. Pip post-install ───────────────────────────────────────────────────────
-#
-# pip is always run as "$ENV_PREFIX/bin/python -m pip" so packages can't land in
-# the system python or ~/.local, whatever `module load python` or shell
-# activation put first on PATH.
+# ── 4a. Resolve the environment's path ──────────────────────────────────────
+# Every step below uses this path (never the name), and pip always runs as
+# "$ENV_PREFIX/bin/python -m pip", so nothing can land in another environment,
+# the system python or ~/.local.
 
 ENV_PREFIX=$(_env_prefix)
 PY="$ENV_PREFIX/bin/python"
@@ -278,10 +272,29 @@ if [ "$(cd "$PY_PREFIX" && pwd -P)" != "$(cd "$ENV_PREFIX" && pwd -P)" ]; then
     exit 1
 fi
 
-# conda-lock leaves pip out of the explicit/lock specs (python doesn't depend on it)
+# ── 4b. Enforce the driver's CUDA cap ──────────────────────────────────────────────────────
+# Catches every path above (explicit spec, lock file, env update, solve)
+# and existing envs that were built before this check existed.
+if [ -n "$CUDA_PIN" ]; then
+    INSTALLED_CUDA=$($CONDA_CMD list -p "$ENV_PREFIX" 2>/dev/null \
+        | awk '$1=="cuda-version" {print $2; exit}')
+    if [ -n "$INSTALLED_CUDA" ] && ver_gt "$INSTALLED_CUDA" "$CUDA_VER"; then
+        echo ""
+        echo "cuda-version $INSTALLED_CUDA is newer than this driver supports (CUDA $CUDA_VER)."
+        echo "Downgrading CUDA packages: $CUDA_PIN ..."
+        CONDA_OVERRIDE_CUDA="$CUDA_VER" $CONDA_CMD install -p "$ENV_PREFIX" -y "$CUDA_PIN"
+    elif [ -n "$INSTALLED_CUDA" ]; then
+        echo "cuda-version $INSTALLED_CUDA is compatible with driver CUDA $CUDA_VER."
+    fi
+fi
+
+# ── 5. Pip post-install ───────────────────────────────────────────────────────
+
+# conda-lock leaves pip out of the explicit/lock specs (python doesn't depend on
+# it). Use python's bundled copy: offline, and no solve that could alter python.
 if ! "$PY" -m pip --version &>/dev/null; then
-    echo "pip is missing from $ENV_NAME — installing it..."
-    $CONDA_CMD install -n "$ENV_NAME" -y -c conda-forge pip
+    echo "pip is missing from $ENV_NAME — installing python's bundled pip..."
+    "$PY" -m ensurepip
 fi
 
 echo ""
@@ -351,6 +364,14 @@ if [ -n "$MISSING" ]; then
     echo "Error: missing from $ENV_NAME: $MISSING"
     exit 1
 fi
+
+# `run -n` resolves the name the same way `activate` does
+RUN_PREFIX=$($CONDA_CMD run -n "$ENV_NAME" python -c "import sys; print(sys.prefix)" 2>/dev/null || true)
+if [ -z "$RUN_PREFIX" ] || [ "$(cd "$RUN_PREFIX" && pwd -P)" != "$(cd "$ENV_PREFIX" && pwd -P)" ]; then
+    echo "Error: '$CONDA_CMD activate $ENV_NAME' would use '${RUN_PREFIX:-nothing}', not $ENV_PREFIX."
+    echo "  Another environment may share the name; see: $CONDA_CMD env list"
+    exit 1
+fi
 echo "  OK"
 
 # ── Smoke-test OpenMM on CUDA ─────────────────────────────────────────────
@@ -380,10 +401,9 @@ echo ""
 echo "=== Installation Complete ==="
 echo "Environment path:  $ENV_PREFIX   (use as CHACRA_ENV in run_hremd.sbatch)"
 echo ""
-echo "To use the 'chacra' command in this shell, either activate the env:"
-echo "    $ACTIVATE_CMD activate $ENV_NAME"
-echo "or put its bin directory on PATH (works without conda init):"
-echo "    export PATH=\"$ENV_PREFIX/bin:\$PATH\""
+echo "Activate with:  $ACTIVATE_CMD activate $ENV_NAME"
+echo "  (load your modules first; a module loaded after activating can put"
+echo "   another python ahead of the environment's)"
 echo ""
 echo "Notes:"
 echo "  • OpenMPI is the recommended MPI implementation for multi-node runs."
