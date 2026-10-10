@@ -11,6 +11,7 @@ Usage::
 """
 
 import argparse
+import os
 import pathlib
 import shutil
 import subprocess
@@ -144,7 +145,6 @@ def _run_worker(args):
             states,
             hremd_config,
             output_dir=output_dir,
-            save_final_coords=False,
         )
 
         mpi_comm.barrier()
@@ -227,7 +227,7 @@ def main():
     )
     parser.add_argument(
         "-j", "--n_jobs", type=int, required=True,
-        help="The total number of GPUs to use across all nodes.",
+        help="The number of GPUs to use.",
     )
     parser.add_argument(
         "-c", "--n_cycles", type=int, default=500,
@@ -290,13 +290,7 @@ def main():
         args.mps_replicas = args._oversubscribe_compat
 
     if args.is_mpi_worker:
-        import femto.md.utils.mpi
-
-        with (
-            femto.md.utils.mpi.get_mpi_comm() as mpi_comm,
-            femto.md.utils.mpi.node_mps(mpi_comm),
-        ):
-            _run_worker(args)
+        _run_worker(args)
         return
 
     # ── Launcher process ──
@@ -313,9 +307,26 @@ def main():
     # Forward all original args (except --is-mpi-worker which we just added)
     cmd.extend(sys.argv[1:])
 
+    run_env = os.environ.copy()
+    if args.mps_replicas > 1:
+        import femto.md.utils.mpi as _fmpi
+
+        thread_pct = max(1, 200 // args.mps_replicas)
+        run_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(thread_pct)
+        print(
+            f"CUDA MPS: {args.mps_replicas} replicas/GPU, "
+            f"CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={thread_pct}%"
+        )
+        if not _fmpi.is_mps_running():
+            from chacra.mpi import configure_mps_env
+
+            configure_mps_env()
+            print("Starting CUDA MPS daemon...")
+            _fmpi.start_mps()
+
     print(f"Launching benchmark: {' '.join(cmd)}\n")
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, env=run_env, check=True)
     except KeyboardInterrupt:
         pass
 

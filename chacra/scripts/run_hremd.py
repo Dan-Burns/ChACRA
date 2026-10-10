@@ -56,8 +56,8 @@ def main():
         "-j", "--n_jobs",
         type=int,
         default=None,
-        help="The total number of GPUs to use across all nodes in the "
-             "allocation (e.g. 2 nodes x 4 GPUs = 8).  The analysis step "
+        help="The number of MPI processes to start.  For simulation this should "
+             "equal the number of available GPUs.  The analysis step "
              "(process-output) uses a separate --n_jobs that can be set "
              "independently for CPU-bound contact calculations.",
     )
@@ -371,7 +371,8 @@ def main():
           f"× mps_replicas={args.mps_replicas}")
 
     mpi_command = mpi_prefix + femto_args
-
+    
+    
     # Compute and cache the full temperature list so process-output and
     # the JSON config don't need to re-derive it.
     temps = np.geomspace(args.min_temp, args.max_temp, n_systems).tolist()
@@ -408,6 +409,20 @@ def main():
     times = {}
     times["start"] = datetime.now().strftime("%H:%M")
 
+    # Prepare MPS-aware environment for multi-replica-per-GPU runs
+    run_env = os.environ.copy()
+    if args.mps_replicas > 1:
+        import femto.md.utils.mpi as _fmpi
+        thread_pct = max(1, 200 // args.mps_replicas)
+        run_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(thread_pct)
+        print(f"CUDA MPS: {args.mps_replicas} replicas/GPU, "
+              f"CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={thread_pct}%")
+        if not _fmpi.is_mps_running():
+            from chacra.mpi import configure_mps_env
+            configure_mps_env()
+            print("Starting CUDA MPS daemon...")
+            _fmpi.start_mps()
+
     print(
         f"\n  Run {current_run}: {total_cycles} total cycles "
         f"({args.n_cycles} new) × {args.steps_per_cycle} steps/cycle"
@@ -425,6 +440,7 @@ def main():
                 stdout=out,
                 stderr=err,
                 check=True,
+                env=run_env,
             )
 
         print("Replica exchange completed:", result.returncode)

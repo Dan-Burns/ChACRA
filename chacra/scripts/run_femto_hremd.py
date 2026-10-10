@@ -113,118 +113,111 @@ def main():
     )
     args = parser.parse_args()
 
-    # one MPS daemon per node (when ranks share GPUs) must exist before any
-    # CUDA context is created, and before divide_gpus() narrows the devices
-    with (
-        femto.md.utils.mpi.get_mpi_comm() as mpi_comm,
-        femto.md.utils.mpi.node_mps(mpi_comm),
-    ):
-        femto.md.utils.mpi.divide_gpus()
-        system_file = args.system_file
-        with open(system_file, "r") as file:
-            xml = file.read()
-        system = XmlSerializer.deserialize(xml)
-        structure_file = args.structure_file
+    femto.md.utils.mpi.divide_gpus()
+    system_file = args.system_file
+    with open(system_file, "r") as file:
+        xml = file.read()
+    system = XmlSerializer.deserialize(xml)
+    structure_file = args.structure_file
 
-        u = mda.Universe(structure_file)
-        indices = u.select_atoms(
-            args.lambda_selection
-        ).atoms.ix  # change to omm function
-        solute_idxs = set(indices)
-        temp_min = args.min_temp
-        temp_max = args.max_temp
-        n_systems = args.n_systems
-        warmup_steps = args.warmup_steps
-        steps_per_cycle = args.steps_per_cycle
-        cycles = args.n_cycles
-        save_interval = args.save_interval
-        checkpoint_interval = args.checkpoint_interval
-        timestep = args.timestep
+    u = mda.Universe(structure_file)
+    indices = u.select_atoms(
+        args.lambda_selection
+    ).atoms.ix  # change to omm function
+    solute_idxs = set(indices)
+    temp_min = args.min_temp
+    temp_max = args.max_temp
+    n_systems = args.n_systems
+    warmup_steps = args.warmup_steps
+    steps_per_cycle = args.steps_per_cycle
+    cycles = args.n_cycles
+    save_interval = args.save_interval
+    checkpoint_interval = args.checkpoint_interval
+    timestep = args.timestep
 
-        rest_config = femto.md.config.REST(
-            scale_torsions=True, scale_nonbonded=True
-        )
-        femto.md.rest.apply_rest(system, solute_idxs, rest_config)
-        pdb = PDBFile(structure_file)
-        structure = mdtop.Topology.from_file(structure_file)
-        integrator = LangevinMiddleIntegrator(
-            temp_min, 1 / unit.picosecond, timestep * unit.femtosecond
-        )
-        simulation = Simulation(pdb.topology, system, integrator)
-        simulation.context.setPositions(pdb.positions)
-        state = simulation.context.getState(
-            getPositions=True,
-            getVelocities=True,
-            getForces=True,
-            getEnergy=True,
-            enforcePeriodicBox=True,
-        )
-        # simulation.minimizeEnergy()
+    rest_config = femto.md.config.REST(
+        scale_torsions=True, scale_nonbonded=True
+    )
+    femto.md.rest.apply_rest(system, solute_idxs, rest_config)
+    pdb = PDBFile(structure_file)
+    structure = mdtop.Topology.from_file(structure_file)
+    integrator = LangevinMiddleIntegrator(
+        temp_min, 1 / unit.picosecond, timestep * unit.femtosecond
+    )
+    simulation = Simulation(pdb.topology, system, integrator)
+    simulation.context.setPositions(pdb.positions)
+    state = simulation.context.getState(
+        getPositions=True,
+        getVelocities=True,
+        getForces=True,
+        getEnergy=True,
+        enforcePeriodicBox=True,
+    )
+    # simulation.minimizeEnergy()
 
-        output_dir = pathlib.Path("hremd-outputs")
+    output_dir = pathlib.Path("hremd-outputs")
 
-        # define the REST2 temperatures to sample at
-        temps = list(np.geomspace(temp_min, temp_max, n_systems))
-        rest_temperatures = temps * openmm.unit.kelvin
-        rest_betas = [
-            1.0 / (openmm.unit.MOLAR_GAS_CONSTANT_R * rest_temperature)
-            for rest_temperature in rest_temperatures
-        ]
+    # define the REST2 temperatures to sample at
+    temps = list(np.geomspace(temp_min, temp_max, n_systems))
+    rest_temperatures = temps * openmm.unit.kelvin
+    rest_betas = [
+        1.0 / (openmm.unit.MOLAR_GAS_CONSTANT_R * rest_temperature)
+        for rest_temperature in rest_temperatures
+    ]
 
-        states = [
-            {femto.md.rest.REST_CTX_PARAM: rest_beta / rest_betas[0]}
-            for rest_beta in rest_betas
-        ]
-        # REST requires both beta_m / beta_0 and sqrt(beta_m / beta_0) to be defined
-        # we can use a helper to compute the later from the former for each state
-        states = [
-            femto.md.utils.openmm.evaluate_ctx_parameters(state, system)
-            for state in states
-        ]
+    states = [
+        {femto.md.rest.REST_CTX_PARAM: rest_beta / rest_betas[0]}
+        for rest_beta in rest_betas
+    ]
+    # REST requires both beta_m / beta_0 and sqrt(beta_m / beta_0) to be defined
+    # we can use a helper to compute the later from the former for each state
+    states = [
+        femto.md.utils.openmm.evaluate_ctx_parameters(state, system)
+        for state in states
+    ]
 
-        # create the OpenMM simulation object
-        intergrator_config = femto.md.config.LangevinIntegrator(
-            timestep=timestep * openmm.unit.femtosecond,
-        )
-        integrator = femto.md.utils.openmm.create_integrator(
-            intergrator_config, rest_temperatures[0]
-        )
+    # create the OpenMM simulation object
+    intergrator_config = femto.md.config.LangevinIntegrator(
+        timestep=timestep * openmm.unit.femtosecond,
+    )
+    integrator = femto.md.utils.openmm.create_integrator(
+        intergrator_config, rest_temperatures[0]
+    )
 
-        simulation = femto.md.utils.openmm.create_simulation(
-            system,
-            structure,
-            coords=state,  # or None to use the coordinates / box in structure
-            integrator=integrator,
-            state=states[0],
-            platform=femto.md.constants.OpenMMPlatform.CUDA,
-        )
+    simulation = femto.md.utils.openmm.create_simulation(
+        system,
+        structure,
+        coords=state,  # or None to use the coordinates / box in structure
+        integrator=integrator,
+        state=states[0],
+        platform=femto.md.constants.OpenMMPlatform.CUDA,
+    )
 
-        # define how the HREMD should be run
-        hremd_config = femto.md.config.HREMD(
-            # the number of steps to run each replica for before starting to
-            # propose swaps
-            n_warmup_steps=warmup_steps,
-            # the number of steps to run before proposing swaps
-            n_steps_per_cycle=steps_per_cycle,
-            # the number of 'swaps' to propose - the total simulation length
-            # will be n_warmup_steps + n_steps * n_cycles
-            n_cycles=cycles,
-            # the frequency with which to store trajectories of each replica.
-            # set to None to not store trajectories
-            trajectory_interval=save_interval,  # store every 10 * 500 steps.
-            checkpoint_interval=checkpoint_interval,
-        )
-        print(datetime.now().strftime("%H:%M"))
-        femto.md.hremd.run_hremd(
-            simulation,
-            states,
-            hremd_config,
-            # the directory to store sampled reduced potentials and trajectories to
-            output_dir=output_dir,
-            save_final_coords=False,
-        )
+    # define how the HREMD should be run
+    hremd_config = femto.md.config.HREMD(
+        # the number of steps to run each replica for before starting to
+        # propose swaps
+        n_warmup_steps=warmup_steps,
+        # the number of steps to run before proposing swaps
+        n_steps_per_cycle=steps_per_cycle,
+        # the number of 'swaps' to propose - the total simulation length
+        # will be n_warmup_steps + n_steps * n_cycles
+        n_cycles=cycles,
+        # the frequency with which to store trajectories of each replica.
+        # set to None to not store trajectories
+        trajectory_interval=save_interval,  # store every 10 * 500 steps.
+        checkpoint_interval=checkpoint_interval,
+    )
+    print(datetime.now().strftime("%H:%M"))
+    femto.md.hremd.run_hremd(
+        simulation,
+        states,
+        hremd_config,
+        # the directory to store sampled reduced potentials and trajectories to
+        output_dir=output_dir,
+    )
 
-        print(datetime.now().strftime("%H:%M"))
+    print(datetime.now().strftime("%H:%M"))
 
 
 if __name__ == "__main__":
