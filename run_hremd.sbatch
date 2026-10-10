@@ -55,6 +55,14 @@ export PYTHONNOUSERSITE=1
 
 cd "$PROJECT_DIR"
 
+# Stop any of your own MPS daemons left on these nodes by earlier jobs
+CLEAN_MPS='for p in /tmp/nvidia-mps /tmp/femto-mps-*/pipe; do [ -e "$p" ] && echo quit | CUDA_MPS_PIPE_DIRECTORY=$p nvidia-cuda-mps-control; done >/dev/null 2>&1; true'
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    srun --overlap --ntasks-per-node=1 bash -c "$CLEAN_MPS"
+else
+    bash -c "$CLEAN_MPS"
+fi
+
 echo "ChACRA: $N_NODES node(s) x $GPUS_PER_NODE GPU(s) = $N_GPUS GPUs," \
      "$MPS_REPLICAS replica(s)/GPU, $N_SYSTEMS replicas"
 
