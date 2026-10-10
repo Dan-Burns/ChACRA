@@ -215,6 +215,7 @@ def main():
         hremd_config,
         # the directory to store sampled reduced potentials and trajectories to
         output_dir=output_dir,
+        save_final_coords=False,
     )
 
     print(datetime.now().strftime("%H:%M"))

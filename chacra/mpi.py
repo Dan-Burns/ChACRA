@@ -13,8 +13,8 @@ invocation.  Handles:
 * user-supplied ``--mpi-command`` strings (properly shell-split) as a site
   override
 
-CUDA MPS is managed per node by the MPI ranks themselves
-(``femto.md.utils.mpi.node_mps``), so nothing MPS related is needed here.
+``run-hremd`` starts CUDA MPS on the node it runs on.  For multi-node runs,
+start MPS on every node in your batch script before ``chacra run-hremd``.
 """
 
 import os

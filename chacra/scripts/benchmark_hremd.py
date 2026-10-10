@@ -145,6 +145,7 @@ def _run_worker(args):
             states,
             hremd_config,
             output_dir=output_dir,
+            save_final_coords=False,
         )
 
         mpi_comm.barrier()
