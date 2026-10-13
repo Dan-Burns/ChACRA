@@ -51,6 +51,12 @@ class TestMakeContactDataframe:
         assert df.shape[0] == 20  # N_TEMPS states
         assert df.shape[1] > 0
 
+    def test_from_parquet_directory(self, synthetic_parquet_dir):
+        df = make_contact_dataframe(str(synthetic_parquet_dir))
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] == 20
+        assert df.shape[1] > 0
+
     def test_from_list_of_paths(self, synthetic_tsv_dir):
         paths = sorted(synthetic_tsv_dir.glob("*.tsv"),
                        key=lambda p: int(p.stem.split("_")[-1]))
@@ -96,6 +102,17 @@ class TestContactFrequenciesInit:
 
     def test_from_tsv_directory(self, synthetic_tsv_dir):
         cf = ContactFrequencies(str(synthetic_tsv_dir), get_chacras=False)
+        assert isinstance(cf.freqs, pd.DataFrame)
+        assert cf.freqs.shape[0] == 20
+
+    def test_from_parquet_directory(self, synthetic_parquet_dir):
+        cf = ContactFrequencies(str(synthetic_parquet_dir), get_chacras=False)
+        assert isinstance(cf.freqs, pd.DataFrame)
+        assert cf.freqs.shape[0] == 20
+
+    def test_from_file_list(self, synthetic_parquet_dir):
+        paths = sorted(synthetic_parquet_dir.glob("*.parquet"))
+        cf = ContactFrequencies([str(p) for p in paths], get_chacras=False)
         assert isinstance(cf.freqs, pd.DataFrame)
         assert cf.freqs.shape[0] == 20
 

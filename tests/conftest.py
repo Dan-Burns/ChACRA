@@ -106,6 +106,21 @@ def synthetic_tsv_dir(tmp_path_factory) -> Path:
     return base
 
 
+@pytest.fixture(scope="session")
+def synthetic_parquet_dir(tmp_path_factory) -> Path:
+    """
+    Write N_TEMPS minimal ultracontacts condensed parquet files to a temp directory.
+    Uses default naming pattern: freqs_state_{i}_condensed.parquet
+    """
+    base = tmp_path_factory.mktemp("parquet_files")
+    rng = np.random.default_rng(2)
+    for i in range(N_TEMPS):
+        data = {c: [float(rng.random())] for c in CONTACT_IDS}
+        df = pd.DataFrame(data)
+        df.to_parquet(base / f"freqs_state_{i}_condensed.parquet")
+    return base
+
+
 # ------------------------------------------------------------------ #
 # ContactFrequencies / ContactPCA fixture                             #
 # ------------------------------------------------------------------ #
