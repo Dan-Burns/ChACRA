@@ -60,8 +60,22 @@ def load_contact_file(path: str) -> pd.DataFrame:
     return df.set_index("pair")["contact_frequency"]
 
 
+def _extract_state_number(filename: str | os.PathLike) -> int:
+    """Extract replica/state index from frequency filename."""
+    name = pathlib.Path(filename).name
+    m = re.search(r"state_?(\d+)", name, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    digits = re.findall(r"\d+", name)
+    if digits:
+        return int(digits[-1])
+    return 0
+
+
 def make_contact_dataframe(
-    freq_files: str | os.PathLike | list, temps: list = None
+    freq_files: str | os.PathLike | list,
+    temps: list | None = None,
+    verbose: bool = False,
 ) -> pd.DataFrame:
     """
     Provide the folder with all of the contact frequency files from the replica
@@ -74,28 +88,40 @@ def make_contact_dataframe(
     temps : list
         Optional list of temperatures for the replicas.
 
+    verbose : bool
+        If True, print loaded contact files.
+
     Returns
     -------
     pd.DataFrame
         The dataframe of all the contact frequencies at each state.
     """
-    if isinstance(freq_files, list):
-        contact_files = freq_files
+    if isinstance(freq_files, (list, tuple)):
+        contact_files = list(freq_files)
         is_parquet = any(str(f).endswith(".parquet") for f in contact_files)
     else:
         all_files = os.listdir(freq_files)
         parquet_files = [f for f in all_files if f.endswith(".parquet")]
         is_parquet = len(parquet_files) > 0
 
-        target_files = parquet_files if is_parquet else [f for f in all_files if f.endswith(".tsv")]
-        
+        target_files = (
+            parquet_files
+            if is_parquet
+            else [f for f in all_files if f.endswith(".tsv")]
+        )
+        if not target_files:
+            raise ValueError(
+                f"No .parquet or .tsv frequency files found in '{freq_files}'."
+            )
+
         contact_files = [
             f"{freq_files}/{file}"
-            for file in sorted(
-                target_files,
-                key=lambda x: int(re.search(r'\d+', x).group()) if re.search(r'\d+', x) else 0,
-            )
+            for file in sorted(target_files, key=_extract_state_number)
         ]
+
+    if verbose:
+        for file in contact_files:
+            print(file, flush=True)
 
     if is_parquet:
         # Ultracontacts condensed .parquet files are 1-row wide dataframes
@@ -133,11 +159,11 @@ class ContactFrequencies:
 
         Parameters
         ----------
-        contact_data : string or pd.DataFrame or dict
-            Path to file ('.csv') or pickle ('.pd') of the prepared contact
-            frequency data or the path to the directory containing the
-            getcontacts '.tsv' frequency files or a dictionary or dataframe
-            containing the contact frequencies.
+        contact_data : string or pd.DataFrame or dict or list
+            Path to file ('.csv', '.parquet', '.pd') of prepared contact
+            frequency data, or path to a directory containing frequency files
+            (.parquet or .tsv), or a dictionary, dataframe, or list of file
+            paths.
 
         temps : list
             A list specifying all of the dataframe's index values as temperatures.
@@ -177,7 +203,12 @@ class ContactFrequencies:
 
         """
         try:
-            if os.path.isfile(contact_data):
+            if isinstance(contact_data, (list, tuple)):
+                self.freqs = make_contact_dataframe(
+                    contact_data, verbose=verbose
+                )
+
+            elif os.path.isfile(contact_data):
 
                 file_extension = pathlib.Path(contact_data).suffix
                 if file_extension == ".csv":
@@ -193,39 +224,29 @@ class ContactFrequencies:
                     raise ValueError(
                         f"Unsupported file extension '{file_extension}'. "
                         "Provide a .csv, .parquet, or .pd (pickle) file, "
-                        "or a path to the folder containing the original "
-                        "getcontacts .tsv files."
+                        "or a path to a directory containing .parquet or "
+                        ".tsv frequency files."
                     )
 
             elif os.path.isdir(contact_data):
-
-                contact_files = [
-                    f"{contact_data}/{file}"
-                    for file in sorted(
-                        os.listdir(contact_data),
-                        key=lambda x: int(re.split(r"_|\.", x)[-2]),
-                    )
-                    if file.endswith(".tsv")
-                ]
-
-                if verbose == True:
-                    for file in contact_files:
-                        print(file, flush=True)
-                contact_dictionary = make_contact_frequency_dictionary(
-                    contact_files
+                self.freqs = make_contact_dataframe(
+                    contact_data, verbose=verbose
                 )
-                self.freqs = pd.DataFrame(contact_dictionary)
         except (TypeError, AttributeError):
             try:
                 if isinstance(contact_data, pd.DataFrame):
                     self.freqs = contact_data
                 elif isinstance(contact_data, dict):
                     self.freqs = pd.DataFrame(contact_data)
+                elif isinstance(contact_data, (list, tuple)):
+                    self.freqs = make_contact_dataframe(
+                        contact_data, verbose=verbose
+                    )
             except (TypeError, ValueError) as exc:
                 raise TypeError(
                     "Provide one of: file path (.parquet, .csv, or .pd extension), "
-                    "pd.DataFrame, dict, or path to a directory containing "
-                    "getcontacts .tsv frequency files."
+                    "pd.DataFrame, dict, list of file paths, or path to a directory "
+                    "containing .parquet or .tsv frequency files."
                 ) from exc
 
         if temps is not None:
