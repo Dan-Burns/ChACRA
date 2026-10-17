@@ -1,23 +1,55 @@
 import os
 import warnings
 from collections import defaultdict
-from itertools import combinations, permutations
 
 import MDAnalysis as mda
 import numpy as np
 import pandas as pd
 import tqdm
-from MDAnalysis.analysis import align
 from MDAnalysis.lib.util import convert_aa_code
 
-from .utils import *
+from .utils import parse_id
 
 warnings.filterwarnings("ignore", message="Biopython*")
 warnings.filterwarnings(
     "ignore",
     message="pkg_resources is deprecated as an API.*",
     category=UserWarning,
-) # pdbfixer 
+)  # pdbfixer
+
+
+def _longest_common_contiguous_substring(strs: list[str]) -> str:
+    """
+    Find the longest contiguous substring common to all strings in `strs`.
+    """
+    if not strs:
+        return ""
+    if len(strs) == 1:
+        return strs[0]
+    shortest = min(strs, key=len)
+    n = len(shortest)
+    for length in range(n, 0, -1):
+        for start in range(n - length + 1):
+            sub = shortest[start : start + length]
+            if all(sub in s for s in strs):
+                return sub
+    return ""
+
+
+def kabsch_rotation(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """
+    Returns the 3x3 rotation matrix R that minimizes RMSD between
+    centered coordinate arrays `a` (mobile) and `b` (reference).
+    Satisfies b ~ a @ R.T (i.e. b = R @ a).
+    Always returns a proper rotation with det(R) = +1.
+    """
+    H = a.T @ b
+    U, S, Vt = np.linalg.svd(H)
+    d = np.linalg.det(Vt.T @ U.T)
+    diag = np.ones(3)
+    if d < 0:
+        diag[2] = -1.0
+    return Vt.T @ np.diag(diag) @ U.T
 
 
 def has_only_identical_subunits(u: mda.Universe) -> bool:
@@ -34,84 +66,76 @@ def has_only_identical_subunits(u: mda.Universe) -> bool:
     bool
         True if all subunits are identical, False otherwise.
     """
-    seqs = [tuple(seg.residues.resnames) for seg in u.segments]
-    if not all(s == seqs[0] for s in seqs):
-        # raise ValueError("Not all subunits are identical. This function only"\
-        #                  " supports homomultimers.")
-        return False
-    else:
+    if len(u.segments) == 0:
         return True
+    seqs = [tuple(seg.residues.resnames) for seg in u.segments]
+    return all(s == seqs[0] for s in seqs)
 
 
 def seg_to_chain(u: mda.Universe) -> dict[int, str]:
     """
     Returns the seg id to chain id mapping.
 
+    Parameters
+    ----------
     u : mda.Universe
 
     Returns
     -------
     dict
-    {int(segid): str(chainid)}
+        {int(segid): str(chainid)}
     """
-    return {
-        i: list(set(seg.atoms.chainIDs))[0] for i, seg in enumerate(u.segments)
-    }
+    mapping = {}
+    for i, seg in enumerate(u.segments):
+        chains = [c for c in np.unique(seg.atoms.chainIDs) if c]
+        mapping[i] = chains[0] if len(chains) > 0 else seg.segid
+    return mapping
 
 
 def chain_to_seg(u: mda.Universe) -> dict[str, int]:
     """
-    Returns the seg id to chain id mapping.
+    Returns the chain id to seg id mapping.
 
+    Parameters
+    ----------
     u : mda.Universe
 
     Returns
     -------
     dict
-    {int(segid): str(chainid)}
+        {str(chainid): int(segid)}
     """
-    return {
-        list(set(seg.atoms.chainIDs))[0]: i for i, seg in enumerate(u.segments)
-    }
+    mapping = {}
+    for i, seg in enumerate(u.segments):
+        chains = [c for c in np.unique(seg.atoms.chainIDs) if c]
+        chain_id = chains[0] if len(chains) > 0 else seg.segid
+        mapping[chain_id] = i
+    return mapping
 
 
-def find_identical_subunits(u: mda.Universe):
+def find_identical_subunits(u: mda.Universe) -> dict[int, list[int]]:
     """
     Groups segments (subunits) by identical residue sequences.
 
     Parameters
     ----------
-    universe : mda.Universe
+    u : mda.Universe
         Protein structure.
+
+    Returns
+    -------
+    dict[int, list[int]]
+        Dictionary where keys are group indices (0, 1, ...) and values are
+        lists of segment indices that share identical amino acid sequences.
     """
-    d = defaultdict()
-    combos = combinations(range(len(u.segments)), 2)
-    group = 0
-    for combo in combos:
-        i, j = combo
-        if "".join(
-            [convert_aa_code(k) for k in u.segments[i].residues.resnames]
-        ) == "".join(
-            [convert_aa_code(k) for k in u.segments[j].residues.resnames]
-        ):
-            if len(d.values()) == 0:
-                d[group] = set([i, j])
-                group += 1
-            else:
-                found = False
-                for key, val in d.items():
-                    if (i in val) or (j in val):
-                        d[key].add(i)
-                        d[key].add(j)
-                        found = True
-                if found == False:
-                    d[group] = set([i, j])
-                    group += 1
-
-    return {key: list(val) for key, val in d.items()}
+    seq_groups = defaultdict(list)
+    for i, seg in enumerate(u.segments):
+        seq = tuple(seg.residues.resnames)
+        seq_groups[seq].append(i)
+    return {idx: group for idx, group in enumerate(seq_groups.values())}
 
 
-def same_list_membership(d: dict[int, list[str]], a: int, b: int) -> bool:
+def same_list_membership(d: dict[int, list[int]], a: int, b: int) -> bool:
     """
     Check if both `a` and `b` appear in the same list of the dictionary.
 
@@ -127,28 +151,31 @@ def same_list_membership(d: dict[int, list[str]], a: int, b: int) -> bool:
 def align_principal_axes_to_global_frame(u: mda.Universe) -> np.ndarray:
     """
     Reorients the Universe in place to align with the global axes.
+    Ensures determinant is +1 to prevent improper rotation (reflection).
     """
-    coords = u.atoms.positions - u.atoms.center_of_mass()
+    universe_com = u.atoms.center_of_mass()
+    coords = u.atoms.positions - universe_com
     cov = np.cov(coords.T)
     eigvals, eigvecs = np.linalg.eigh(cov)
 
     local_frame = eigvecs  # columns are basis vectors
-    global_frame = np.eye(3)  # identity: x, y, z axes
+    global_frame = np.eye(3)
 
     R = global_frame @ local_frame.T
+    if np.linalg.det(R) < 0:
+        R[2, :] *= -1.0
 
-    universe_com = u.atoms.center_of_mass()
     shifted = u.atoms.positions - universe_com
     rotated = shifted @ R.T
-
     u.atoms.positions = rotated
+    return R
 
 
 def get_long_axis(subunit: mda.AtomGroup) -> np.ndarray:
+    """Get the primary principal axis for an atom group."""
     coords = subunit.positions - subunit.center_of_mass()
     cov = np.cov(coords.T)
     eigvals, eigvecs = np.linalg.eigh(cov)
-    # Longest axis corresponds to largest eigenvalue
     long_axis = eigvecs[:, np.argmax(eigvals)]
     return long_axis / np.linalg.norm(long_axis)
 
@@ -157,36 +184,30 @@ def align_mobile_to_ref(mobile: mda.AtomGroup, ref: mda.AtomGroup):
     """
     Aligns the long axis of mobile atom group to ref atom group's in place.
     """
-    # Compute COMs and long axes
     ref_com = ref.center_of_mass()
     mob_com = mobile.center_of_mass()
 
     ref_axis = get_long_axis(ref)
     mob_axis = get_long_axis(mobile)
 
-    # Compute rotation matrix to align mobile axis to reference axis
     v = np.cross(mob_axis, ref_axis)
     c = np.dot(mob_axis, ref_axis)
     s = np.linalg.norm(v)
 
-    if s == 0:  # Vectors already aligned or anti-aligned
+    if s == 0:
         if c > 0:
             R = np.eye(3)
         else:
-            # 180 degree rotation: find orthogonal axis to rotate around
-            ortho = np.eye(3)[
-                np.argmin(np.abs(mob_axis))
-            ]  # any axis not aligned
+            ortho = np.eye(3)[np.argmin(np.abs(mob_axis))]
             v = np.cross(mob_axis, ortho)
             v /= np.linalg.norm(v)
             K = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
             R = np.eye(3) + 2 * K @ K
     else:
-        v /= s  # normalize rotation axis
+        v /= s
         K = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
         R = np.eye(3) + K + K @ K * ((1 - c) / (s**2))
 
-    # Apply transformation: move COM to origin, rotate, then translate to ref COM
     shifted = mobile.positions - mob_com
     rotated = shifted @ R.T
     aligned = rotated + ref_com
@@ -198,244 +219,172 @@ def get_rotation_matrix(
     chainb: mda.AtomGroup,
 ) -> np.ndarray:
     """
-    Get the rotation matrix that aligns chaina with chainb
-
-    u : mda.Universe
-
-    chaina : mda.AtomGroup
-        chaina and chainb should be identical subunits / chains.
-
-    chainb : mda.AtomGroup
-
-    Returns
-    -------
-    np.ndarray
-        3x3 rotation matrix
+    Get the rotation matrix that aligns chaina with chainb.
+    Centering is performed prior to alignment to ensure origin invariance.
     """
-    matrix, rmsd = align.rotation_matrix(
-        chaina.positions,
-        chainb.positions,
-    )
-
-    return matrix
+    com_a = chaina.center_of_mass()
+    com_b = chainb.center_of_mass()
+    return kabsch_rotation(chaina.positions - com_a, chainb.positions - com_b)
 
 
 def get_all_rotations(
     u: mda.Universe,
     identical_subunits: dict,
-) -> dict[int, dict[int, np.ndarray]]:
+) -> dict[str, dict[str, np.ndarray]]:
     """
-    Get all of the rotations for subunit i to subunits j to N for all subunits.
-
-    u : mda.Universe
-        Should contain only symmetric protein complexes with identical numbers
-        of subunits for all subunit types.
-
-    identical_subunits : dict
-        The dictionary of segment id lists where each list only contains
-        the ids of subunits that are of identical types.
-        i.e. find_identical_subunits(u)
-
-    Returns
-    -------
-    dictionary
-        The dictionary of rotation matrices with keys corresponding to seg ids
-        and values of dictionaries with the segid of that the subunit was
-        rotated into and the corresponding rotation matrix.
-        e.g. {0:{1:np.ndarray}} is the np.ndarray rotation matrix
-        of segment 0 to segment 1
+    Get rotation matrices for each subunit pair.
     """
-    segids = [i for i in range(len(u.segments))]  #
-
-    align_principal_axes_to_global_frame(u)
-
-    seg_combos = [combo for combo in permutations(segids, 2)]
+    segids = list(range(len(u.segments)))
     seg_chain = seg_to_chain(u)
     rotations = {
         seg_chain[segid1]: {
-            seg_chain[segid2]: 0 for segid2 in segids if segid2 != segid1
+            seg_chain[segid2]: np.eye(3) for segid2 in segids if segid2 != segid1
         }
         for segid1 in segids
     }
-
-    for combo in seg_combos:
-        # rotating sega onto segb
-        sega, segb = combo
-        # u2 is rotated. u stays aligned to global frame
-        u2 = u.copy()
-        # if they're identical subunits
-        if same_list_membership(identical_subunits, sega, segb):
-            # just use first instance of the chain type as ref for now
-            ref = [val for val in identical_subunits.values() if sega in val][
-                0
-            ][0]
-            # position sega on the reference segment
-
-            align.alignto(
-                u2.segments[sega].atoms,
-                u.segments[ref].atoms,
-                select="name CA",
-            )
-
-            ca_sela = u2.select_atoms(f"chainID {seg_chain[sega]} and name CA")
-            ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
-            rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-                ca_sela,
-                ca_selb,
-            )
-        else:  # they're non-identical subunits
-            # so if we're interested in the relationship of type a to type b
-            # we need to position a copy of type b on top of type a's reference
-            # and use this copy to collect the rotation of type a onto type b
-            # reference subunit of type a
-            refa = [val for val in identical_subunits.values() if sega in val][
-                0
-            ][0]
-            align.alignto(
-                u2.segments[sega].atoms,
-                u.segments[refa].atoms,
-                select="name CA",
-            )
-            # copy of type b always use the ref type b
-            refb = [val for val in identical_subunits.values() if segb in val][
-                0
-            ][0]
-            mobile = mda.Merge(u2.segments[refb].atoms)
-            # move mobile's com to hetero ref com and align their long axes.
-            align_mobile_to_ref(mobile.atoms, u.segments[refa].atoms)
-
-            ca_sela = mobile.select_atoms("name CA")
-            ca_selb = u2.select_atoms(f"chainID {seg_chain[segb]} and name CA")
-            rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
-                ca_sela,
-                ca_selb,
-            )
+    for sega in segids:
+        for segb in segids:
+            if sega == segb:
+                continue
+            ca_a = u.segments[sega].atoms.select_atoms("name CA")
+            ca_b = u.segments[segb].atoms.select_atoms("name CA")
+            if len(ca_a) == len(ca_b) and len(ca_a) > 0:
+                rotations[seg_chain[sega]][seg_chain[segb]] = get_rotation_matrix(
+                    ca_a, ca_b
+                )
     return rotations
 
 
 def get_equivalent_interactions(
-    array_dict: dict[str, dict[str, np.ndarray]],
+    u_or_rotations: mda.Universe | dict,
     identical_subunits: dict[int, list[int]],
-    chain_seg_dict: dict[int, str],
-    representative_chains: list | None = None,
-) -> dict:
+    chain_seg_dict: dict[str, int],
+    representative_chains: list[str] | None = None,
+    rmsd_cutoff: float = 1.5,
+) -> dict[tuple[str, str], list[tuple[str, str]]]:
     """
-    Map a pair of subunits to other pairs of subunits with the same
-    spatial relationship.
+    Map pairs of subunits to other pairs with the same spatial relationship.
+
+    Uses coordinate superposition and CA-RMSD with `rmsd_cutoff` to identify
+    truly equivalent subunit interactions. Subunit pairs with distinct
+    spatial environments (e.g. in non-identically symmetric homotetramers or
+    linear filaments) are kept in distinct equivalence classes.
 
     Parameters
     ----------
-    array dict : dict
-        Keys are chainid1 with dictionary values. The sub dictionaries
-        give chainid2 and its rotation matrix relationship to chainid1.
-
-    identical_subunits : dict
-        Keys are integers and values are lists of segment ids that are
-        identical.
-
-    chain_seg_dict : dict
-        Keys are chain id strings and values are the corresponding segment id
-        integer.
-
-    representative_chains : list
-        If a list of chainIDs is provided, the returned dictionary will only
-        include non-redundant key, value pairs where the key involves a
-        chain in the representative_chains list.
+    u_or_rotations : mda.Universe | dict
+        The MDAnalysis Universe (preferred) or rotation matrices dictionary.
+    identical_subunits : dict[int, list[int]]
+        Keys are group IDs, values are lists of segment IDs with identical sequences.
+    chain_seg_dict : dict[str, int]
+        Mapping from chain ID string to segment ID integer.
+    representative_chains : list[str] | None, optional
+        If provided, only returns equivalence classes whose representative key
+        starts with a chain in `representative_chains`.
+    rmsd_cutoff : float, default=1.5
+        RMSD cutoff in Angstroms for determining whether two pairwise subunit
+        geometries are spatially equivalent.
 
     Returns
     -------
-    Dictionary
-    Mapping of the relationships of chains x to y (values) that are equivalent
-    to chain i to j (keys)
+    dict[tuple[str, str], list[tuple[str, str]]]
+        Mapping from canonical representative chain pair (tuple) to the list
+        of equivalent directed chain pairs.
     """
+    if isinstance(u_or_rotations, mda.Universe):
+        u = u_or_rotations
+    else:
+        raise TypeError(
+            "get_equivalent_interactions requires an MDAnalysis Universe "
+            "as first argument."
+        )
 
-    d = defaultdict(set)
-    # take a subunit (ch1) and it's rotations with all others in matrix_dict1
-    for ch1, matrix_dict1 in array_dict.items():
-        # take each subunit in the matrix_dict and ch1's rotation onto cha
-        for cha, matrixa in matrix_dict1.items():
-            # take all other subunits' rotations onto all others
-            for ch2, matrix_dict2 in array_dict.items():
-                # if ch1 onto X, don't consider ch1 onto anything else
-                if ch2 == ch1:
-                    continue
-                # ensure that we're only looking at mappings of other subunits
-                # that are identical to ch1 type
-                elif not same_list_membership(
-                    identical_subunits, chain_seg_dict[ch1], chain_seg_dict[ch2]
-                ):
-                    continue
+    seg_chain = {v: k for k, v in chain_seg_dict.items()}
+    seg_to_group = {}
+    for grp, segs in identical_subunits.items():
+        for s in segs:
+            seg_to_group[s] = grp
 
-                chb = np.argmin(
-                    [
-                        (np.linalg.norm(matrixa - matrixb, ord="fro"))
-                        for matrixb in matrix_dict2.values()
-                    ]
-                )
+    # Compute coordinates of subunit B in the standard reference frame of group(A)
+    coords_map = {}
+    for sega_idx, sega in enumerate(u.segments):
+        grp_a = seg_to_group[sega_idx]
+        ref_seg_idx = identical_subunits[grp_a][0]
+        ref_ca = u.segments[ref_seg_idx].atoms.select_atoms("name CA")
+        ca_a = sega.atoms.select_atoms("name CA")
 
-                # get the actual subunit name string by indexing it from the argmin
-                chb = list(matrix_dict2.keys())[chb]
-                # ensure that what cha is being mapped onto is coming from the same
-                # type of subunits as what chb is mapped onto
-                if not same_list_membership(
-                    identical_subunits, chain_seg_dict[cha], chain_seg_dict[chb]
-                ):
-                    continue
+        com_a = ca_a.center_of_mass()
+        com_ref = ref_ca.center_of_mass()
+        R = kabsch_rotation(ca_a.positions - com_a, ref_ca.positions - com_ref)
 
-                d[(ch1, cha)].add((ch2, chb))
+        cha = seg_chain[sega_idx]
+        for segb_idx, segb in enumerate(u.segments):
+            chb = seg_chain[segb_idx]
+            ca_b = segb.atoms.select_atoms("name CA")
+            b_coords = (ca_b.positions - com_a) @ R.T + com_ref
+            coords_map[(cha, chb)] = b_coords
 
-    seg_chain_dict = {seg: chain for chain, seg in chain_seg_dict.items()}
-    # make the entries for self-similars
-    for chain_list in identical_subunits.values():
-        d |= {
-            (seg_chain_dict[seg], seg_chain_dict[seg]): set(
-                [
-                    (seg_chain_dict[seg2], seg_chain_dict[seg2])
-                    for seg2 in chain_list
-                    if seg2 != seg
-                ]
-            )
-            for seg in chain_list
-        }
+    all_pairs = list(coords_map.keys())
+    visited = set()
+    classes = []
 
-    # last, add the key to it's own set
-    for pair in d:
-        d[pair].add(pair)
-    # convert to lists
-    d = {key: list(val) for key, val in d.items()}
-    if representative_chains is not None:
-        # TODO add check to get rid of redundant lists
-        # e.g. if a-b is in list 1 and list 2 drop key:list2
-        # but you have to consider representative_chains and sorted elements
-        # because in a trimer AB and AC will be two keys but map to the same
-        # pairs (when sorted)
-        eq_int = {}
-        for ch_pair, pair_list in d.items():
-            if ch_pair[0] in representative_chains:
-                eq_int[ch_pair] = pair_list
-        d = eq_int
-    return d
+    for p1 in all_pairs:
+        if p1 in visited:
+            continue
+        eq_class = [p1]
+        visited.add(p1)
+        cha1, chb1 = p1
+        grp_a1 = seg_to_group[chain_seg_dict[cha1]]
+        grp_b1 = seg_to_group[chain_seg_dict[chb1]]
+
+        for p2 in all_pairs:
+            if p2 in visited:
+                continue
+            cha2, chb2 = p2
+            grp_a2 = seg_to_group[chain_seg_dict[cha2]]
+            grp_b2 = seg_to_group[chain_seg_dict[chb2]]
+
+            if grp_a1 != grp_a2 or grp_b1 != grp_b2:
+                continue
+
+            if cha1 == chb1 and cha2 == chb2:
+                # Intra-chain interactions of identical subunit types
+                eq_class.append(p2)
+                visited.add(p2)
+            elif cha1 != chb1 and cha2 != chb2:
+                # Inter-chain interactions: check CA-RMSD
+                c1 = coords_map[p1]
+                c2 = coords_map[p2]
+                rmsd = np.sqrt(np.mean((c1 - c2) ** 2))
+                if rmsd <= rmsd_cutoff:
+                    eq_class.append(p2)
+                    visited.add(p2)
+
+        classes.append(eq_class)
+
+    result = {}
+    for eq_class in classes:
+        eq_class_sorted = sorted(eq_class)
+        if representative_chains is not None:
+            rep_candidates = [
+                p for p in eq_class_sorted if p[0] in representative_chains
+            ]
+            if not rep_candidates:
+                continue
+            key = rep_candidates[0]
+        else:
+            key = eq_class_sorted[0]
+        result[key] = eq_class_sorted
+
+    return result
 
 
 def validate_group_memberships(L: list, D: dict) -> bool:
     """
     Ensure that each element of L occurs only once in
-    one list value of D for all lists in D
-
-    L : list
-        list of chain IDs that will be used as a representative chains
-        in a heteromultimer
-    D : dictionary
-        values of D are lists of identical subunits
-
-    Returns
-    -------
-    bool
+    one list value of D for all lists in D.
     """
-    # Map: group ID -> count of L-elements in that group
     group_counts = {k: 0 for k in D}
-
-    # Create a reverse index: element -> group ID
     element_to_group = {}
     for k, values in D.items():
         for v in values:
@@ -443,34 +392,23 @@ def validate_group_memberships(L: list, D: dict) -> bool:
 
     for item in L:
         if item not in element_to_group:
-            return False  # Item not found in any group
+            return False
         group_counts[element_to_group[item]] += 1
 
-    # Every group must be represented exactly once
     return all(count == 1 for count in group_counts.values())
 
 
 def get_chain_group(chain, identical_subunits):
     """
-    Return the identical subunit group that the subunit is in
+    Return the identical subunit group that the subunit is in.
     """
     for group in identical_subunits:
         if chain in identical_subunits[group]:
             return group
 
 
-# def make_equivalent_contact_regex(resids):
-#     '''
-#     resids : the parse_id dictionary containing the contact data
-#     #TODO can remove any potential ambiguity by adding the list of correct chain
-#     group chains
-#     '''
-#     regex1 = rf"[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)-[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)"
-#     regex2 = rf"[A-Z1-9]+:{resids['resnb']}:{resids['residb']}(?!\d)-[A-Z1-9]+:{resids['resna']}:{resids['resida']}(?!\d)"
-#     return rf"{regex1}|{regex2}"
-
-
 def alphabetize(contact_name: str) -> str:
+    """Ensure contact name is alphabetically ordered."""
     a, b = contact_name.split("-")
     if a < b:
         return contact_name
@@ -481,156 +419,294 @@ def alphabetize(contact_name: str) -> str:
 def map_chains(chain_pair: tuple, pairs_list: list) -> dict:
     """
     Maps alphabetically ordered chains to their relationship order with other
-    equivalently interacting chains. Used to generate the correct contact names.
-
-    chain_pair : tuple
-        The alphabetically ordered tuple of chain IDs
-
-    pairs_list : list
-        The list of chain pair tuples from the equivalent_interactions
-        that contain the relative orientation information rather than being
-        alphabetically ordered.
-
-    Returns
-    -------
-    Dictionary
-    The mapping of the input chain pairs to their ordered relationship
-
+    equivalently interacting chains.
     """
     for pair in pairs_list:
         if chain_pair[0] in pair and chain_pair[1] in pair:
             if chain_pair[0] == pair[0]:
-                chain_map = {0: "a", 1: "b"}
+                return {0: "a", 1: "b"}
             else:
-                chain_map = {0: "b", 1: "a"}
-    return chain_map
+                return {0: "b", 1: "a"}
+    return {0: "a", 1: "b"}
 
 
 def make_equivalent_contact_names(
-    resinfo: dict, equivalent_interactions: dict
-) -> list:
+    resinfo: dict,
+    equivalent_interactions: dict[tuple[str, str], list[tuple[str, str]]],
+) -> list[str]:
     """
-    Uses the orientation-aware equivalent_interactions (that is already reduced
-    to the keys involving the representative_chains) to make the names for the
-    contacts that are equivalent to the resinfo contact.
-
-    resinfo : dict
-        The dictioinary of contact info from parse_id
-
-    equivalent_interactions : dict
-
-    Returns
-    -------
-    List of equivalent contacts to average.
-    """
-    in_pair = (resinfo["chaina"], resinfo["chainb"])
-    for key, pair_list in equivalent_interactions.items():
-        if in_pair in [tuple(sorted(pair)) for pair in pair_list]:
-            chain_pairs = equivalent_interactions[key]
-    # determine which tuple element corresponds to chaina and chainb
-    chain_map = map_chains(in_pair, chain_pairs)
-
-    contacts = []
-    for pair in chain_pairs:
-        contacts.append(
-            f"{pair[0]}:{resinfo[f'resn{chain_map[0]}']}:{resinfo[f'resid{chain_map[0]}']}-"
-            f"{pair[1]}:{resinfo[f'resn{chain_map[1]}']}:{resinfo[f'resid{chain_map[1]}']}"
-        )
-
-    contacts = [alphabetize(contact) for contact in contacts]
-    return list(set(contacts))
-
-
-def get_representative_name(resinfo, equivalent_interactions):
-    """
-    provide the chains from the contact and get the chain names to use for
-    making a generalized/averaged contact name
-    """
-
-    chaina, chainb = resinfo["chaina"], resinfo["chainb"]
-    for pair, eq_pairs in equivalent_interactions.items():
-        if (chaina, chainb) in [tuple(sorted(pair2)) for pair2 in eq_pairs]:
-            representative_pair = tuple(sorted(pair))
-            chain_list = equivalent_interactions[pair]
-            break
-    chain_map = map_chains((chaina, chainb), chain_list)
-    name = (
-        f"{pair[0]}:{resinfo[f'resn{chain_map[0]}']}:{resinfo[f'resid{chain_map[0]}']}-"
-        f"{pair[1]}:{resinfo[f'resn{chain_map[1]}']}:{resinfo[f'resid{chain_map[1]}']}"
-    )
-
-    return alphabetize(name)
-
-
-def get_pair_distance(sel1, sel2, u):
-    """
-    Return the distance between two selections
-    """
-    a = u.select_atoms(sel1).positions[0]
-    b = u.select_atoms(sel2).positions[0]
-    return np.linalg.norm(a - b)
-
-
-#################### Main Function ##########################
-
-
-def average_multimer(
-    structure: str | os.PathLike,
-    df: pd.DataFrame,
-    representative_chains: list | None = None,
-    return_stdev: bool = False,
-) -> pd.DataFrame:
-    """
-    Takes a pdb structure, contact df, and list of chain(s) to use for
-    representing the averaged contacts. Finds all of the equivalent
-    interactions and returns a dataframe of the averaged values. The subunits in
-    the structure should be symmetrically arranged and if it's a heteromultimer,
-    there should be an identical number of each type of subunit.
+    Uses orientation-aware equivalent_interactions to generate the names
+    for all contacts equivalent to the given contact.
 
     Parameters
     ----------
-    structure : str
-        Path to pdb file that contact frequencies/ simulations are based on.
-
-    df : pd.DataFrame
-        The contact frequency dataframe to average.
-
-    representative_chains : list
-        List of pdb chain ids to use for depicting the averaged contacts on.
-        If structure is a homomultimer, you do not need to specify this and the
-        chain corresponding to the first segment in the universe is used.
-        If it's a heteromultimer then specify the closest heterosubunit to 'A'
-        e.g. ['A','F']
-
-    return_stdev : bool
-        If True, returns averaged_contacts and standard_deviation of contact
-        frequencies for identical interactions.
-        Usage : avg_df, stdev = average_multimer(args)
+    resinfo : dict
+        Contact info dictionary from parse_id.
+    equivalent_interactions : dict
+        Mapping from canonical chain pairs to equivalent directed pairs.
 
     Returns
     -------
-    pd.DataFrame
+    list[str]
+        Sorted list of unique equivalent contact names.
     """
-    structure = str(structure)
-    u = mda.Universe(structure)
-    u = mda.Merge(u.select_atoms("protein"))
-    ###### Only averaging contacts for protein
+    chaina, chainb = resinfo["chaina"], resinfo["chainb"]
+    resna, resida = resinfo["resna"], resinfo["resida"]
+    resnb, residb = resinfo["resnb"], resinfo["residb"]
 
-    # int key to list of int segids
-    identical_subunits = find_identical_subunits(u)
-    chain_seg = chain_to_seg(u)  # chain str to segid dict
+    matched_key = None
+    role_order = None
+
+    for key, pair_list in equivalent_interactions.items():
+        for p0, p1 in pair_list:
+            if (chaina, chainb) == (p0, p1):
+                matched_key = key
+                role_order = (resna, resida, resnb, residb)
+                break
+            elif (chaina, chainb) == (p1, p0):
+                matched_key = key
+                role_order = (resnb, residb, resna, resida)
+                break
+        if matched_key is not None:
+            break
+
+    if matched_key is None:
+        return [alphabetize(f"{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}")]
+
+    r1_n, r1_id, r2_n, r2_id = role_order
+    contacts = []
+    for p0, p1 in equivalent_interactions[matched_key]:
+        contacts.append(alphabetize(f"{p0}:{r1_n}:{r1_id}-{p1}:{r2_n}:{r2_id}"))
+
+    return sorted(set(contacts))
+
+
+def get_representative_name(
+    resinfo: dict,
+    equivalent_interactions: dict[tuple[str, str], list[tuple[str, str]]],
+) -> str:
+    """
+    Provide contact info and get the canonical representative contact name.
+    """
+    chaina, chainb = resinfo["chaina"], resinfo["chainb"]
+    resna, resida = resinfo["resna"], resinfo["resida"]
+    resnb, residb = resinfo["resnb"], resinfo["residb"]
+
+    matched_key = None
+    role_order = None
+
+    for key, pair_list in equivalent_interactions.items():
+        for p0, p1 in pair_list:
+            if (chaina, chainb) == (p0, p1):
+                matched_key = key
+                role_order = (resna, resida, resnb, residb)
+                break
+            elif (chaina, chainb) == (p1, p0):
+                matched_key = key
+                role_order = (resnb, residb, resna, resida)
+                break
+        if matched_key is not None:
+            break
+
+    if matched_key is None:
+        return alphabetize(f"{chaina}:{resna}:{resida}-{chainb}:{resnb}:{residb}")
+
+    rep_a, rep_b = matched_key
+    r1_n, r1_id, r2_n, r2_id = role_order
+    return alphabetize(f"{rep_a}:{r1_n}:{r1_id}-{rep_b}:{r2_n}:{r2_id}")
+
+
+def get_pair_distance(sel1: str, sel2: str, u: mda.Universe) -> float:
+    """Return the distance between two atom selections."""
+    a = u.select_atoms(sel1).positions[0]
+    b = u.select_atoms(sel2).positions[0]
+    return float(np.linalg.norm(a - b))
+
+
+def trim_multimer_termini(
+    structure: str | os.PathLike | mda.Universe,
+    df: pd.DataFrame,
+    chain_groups: list[list[str]] | None = None,
+    output_structure: str | os.PathLike | None = None,
+) -> tuple[mda.Universe, pd.DataFrame]:
+    """
+    Trim ragged termini across homomultimer subunits and synchronize contact data.
+
+    Finds the longest common contiguous substring of amino acid residues across
+    identical subunits (or specified chain groups), removes non-common
+    terminal residues from the MDAnalysis Universe, and drops any contact columns
+    from the frequency DataFrame that involve the discarded residues.
+
+    Parameters
+    ----------
+    structure : str | os.PathLike | mda.Universe
+        Path to PDB file or an existing MDAnalysis Universe.
+    df : pd.DataFrame
+        Contact frequency DataFrame.
+    chain_groups : list[list[str]], optional
+        List of lists of chain IDs to trim together (e.g. [['A', 'B'], ['C', 'D']]).
+        If None, chains with high sequence similarity (longest common substring >= 50%
+        of chain length) are automatically grouped as homosubunits.
+    output_structure : str | os.PathLike, optional
+        If provided, writes the trimmed Universe coordinates to this file path.
+
+    Returns
+    -------
+    tuple[mda.Universe, pd.DataFrame]
+        A tuple of (trimmed_universe, trimmed_dataframe).
+    """
+    if isinstance(structure, mda.Universe):
+        u = structure
+    else:
+        u = mda.Universe(str(structure))
+
+    protein = u.select_atoms("protein")
+    if len(protein) > 0:
+        u = mda.Merge(protein)
+
     seg_chain = seg_to_chain(u)
-    # validate_group_memberships is expecting integers but representative chains
-    # is strings
+
+    chain_seqs = {}
+    chain_residues = {}
+    for i, seg in enumerate(u.segments):
+        ch = seg_chain[i]
+        seq = "".join(convert_aa_code(r.resname) for r in seg.residues)
+        chain_seqs[ch] = seq
+        chain_residues[ch] = list(seg.residues)
+
+    all_chains = list(chain_seqs.keys())
+
+    if chain_groups is None:
+        chain_groups = []
+        visited = set()
+        for ch1 in all_chains:
+            if ch1 in visited:
+                continue
+            group = [ch1]
+            visited.add(ch1)
+            s1 = chain_seqs[ch1]
+            for ch2 in all_chains:
+                if ch2 in visited:
+                    continue
+                s2 = chain_seqs[ch2]
+                lcs = _longest_common_contiguous_substring([s1, s2])
+                min_len = min(len(s1), len(s2))
+                if min_len > 0 and len(lcs) / min_len >= 0.5:
+                    group.append(ch2)
+                    visited.add(ch2)
+            chain_groups.append(group)
+
+    discarded_residues = set()
+    kept_atoms_sel = []
+
+    for group in chain_groups:
+        if len(group) == 1:
+            ch = group[0]
+            kept_atoms_sel.append(f"chainID {ch}")
+            continue
+
+        group_seqs = [chain_seqs[ch] for ch in group]
+        lcs = _longest_common_contiguous_substring(group_seqs)
+
+        if not lcs:
+            warnings.warn(
+                f"No common sequence found for chains {group}. "
+                "Keeping all residues.",
+                stacklevel=2,
+            )
+            for ch in group:
+                kept_atoms_sel.append(f"chainID {ch}")
+            continue
+
+        for ch in group:
+            seq = chain_seqs[ch]
+            res_list = chain_residues[ch]
+            start_idx = seq.find(lcs)
+            end_idx = start_idx + len(lcs)
+
+            kept_res = res_list[start_idx:end_idx]
+            disc_res = res_list[:start_idx] + res_list[end_idx:]
+
+            for r in disc_res:
+                discarded_residues.add((ch, str(r.resid)))
+
+            kept_resids = " ".join(str(r.resid) for r in kept_res)
+            if kept_resids:
+                kept_atoms_sel.append(f"(chainID {ch} and resid {kept_resids})")
+
+    full_sel = " or ".join(kept_atoms_sel)
+    selected_atoms = u.select_atoms(full_sel)
+    trimmed_u = mda.Merge(selected_atoms)
+
+    if output_structure is not None:
+        trimmed_u.atoms.write(str(output_structure))
+
+    if discarded_residues and len(df.columns) > 0:
+        cols_to_drop = []
+        for col in df.columns:
+            info = parse_id(col)
+            if (info["chaina"], str(info["resida"])) in discarded_residues or (
+                info["chainb"],
+                str(info["residb"]),
+            ) in discarded_residues:
+                cols_to_drop.append(col)
+        trimmed_df = df.drop(columns=cols_to_drop)
+    else:
+        trimmed_df = df.copy()
+
+    return trimmed_u, trimmed_df
+
+
+def average_multimer(
+    structure: str | os.PathLike | mda.Universe,
+    df: pd.DataFrame,
+    representative_chains: list[str] | None = None,
+    return_stdev: bool = False,
+    rmsd_cutoff: float = 1.5,
+) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Takes a structure, contact frequency DataFrame, and representative chain(s)
+    to compute averaged contact frequencies across equivalent interfaces.
+
+    Parameters
+    ----------
+    structure : str | os.PathLike | mda.Universe
+        Path to PDB file or existing MDAnalysis Universe.
+    df : pd.DataFrame
+        Contact frequency dataframe to average.
+    representative_chains : list[str] | None, optional
+        List of pdb chain IDs to use for depicting averaged contacts.
+        If None, automatically defaults to the first chain for homomultimers
+        or one representative per subunit type for heteromultimers.
+    return_stdev : bool, default=False
+        If True, returns (averaged_df, stdev_df).
+    rmsd_cutoff : float, default=1.5
+        RMSD cutoff in Angstroms for determining whether two pairwise subunit
+        geometries are spatially equivalent.
+
+    Returns
+    -------
+    pd.DataFrame or tuple[pd.DataFrame, pd.DataFrame]
+    """
+    if isinstance(structure, mda.Universe):
+        u = structure
+    else:
+        u = mda.Universe(str(structure))
+    u = mda.Merge(u.select_atoms("protein"))
+
+    identical_subunits = find_identical_subunits(u)
+    chain_seg = chain_to_seg(u)
+    seg_chain = seg_to_chain(u)
+
     identical_chains = {
         group: [seg_chain[el] for el in val]
         for group, val in identical_subunits.items()
     }
-    # Checks and representative chain assignments if None
+
     if has_only_identical_subunits(u):
         if representative_chains is None:
-            representative_chains = [u.segments.segids[0]]
-    else:  # heteromultimer
+            representative_chains = [seg_chain[0]]
+    else:
         if len(identical_subunits) > 1:
             test_len = len(list(identical_subunits.values())[0])
             if not np.all(
@@ -641,11 +717,14 @@ def average_multimer(
                     "of each type of subunit."
                 )
                 return
+            if representative_chains is None:
+                representative_chains = [
+                    seg_chain[val[0]] for val in identical_subunits.values()
+                ]
             elif len(representative_chains) != len(identical_subunits):
                 print(
                     "You need to specify 1 chain id for each type of subunit "
-                    "in the representative_chains argument. They should be in "
-                    "contact in the structure."
+                    "in the representative_chains argument."
                 )
                 return
             elif not validate_group_memberships(
@@ -656,74 +735,66 @@ def average_multimer(
                     "of subunits in the identical_subunits dictionary."
                 )
                 return
-            if (
-                representative_chains is None
-            ):  # need to base this off of nearest subunits
-                representative_chains = [
-                    val[0] for val in identical_subunits.values()
-                ]
 
-    # ensure correct averaging
-    denominator = len(identical_subunits[0])
-    # for identifying equivalent spatial relationships between subunits
-    rotations = get_all_rotations(u, identical_subunits)
-    # non alphabetically sorted dictionary where key (B,A) has list of
-    # chain pairs that are equivalent to A's relationship to B
-    # this let's you directly assign which contact names to search for.
-    # reduce equivalent_interactions to only keys with representative_chains
     equivalent_interactions = get_equivalent_interactions(
-        rotations, identical_subunits, chain_seg, representative_chains
+        u,
+        identical_subunits,
+        chain_seg,
+        representative_chains,
+        rmsd_cutoff=rmsd_cutoff,
     )
-    # removing the columns in place, so using a copy of the original data
-    df_copy = df.copy()
-    # hold the averaged data
+
+    remaining_cols = set(df.columns)
     averaged_data = {}
-    # collect this for error bars on averaged contact vs temp plots
     standard_deviation = {}
-    # TODO keep track of what's averaged
-    ############## Main Loop Begins here ###################
+
     print("Just a moment.\n")
     total_count = len(df.columns)
     with tqdm.tqdm(total=total_count) as progress:
-        # as equivalent contacts are averaged, the columns are removed
-        while len(df_copy.columns) > 0:
-            #  TODO Multiprocessing for this block
-            # take the first of the remaining column names as the template
-            resinfo = parse_id(df_copy.columns[0])
-            # Create the name that the averaged value will be associated with
-            averaged_name = get_representative_name(
-                resinfo, equivalent_interactions
-            )
-            # make the names for all the equivalent contacts to average
-            to_average = make_equivalent_contact_names(
-                resinfo, equivalent_interactions
-            )
-            # Get only the contact names that exist in the dataframe
-            to_average = np.intersect1d(to_average, df_copy.columns.values)
+        for col in df.columns:
+            if col not in remaining_cols:
+                continue
 
-            # keep track of anything that shouldn't be happening
-            if len(to_average) > denominator:
-                print(
-                    f"averaging {len(to_average)} contacts "
-                    f"when there should be at most {denominator}. "
-                    f"contacts are : {to_average}"
-                )
-                averaged_data[averaged_name] = df_copy[to_average].sum(
-                    axis=1
-                ) / len(to_average)
+            resinfo = parse_id(col)
+            averaged_name = get_representative_name(resinfo, equivalent_interactions)
+            to_average_all = make_equivalent_contact_names(
+                resinfo, equivalent_interactions
+            )
+
+            expected_count = len(to_average_all)
+            present_cols = [c for c in to_average_all if c in df.columns]
+
+            if not present_cols:
+                remaining_cols.discard(col)
+                progress.update(1)
+                continue
+
+            sum_series = df[present_cols].sum(axis=1)
+            averaged_data[averaged_name] = sum_series / expected_count
+
+            if expected_count == 1:
+                standard_deviation[averaged_name] = pd.Series(0.0, index=df.index)
             else:
-                averaged_data[averaged_name] = (
-                    df_copy[to_average].sum(axis=1) / denominator
-                )
+                n_missing = expected_count - len(present_cols)
+                if n_missing == 0:
+                    standard_deviation[averaged_name] = df[present_cols].std(
+                        axis=1, ddof=1
+                    )
+                else:
+                    vals = df[present_cols].values
+                    zeros = np.zeros((vals.shape[0], n_missing))
+                    full_vals = np.hstack([vals, zeros])
+                    std_vals = np.std(full_vals, axis=1, ddof=1)
+                    standard_deviation[averaged_name] = pd.Series(
+                        std_vals, index=df.index
+                    )
 
-            standard_deviation[averaged_name] = df_copy[to_average].std(axis=1)
-            # get rid of the contacts that were just averaged and reduce the
-            # number of remaining contacts to check in the dataframe
-            df_copy.drop(to_average, axis=1, inplace=True)
-            # update the progress bar
-            columns_removed = len(to_average)
-            progress.update(columns_removed)
-    if return_stdev == True:
+            for c in to_average_all:
+                if c in remaining_cols:
+                    remaining_cols.remove(c)
+                    progress.update(1)
+
+    if return_stdev:
         return pd.DataFrame(averaged_data), pd.DataFrame(standard_deviation)
     else:
         return pd.DataFrame(averaged_data)
@@ -732,30 +803,31 @@ def average_multimer(
 def everything_from_averaged(
     averaged_contacts: pd.DataFrame,
     u: mda.Universe,
-    representative_chains: list[str],
+    representative_chains: list[str] | None = None,
     as_map: bool = False,
+    rmsd_cutoff: float = 1.5,
 ):
     """
     Take the averaged contacts and regenerate the entire protein's contacts
-    using this data. Useful for visualizing the flow of chacras across the whole
-    protein and doing network analysis on more statistically robust data.
+    using this data.
 
+    Parameters
+    ----------
     averaged_contacts : pd.DataFrame
         The averaged contact data.
-
-    u : MDA.Universe
-        The same universe used for averaging contacts
-
-    representative_chains : list
-        The list of chain ids used when generating the averaged contact names.
-
-    as_map : bool
+    u : mda.Universe
+        The same universe used for averaging contacts.
+    representative_chains : list[str] | None, optional
+        The list of chain IDs used when generating the averaged contact names.
+    as_map : bool, default=False
         Returns a dictionary mapping each averaged contact name to a list of the
-        corresponding replicated contact names
+        corresponding replicated contact names.
+    rmsd_cutoff : float, default=1.5
+        RMSD cutoff in Angstroms for determining equivalent interactions.
 
     Returns
     -------
-    pd.DataFrame of the averaged contact values applied back to all chains.
+    pd.DataFrame or dict[str, list[str]]
     """
     print("Collecting some information. One moment.")
     protein = u.select_atoms("protein")
@@ -763,13 +835,26 @@ def everything_from_averaged(
 
     identical_subunits = find_identical_subunits(u)
     chain_seg = chain_to_seg(u)
-    rotations = get_all_rotations(u, identical_subunits)
+    seg_chain = seg_to_chain(u)
+
+    if representative_chains is None:
+        if has_only_identical_subunits(u):
+            representative_chains = [seg_chain[0]]
+        else:
+            representative_chains = [
+                seg_chain[val[0]] for val in identical_subunits.values()
+            ]
+
     equivalent_interactions = get_equivalent_interactions(
-        rotations, identical_subunits, chain_seg, representative_chains
+        u,
+        identical_subunits,
+        chain_seg,
+        representative_chains,
+        rmsd_cutoff=rmsd_cutoff,
     )
 
     replicated_contacts = {}
-    mapped_contacts = {contact: [] for contact in averaged_contacts.columns}
+    mapped_contacts = {}
 
     for averaged_contact in tqdm.tqdm(averaged_contacts.columns):
         resinfo = parse_id(averaged_contact)
@@ -777,13 +862,11 @@ def everything_from_averaged(
             resinfo, equivalent_interactions
         )
         for remade_contact in remade_contacts:
-            replicated_contacts[remade_contact] = averaged_contacts[
-                averaged_contact
-            ]
+            replicated_contacts[remade_contact] = averaged_contacts[averaged_contact]
 
         mapped_contacts[averaged_contact] = remade_contacts
 
     if as_map:
         return mapped_contacts
     else:
-        return pd.DataFrame.from_dict(replicated_contacts)
+        return pd.DataFrame(replicated_contacts, index=averaged_contacts.index)
